@@ -17,17 +17,17 @@ use DI\Definition\Source\DefinitionSource;
  *
  * @extends \DI\ContainerBuilder<Container>
  */
-class Builder extends \DI\ContainerBuilder {
+class App_Builder extends \DI\ContainerBuilder {
     /**
      * Static method to configure the container.
      *
      * @param  array<string, mixed> $config Configuration options.
-     * @return Builder
+     * @return App_Builder
      */
-    public static function configure( array $config = array() ): Builder {
+    public static function configure( array $config = array() ): App_Builder {
         $config = static::getDefaultConfig( $config );
 
-        return ( new Builder() )
+        return ( new App_Builder() )
             ->useAttributes( $config['attributes'] )
             ->useAutowiring( $config['autowiring'] )
             ->writeProxiesToFile( writeToFile: $config['proxies'], proxyDirectory: $config['compile_dir'] )

@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Hook;
+namespace XWP\DI;
 
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Interfaces\Can_Handle;

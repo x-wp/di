@@ -9,7 +9,7 @@
 namespace XWP\DI;
 
 use XWP\DI\Decorators\Module;
-use XWP\DI\Hook\Handler_Factory;
+use XWP\DI\Handler_Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Utils\Reflection;

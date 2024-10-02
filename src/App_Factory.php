@@ -51,7 +51,7 @@ final class App_Factory {
             return $this->containers[ $config['id'] ];
         }
 
-        return $this->containers[ $config['id'] ] ??= Builder::configure( $config )
+        return $this->containers[ $config['id'] ] ??= App_Builder::configure( $config )
             ->addDefinitions( $config['module'] )
             ->build();
     }

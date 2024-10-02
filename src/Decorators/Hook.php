@@ -12,9 +12,8 @@ use Closure;
 use DI\Container;
 use ReflectionClass;
 use ReflectionMethod;
-use XWP\DI\Hook\Context;
+use XWP\DI\Hook_Context;
 use XWP\DI\Interfaces\Can_Hook;
-use XWP\DI\Traits\Hookable;
 
 /**
  * Base hook from which the action and filter decorators inherit.
@@ -112,7 +111,7 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     public function check_context(): bool {
-        return Context::is_valid_context( $this->context );
+        return Hook_Context::validate( $this->context );
     }
 
     /**
