@@ -1,0 +1,65 @@
+{
+  "name": "x-wp/di",
+  "description": "Provides standardized way to declare and invoke WordPress hooks",
+  "license": "GPL-2.0-only",
+  "type": "library",
+  "keywords": [
+    "wordpress",
+    "hooks",
+    "actions",
+    "filters",
+    "hook-manager",
+    "extended-wp"
+  ],
+  "authors": [
+    {
+      "name": "Sibin Grasic",
+      "email": "sibin.grasic@oblak.studio"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/x-wp/hook-manager/issues"
+  },
+  "require": {
+    "php": ">=8.0",
+    "automattic/jetpack-constants": "^2",
+    "php-di/php-di": "^7",
+    "x-wp/helper-classes": "^1.13",
+    "x-wp/helper-functions": "^1.13"
+  },
+  "require-dev": {
+    "oblak/wordpress-coding-standard": "^1.1",
+    "php-stubs/wordpress-stubs": "^6.6",
+    "phpstan/extension-installer": "^1.4",
+    "phpstan/phpstan": "^1.12",
+    "phpstan/phpstan-deprecation-rules": "^1.2",
+    "swissspidy/phpstan-no-private": "^0.2",
+    "szepeviktor/phpstan-wordpress": "^1.3"
+  },
+  "provide": {
+    "x-wp/di-implementation": "self.version"
+  },
+  "suggest": {
+    "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+  },
+  "autoload": {
+    "psr-4": {
+      "XWP\\DI\\": "src/"
+    },
+    "files": [
+      "src/Functions/xwp-di-container-fns.php",
+      "src/Functions/xwp-di-helper-fns.php"
+    ]
+  },
+  "config": {
+    "platform": {
+      "php": "8.0"
+    },
+    "allow-plugins": {
+      "automattic/jetpack-autoloader": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
+    },
+    "sort-packages": true
+  }
+}
