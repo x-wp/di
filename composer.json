@@ -37,7 +37,7 @@
     "szepeviktor/phpstan-wordpress": "^1.3"
   },
   "provide": {
-    "x-wp/di-implementation": "self.version"
+    "x-wp/di-implementation": "1"
   },
   "suggest": {
     "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
@@ -52,13 +52,13 @@
     ]
   },
   "config": {
-    "platform": {
-      "php": "8.0"
-    },
     "allow-plugins": {
       "automattic/jetpack-autoloader": true,
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "phpstan/extension-installer": true
+    },
+    "platform": {
+      "php": "8.0"
     },
     "sort-packages": true
   }
