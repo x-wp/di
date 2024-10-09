@@ -173,6 +173,7 @@ class Filter extends Hook implements Can_Invoke {
     public function invoke( mixed ...$args ): mixed {
         if (
             ! $this->init_handler( $this->handler::INIT_JUST_IN_TIME ) ||
+            ! parent::can_load() ||
             ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
             ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
         ) {
