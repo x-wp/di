@@ -160,14 +160,24 @@ class Filter extends Hook implements Can_Invoke {
             return false;
         }
 
-        $this->loaded = ( "add_{$this->get_type()}" )(
-            $this->tag,
+        $this->loaded = $this->load_hook();
+
+        return $this->loaded;
+    }
+
+    /**
+     * Loads the hook.
+     *
+     * @param  ?string $tag Optional hook tag.
+     * @return bool
+     */
+    protected function load_hook( ?string $tag = null ): bool {
+        return ( "add_{$this->get_type()}" )(
+            $tag ?? $this->tag,
             $this->target,
             $this->priority,
             $this->args,
         );
-
-        return $this->loaded;
     }
 
     public function invoke( mixed ...$args ): mixed {
@@ -199,15 +209,28 @@ class Filter extends Hook implements Can_Invoke {
     protected function fire_hook( mixed ...$args ): mixed {
         $this->firing = true;
 
+        return $this->container->call(
+            array( $this->handler->classname, $this->method ),
+            $this->get_cb_args( $args ),
+        );
+    }
+
+    /**
+     * Get the arguments to pass to the callback.
+     *
+     * @param  array<int, mixed> $args Existing arguments.
+     * @return array<int, mixed>
+     */
+    protected function get_cb_args( array $args ): array {
         if ( $this->params ) {
             foreach ( $this->params as $param ) {
                 $args[] = $this->container->get( $param );
             }
+
+            $args[] = $this;
         }
 
-        $args[] = $this;
-
-        return $this->container->call( array( $this->handler->classname, $this->method ), $args );
+        return $args;
     }
 
     /**
