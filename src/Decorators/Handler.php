@@ -110,6 +110,10 @@ class Handler extends Hook implements Can_Handle {
         $this->classname ??= $instance::class;
         $this->loaded      = true;
 
+        if ( ! $this->container->has( $this->classname ) ) {
+            $this->container->set( $this->classname, $this->instance );
+        }
+
         return $this;
     }
 
