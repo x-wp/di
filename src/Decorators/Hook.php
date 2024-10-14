@@ -121,7 +121,7 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     protected function check_method( array|string|\Closure|null $method ): bool {
-        return ! \is_callable( $method ) || $method( $this );
+        return ! \is_callable( $method ) || $this->container->call( $method );
     }
 
     /**
