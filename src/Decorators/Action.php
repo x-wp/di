@@ -8,11 +8,14 @@
 
 namespace XWP\DI\Decorators;
 
+use XWP\DI\Interfaces\Can_Handle;
+
 /**
  * Action hook decorator.
  *
  * @template T of object
- * @extends Filter<T>
+ * @template H of Can_Handle<T>
+ * @extends Filter<T,H>
  *
  * @since 1.0.0
  */

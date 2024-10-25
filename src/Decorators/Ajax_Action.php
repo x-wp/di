@@ -14,7 +14,8 @@ use Closure;
  * Ajax action decorator.
  *
  * @template T of object
- * @extends Action<T>
+ * @template H of Ajax_Handler<T>
+ * @extends Action<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Ajax_Action extends Action {

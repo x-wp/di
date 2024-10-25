@@ -19,15 +19,16 @@ use XWP\DI\Interfaces\Can_Invoke;
  * Filter hook decorator.
  *
  * @template T of object
+ * @template H of Can_Handle<T>
  * @extends Hook<T, ReflectionMethod>
- * @implements Can_Invoke<T>
+ * @implements Can_Invoke<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Filter extends Hook implements Can_Invoke {
     /**
      * The handler.
      *
-     * @var Can_Handle<T>
+     * @var H
      */
     protected Can_Handle $handler;
 
@@ -99,7 +100,7 @@ class Filter extends Hook implements Can_Invoke {
     /**
      * Set the handler.
      *
-     * @param  Can_Handle<T> $handler The handler.
+     * @param  H $handler The handler.
      * @return static
      */
     public function with_handler( Can_Handle $handler ): static {

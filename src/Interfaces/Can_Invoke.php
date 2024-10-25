@@ -11,13 +11,15 @@ namespace XWP\DI\Interfaces;
 /**
  * Defines decorators that can invoke WordPress hooks.
  *
- * @template THndlr of object
- * @extends Can_Hook<THndlr,\ReflectionMethod>
+ * @template TInst of object
+ * @template THndl of Can_Handle<TInst>
+ * @extends Can_Hook<TInst,\ReflectionMethod>
  *
  * @property-read bool $firing Is the hook firing?
- * @property-read int $fired   Number of times the hook has fired.
+ * @property-read int  $fired   Number of times the hook has fired.
 
- * @property-read array{THndlr,string} $target The target method.
+ * @property-read array{TInst,string} $target The target method.
+ * @property-read Thndl $handler The handler instance.
  */
 interface Can_Invoke extends Can_Hook {
     /**
@@ -47,8 +49,7 @@ interface Can_Invoke extends Can_Hook {
     /**
      * Set the handler instance.
      *
-     * @template Thndlr of object
-     * @param  Can_Handle<Thndlr> $handler Handler instance.
+     * @param  THndl $handler Handler instance.
      * @return static
      */
     public function with_handler( Can_Handle $handler ): static;

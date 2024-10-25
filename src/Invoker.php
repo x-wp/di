@@ -95,7 +95,7 @@ class Invoker {
      *
      * @template T of object
      * @param  class-string<T> $classname The handler classname.
-     * @return array<string,array<int,Can_Invoke<T>>>
+     * @return array<string,array<int,Can_Invoke<T,Can_Handle<T>>>>
      */
     public function get_hooks( string $classname ): array {
         return $this->has_hooks( $classname ) ? $this->hooks[ $classname ] : array();
@@ -226,7 +226,7 @@ class Invoker {
      * @return static
      */
     protected function register_methods( Can_Handle $handler ): static {
-		if ( $this->has_hooks( $handler->classname ) ) {
+		if ( $this->has_hooks( $handler->classname ) || ! $handler->is_hookable() ) {
 			return $this;
         }
 
@@ -247,18 +247,20 @@ class Invoker {
      * Register a method.
      *
      * @template T of object
-     * @param  Can_Handle<T>     $handler The handler to register the method for.
-     * @param  \ReflectionMethod $m       The method to register.
-     * @return array<int,Can_Invoke<T>>
+     * @template H of Can_Handle<T>
+     *
+     * @param  H                 $handler The handler to register the method for.
+     * @param  \ReflectionMethod $method       The method to register.
+     * @return array<int,Can_Invoke<T,H>>
      */
-	private function register_method( Can_Handle $handler, \ReflectionMethod $m ) {
+	private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
 		$hooks = array();
 
-		foreach ( Reflection::get_decorators( $m, Can_Invoke::class ) as $hook ) {
+		foreach ( Reflection::get_decorators( $method, Can_Invoke::class ) as $hook ) {
 			$hooks[] = $hook
-                ->with_handler( $handler )
-                ->with_target( $m->getName() )
-                ->with_reflector( $m );
+            ->with_reflector( $method )
+            ->with_target( $method->getName() )
+            ->with_handler( $handler );
 		}
 
 		return $hooks;
@@ -311,6 +313,8 @@ class Invoker {
 			}
 		}
 
+        \do_action( 'xwp_di_hooks_loaded_' . $handler->classname, $handler );
+
         return $this;
     }
 
@@ -318,8 +322,9 @@ class Invoker {
      * Load hooks for a handler.
      *
      * @template T of object
-     * @param  Can_Handle<T>                          $handler The handler to load hooks for.
-     * @param  array<string,array<int,Can_Invoke<T>>> $hooks The hooks to load.
+     * @template H of Can_Handle<T>
+     * @param  H                                        $handler The handler to load hooks for.
+     * @param  array<string,array<int,Can_Invoke<T,H>>> $hooks The hooks to load.
      * @return static
      */
     public function load_hooks( Can_Handle $handler, array $hooks ): static {
