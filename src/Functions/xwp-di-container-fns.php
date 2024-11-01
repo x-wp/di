@@ -30,6 +30,33 @@ function xwp_app( string $container_id ): Container {
  *   compile_class?: string,
  *   compile_dir?: string,
  *   proxies?: bool,
+ * } $app Application configuration.
+ * @param  string $hook     Hook to create the container on.
+ * @param  int    $priority Hook priority.
+ * @return true
+ */
+function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN ): bool {
+    return add_action(
+        $hook,
+        static function () use( $app ): void {
+            xwp_create_app( $app );
+        },
+        $priority,
+    );
+}
+
+/**
+ * Create a new app container.
+ *
+ * @param  array{
+ *   id: string,
+ *   module: class-string,
+ *   attributes?: bool,
+ *   autowiring?: bool,
+ *   compile?: bool,
+ *   compile_class?: string,
+ *   compile_dir?: string,
+ *   proxies?: bool,
  * } $args Application configuration.
  * @return Container
  */
