@@ -37,12 +37,15 @@
     "swissspidy/phpstan-no-private": "^0.2",
     "szepeviktor/phpstan-wordpress": "^1.3"
   },
+  "conflict": {
+    "oblak/wp-hook-di": "*"
+  },
   "provide": {
+    "psr/container-implementation": "^1.0",
     "x-wp/di-implementation": "^1.0"
   },
   "replace": {
-    "x-wp/hook-invoker": "*",
-    "oblak/wp-hook-di": "*"
+    "x-wp/hook-invoker": "*"
   },
   "suggest": {
     "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "38a8a9ea22144a00c1d887e9ab0a9c09",
+    "content-hash": "3879411c4b4bea5e32cc13d31fdcb283",
     "packages": [
         {
             "name": "automattic/jetpack-constants",
@@ -377,7 +377,7 @@
         },
         {
             "name": "x-wp/helper-classes",
-            "version": "v1.15.1",
+            "version": "v1.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/x-wp/helper-classes.git",
@@ -427,22 +427,22 @@
             ],
             "support": {
                 "issues": "https://github.com/x-wp/helper-classes/issues",
-                "source": "https://github.com/x-wp/helper-classes/tree/v1.15.1"
+                "source": "https://github.com/x-wp/helper-classes/tree/v1.18.0"
             },
             "time": "2024-09-23T14:31:15+00:00"
         },
         {
             "name": "x-wp/helper-functions",
-            "version": "v1.16.1",
+            "version": "v1.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/x-wp/helper-functions.git",
-                "reference": "4a41e8db184d3721e4d42d88b3a683859888021d"
+                "reference": "1e3392e49d0fe95eb13e8980081b9ceb0268e0bd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/x-wp/helper-functions/zipball/4a41e8db184d3721e4d42d88b3a683859888021d",
-                "reference": "4a41e8db184d3721e4d42d88b3a683859888021d",
+                "url": "https://api.github.com/repos/x-wp/helper-functions/zipball/1e3392e49d0fe95eb13e8980081b9ceb0268e0bd",
+                "reference": "1e3392e49d0fe95eb13e8980081b9ceb0268e0bd",
                 "shasum": ""
             },
             "require": {
@@ -454,9 +454,10 @@
             "type": "library",
             "autoload": {
                 "files": [
-                    "xwp-helper-fns.php",
+                    "xwp-helper-fns-arr.php",
                     "xwp-helper-fns-num.php",
-                    "xwp-helper-fns-req.php"
+                    "xwp-helper-fns-req.php",
+                    "xwp-helper-fns.php"
                 ],
                 "psr-4": {
                     "XWP\\Helper\\Functions\\": "."
@@ -484,13 +485,13 @@
             ],
             "support": {
                 "issues": "https://github.com/x-wp/helper-functions/issues",
-                "source": "https://github.com/x-wp/helper-functions/tree/v1.16.1"
+                "source": "https://github.com/x-wp/helper-functions/tree/v1.18.0"
             },
-            "time": "2024-10-24T00:44:15+00:00"
+            "time": "2024-10-29T22:53:16+00:00"
         },
         {
             "name": "x-wp/helper-traits",
-            "version": "v1.15.1",
+            "version": "v1.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/x-wp/helper-traits.git",
@@ -536,7 +537,7 @@
             ],
             "support": {
                 "issues": "https://github.com/x-wp/helper-traits/issues",
-                "source": "https://github.com/x-wp/helper-traits/tree/v1.15.1"
+                "source": "https://github.com/x-wp/helper-traits/tree/v1.18.0"
             },
             "time": "2024-09-18T12:43:44+00:00"
         }
@@ -1144,16 +1145,16 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.12.6",
+            "version": "1.12.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan.git",
-                "reference": "dc4d2f145a88ea7141ae698effd64d9df46527ae"
+                "reference": "dc2b9976bd8b0f84ec9b0e50cc35378551de7af0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/dc4d2f145a88ea7141ae698effd64d9df46527ae",
-                "reference": "dc4d2f145a88ea7141ae698effd64d9df46527ae",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/dc2b9976bd8b0f84ec9b0e50cc35378551de7af0",
+                "reference": "dc2b9976bd8b0f84ec9b0e50cc35378551de7af0",
                 "shasum": ""
             },
             "require": {
@@ -1198,7 +1199,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-10-06T15:03:59+00:00"
+            "time": "2024-10-18T11:12:07+00:00"
         },
         {
             "name": "phpstan/phpstan-deprecation-rules",
