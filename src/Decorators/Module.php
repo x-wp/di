@@ -28,12 +28,12 @@ class Module extends Handler {
     /**
      * Constructor.
      *
-     * @param  string                  $container Container ID.
-     * @param  string                  $hook      Hook name.
-     * @param  int                     $priority  Hook priority.
-     * @param  array<int,class-string> $imports   Array of submodules to import.
-     * @param  array<int,class-string> $handlers  Array of handlers to register.
-     * @param  bool                    $dynamic   Is the module extendable.
+     * @param  string                  $container  Container ID.
+     * @param  string                  $hook       Hook name.
+     * @param  int                     $priority   Hook priority.
+     * @param  array<int,class-string> $imports    Array of submodules to import.
+     * @param  array<int,class-string> $handlers   Array of handlers to register.
+     * @param  bool                    $extendable Is the module extendable.
      */
     public function __construct(
         string $container,
@@ -56,7 +56,7 @@ class Module extends Handler {
          *
          * @var bool
          */
-        protected bool $dynamic = false,
+        protected bool $extendable = false,
     ) {
         parent::__construct(
             tag: $hook,
@@ -95,11 +95,6 @@ class Module extends Handler {
             $definitions = \array_merge( $definitions, $module->get_definitions() );
         }
 
-        // if ( 'woosync' === $this->container_id && \WooSync\App::class === $this->classname ) {
-        // \dump( $definitions );
-        // die;
-		// }
-
         $this->imported = true;
 
         return $definitions;
@@ -111,11 +106,11 @@ class Module extends Handler {
      * @return array<int,class-string>
      */
     protected function get_imports(): array {
-        if ( ! $this->dynamic ) {
+        if ( ! $this->extendable ) {
             return $this->imports;
         }
 
-        $tag = "xwp_dynamic_import_{$this->container_id}";
+        $tag = "xwp_extend_import_{$this->container_id}";
 
         /**
          * Filter the module imports.

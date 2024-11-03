@@ -25,8 +25,6 @@ class App_Builder extends \DI\ContainerBuilder {
      * @return App_Builder
      */
     public static function configure( array $config = array() ): App_Builder {
-        $config = static::getDefaultConfig( $config );
-
         return ( new App_Builder() )
             ->useAttributes( $config['attributes'] )
             ->useAutowiring( $config['autowiring'] )
@@ -38,26 +36,6 @@ class App_Builder extends \DI\ContainerBuilder {
             );
     }
 
-    /**
-     * Get the default configuration.
-     *
-     * @param  array<string, mixed> $config Configuration options.
-     * @return array<string, mixed>
-     */
-    protected static function getDefaultConfig( array $config ): array {
-        return \wp_parse_args(
-            $config,
-            array(
-                'attributes'    => true,
-                'autowiring'    => true,
-                'compile'       => 'production' === \wp_get_environment_type(),
-                'compile_class' => 'CompiledContainer' . \strtoupper( $config['id'] ),
-                'compile_dir'   => __DIR__ . '/cache',
-                'proxies'       => false,
-            ),
-        );
-    }
-
     //phpcs:ignore Squiz.Commenting.FunctionComment.Missing
     public function enableCompilation(
         string $directory,
@@ -65,10 +43,16 @@ class App_Builder extends \DI\ContainerBuilder {
         string $containerParentClass = CompiledContainer::class,
         bool $compile = true,
     ): static {
+        if ( ! $compile ) {
+            return $this;
+        }
+
+        if ( ! \is_dir( $directory ) && ! \wp_mkdir_p( $directory ) ) {
+            return $this;
+        }
+
         // @phpstan-ignore return.type
-        return $compile
-            ? parent::enableCompilation( $directory, $containerClass, $containerParentClass )
-            : $this;
+        return parent::enableCompilation( $directory, $containerClass, $containerParentClass );
     }
 
     /**
@@ -80,7 +64,7 @@ class App_Builder extends \DI\ContainerBuilder {
      * @return $this
      */
     public function addDefinitions( string|array|DefinitionSource ...$definitions ): static {
-        return \class_exists( $definitions[0] )
+        return \is_string( $definitions[0] ) && \class_exists( $definitions[0] )
             ? parent::addDefinitions( \xwp_register_module( $definitions[0] )->get_definitions() )
             : parent::addDefinitions( ...$definitions );
     }

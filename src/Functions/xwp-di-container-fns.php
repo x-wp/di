@@ -77,20 +77,16 @@ function xwp_extend_app( string $container, string|array $module, string $positi
         $module = array( $module );
     }
 
-    add_filter(
-        "xwp_dynamic_import_{$container}",
-        static function ( array $imports, string $classname ) use( $module, $position, $target ): array {
-            if ( $target && $target !== $classname ) {
-                return $imports;
-            }
+    \XWP\DI\App_Factory::extend( $container, $module, $position, $target );
+}
 
-            $params = 'after' === $position
-                ? array( $imports, $module )
-                : array( $module, $imports );
-
-            return array_merge( ...$params );
-		},
-        10,
-        2,
-    );
+/**
+ * Decompile an application container.
+ *
+ * @param  string $container_id Container ID.
+ * @param  bool   $immediately  Decompile now or on shutdown.
+ * @return bool
+ */
+function xwp_decompile_app( string $container_id, bool $immediately = false ): bool {
+    return \XWP\DI\App_Factory::decompile( $container_id, $immediately );
 }

@@ -14,8 +14,10 @@ use XWP\Helper\Traits\Singleton;
 /**
  * Create and manage DI containers.
  *
- * @method static Container create(array $config)     Create a new container.
- * @method static Container get(string $container_id) Get a container instance.
+ * @method static Container create( array $config)                                                        Create a new container.
+ * @method static Container get( string $id )                                                             Get a container instance.
+ * @method static void      extend( string $container, array $module, string $position, ?string $target ) Extend an application container definition.
+ * @method static bool      decompile( string $id, bool $now )                                            Decompile a container.
  */
 final class App_Factory {
     use Singleton;
@@ -51,9 +53,39 @@ final class App_Factory {
             return $this->containers[ $config['id'] ];
         }
 
+        $config = $this->parse_config( $config );
+
         return $this->containers[ $config['id'] ] ??= App_Builder::configure( $config )
             ->addDefinitions( $config['module'] )
+            ->addDefinitions( array( 'xwp.app.config' => $config ) )
             ->build();
+    }
+
+    /**
+     * Extend an application container definition.
+     *
+     * @param  string              $container Container ID.
+     * @param  array<class-string> $module    Module classname or array of module classnames.
+     * @param  'before'|'after'    $position  Position to insert the module.
+     * @param  string|null         $target    Target module to extend.
+     */
+    protected function call_extend( string $container, array $module, string $position = 'after', ?string $target = null ): void {
+        \add_filter(
+            "xwp_extend_import_{$container}",
+            static function ( array $imports, string $classname ) use( $module, $position, $target ): array {
+                if ( $target && $target !== $classname ) {
+                    return $imports;
+                }
+
+                $params = 'after' === $position
+                    ? array( $imports, $module )
+                    : array( $module, $imports );
+
+                return \array_merge( ...$params );
+            },
+            10,
+            2,
+        );
     }
 
     /**
@@ -64,5 +96,45 @@ final class App_Factory {
      */
     protected function call_get( string $id ): Container {
         return $this->containers[ $id ];
+    }
+
+    /**
+     * Decompile a container.
+     *
+     * @param  string $id  Container ID.
+     * @param  bool   $now Decompile now or on shutdown.
+     * @return bool
+     */
+    protected function call_decompile( string $id, bool $now = false ): bool {
+        $config = $this->containers[ $id ]->get( 'xwp.app.config' );
+
+        if ( ! $config['compile'] || ! \xwp_wpfs()->is_dir( $config['compile_dir'] ) ) {
+            return false;
+        }
+
+        $cb = static fn() => \xwp_wpfs()->rmdir( $config['compile_dir'], true );
+
+        // @phpstan-ignore return.void
+        return ! $now ? \add_action( 'shutdown', $cb ) : $cb();
+    }
+
+    /**
+     * Get the default configuration.
+     *
+     * @param  array<string, mixed> $config Configuration options.
+     * @return array<string, mixed>
+     */
+    protected function parse_config( array $config ): array {
+        return \wp_parse_args(
+            $config,
+            array(
+                'attributes'    => true,
+                'autowiring'    => true,
+                'compile'       => 'production' === \wp_get_environment_type(),
+                'compile_class' => 'CompiledContainer' . \strtoupper( $config['id'] ),
+                'compile_dir'   => \WP_CONTENT_DIR . '/cache/xwp-di/' . $config['id'],
+                'proxies'       => false,
+            ),
+        );
     }
 }
