@@ -55,6 +55,13 @@ class Handler extends Hook implements Can_Handle {
     protected string $container_id;
 
     /**
+     * Is the handler hookable.
+     *
+     * @var bool
+     */
+    protected bool $hookable;
+
+    /**
      * Constructor.
      *
      * @param string                                         $tag         Hook tag.
@@ -64,6 +71,7 @@ class Handler extends Hook implements Can_Handle {
      * @param null|Closure|string|array{class-string,string} $conditional Conditional callback.
      * @param array<int,string>|string|false                 $modifiers   Values to replace in the tag name.
      * @param string                                         $strategy    Initialization strategy.
+     * @param bool                                           $hookable    Is the handler hookable.
      */
     public function __construct(
         ?string $tag = null,
@@ -73,10 +81,12 @@ class Handler extends Hook implements Can_Handle {
         array|string|Closure|null $conditional = null,
         string|array|false $modifiers = false,
         string $strategy = self::INIT_DEFFERED,
+        bool $hookable = true,
     ) {
         $this->strategy     = $strategy;
         $this->loaded       = self::INIT_DYNAMICALY === $strategy;
         $this->container_id = $container;
+        $this->hookable     = $hookable;
 
         parent::__construct( $tag, $tag ? $priority : null, $context, $conditional, $modifiers );
     }
@@ -94,7 +104,9 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function with_container( ?string $container ): static {
-        $this->container_id ??= $container;
+        if ( null !== $container ) {
+            $this->container_id ??= $container;
+        }
 
         return $this;
     }
@@ -109,6 +121,10 @@ class Handler extends Hook implements Can_Handle {
         $this->instance  ??= $instance;
         $this->classname ??= $instance::class;
         $this->loaded      = true;
+
+        if ( ! $this->container->has( $this->classname ) ) {
+            $this->container->set( $this->classname, $this->instance );
+        }
 
         return $this;
     }
@@ -127,9 +143,18 @@ class Handler extends Hook implements Can_Handle {
             return false;
         }
 
-        $this->instance ??= $this->container->get( $this->classname );
+        $this->instance ??= $this->initialize();
 
         return $this->on_initialize();
+    }
+
+    /**
+     * Initialize the handler.
+     *
+     * @return T
+     */
+    protected function initialize(): object {
+        return $this->container->get( $this->classname );
     }
 
     /**
@@ -141,7 +166,7 @@ class Handler extends Hook implements Can_Handle {
         $this->loaded = true;
 
         if ( \method_exists( $this->classname, 'on_initialize' ) ) {
-            $this->target->on_initialize();
+            $this->container->call( array( $this->classname, 'on_initialize' ) );
         }
 
         return $this->loaded;
@@ -157,7 +182,7 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function can_load(): bool {
-        return parent::can_load() && $this->check_method( array( $this->classname, 'can_loadialize' ) );
+        return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
     }
 
     protected function get_id(): string {
@@ -188,5 +213,9 @@ class Handler extends Hook implements Can_Handle {
 
     public function is_lazy(): bool {
         return self::INIT_ON_DEMAND === $this->strategy || self::INIT_JUST_IN_TIME === $this->strategy;
+    }
+
+    public function is_hookable(): bool {
+        return $this->hookable;
     }
 }

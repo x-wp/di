@@ -19,15 +19,16 @@ use XWP\DI\Interfaces\Can_Invoke;
  * Filter hook decorator.
  *
  * @template T of object
+ * @template H of Can_Handle<T>
  * @extends Hook<T, ReflectionMethod>
- * @implements Can_Invoke<T>
+ * @implements Can_Invoke<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Filter extends Hook implements Can_Invoke {
     /**
      * The handler.
      *
-     * @var Can_Handle<T>
+     * @var H
      */
     protected Can_Handle $handler;
 
@@ -99,7 +100,7 @@ class Filter extends Hook implements Can_Invoke {
     /**
      * Set the handler.
      *
-     * @param  Can_Handle<T> $handler The handler.
+     * @param  H $handler The handler.
      * @return static
      */
     public function with_handler( Can_Handle $handler ): static {
@@ -160,19 +161,30 @@ class Filter extends Hook implements Can_Invoke {
             return false;
         }
 
-        $this->loaded = ( "add_{$this->get_type()}" )(
-            $this->tag,
+        $this->loaded = $this->load_hook();
+
+        return $this->loaded;
+    }
+
+    /**
+     * Loads the hook.
+     *
+     * @param  ?string $tag Optional hook tag.
+     * @return bool
+     */
+    protected function load_hook( ?string $tag = null ): bool {
+        return ( "add_{$this->get_type()}" )(
+            $tag ?? $this->tag,
             $this->target,
             $this->priority,
             $this->args,
         );
-
-        return $this->loaded;
     }
 
     public function invoke( mixed ...$args ): mixed {
         if (
             ! $this->init_handler( $this->handler::INIT_JUST_IN_TIME ) ||
+            ! parent::can_load() ||
             ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
             ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
         ) {
@@ -198,15 +210,28 @@ class Filter extends Hook implements Can_Invoke {
     protected function fire_hook( mixed ...$args ): mixed {
         $this->firing = true;
 
+        return $this->container->call(
+            array( $this->handler->classname, $this->method ),
+            $this->get_cb_args( $args ),
+        );
+    }
+
+    /**
+     * Get the arguments to pass to the callback.
+     *
+     * @param  array<int, mixed> $args Existing arguments.
+     * @return array<int, mixed>
+     */
+    protected function get_cb_args( array $args ): array {
         if ( $this->params ) {
             foreach ( $this->params as $param ) {
                 $args[] = $this->container->get( $param );
             }
+
+            $args[] = $this;
         }
 
-        $args[] = $this;
-
-        return $this->container->call( array( $this->handler->classname, $this->method ), $args );
+        return $args;
     }
 
     /**

@@ -28,11 +28,12 @@ class Module extends Handler {
     /**
      * Constructor.
      *
-     * @param  string                  $container Container ID.
-     * @param  string                  $hook      Hook name.
-     * @param  int                     $priority  Hook priority.
-     * @param  array<int,class-string> $imports   Array of submodules to import.
-     * @param  array<int,class-string> $handlers  Array of handlers to register.
+     * @param  string                  $container  Container ID.
+     * @param  string                  $hook       Hook name.
+     * @param  int                     $priority   Hook priority.
+     * @param  array<int,class-string> $imports    Array of submodules to import.
+     * @param  array<int,class-string> $handlers   Array of handlers to register.
+     * @param  bool                    $extendable Is the module extendable.
      */
     public function __construct(
         string $container,
@@ -50,6 +51,12 @@ class Module extends Handler {
          * @var array<int,class-string>
          */
         protected array $handlers = array(),
+        /**
+         * Is the module extendable?
+         *
+         * @var bool
+         */
+        protected bool $extendable = false,
     ) {
         parent::__construct(
             tag: $hook,
@@ -82,7 +89,7 @@ class Module extends Handler {
     public function get_definitions(): array {
         $definitions = $this->get_definition();
 
-        foreach ( $this->imports as $import ) {
+        foreach ( $this->get_imports() as $import ) {
             $module = $this->imported ? \xwp_get_module( $import ) : \xwp_register_module( $import );
 
             $definitions = \array_merge( $definitions, $module->get_definitions() );
@@ -91,6 +98,30 @@ class Module extends Handler {
         $this->imported = true;
 
         return $definitions;
+    }
+
+    /**
+     * Get the module imports.
+     *
+     * @return array<int,class-string>
+     */
+    protected function get_imports(): array {
+        if ( ! $this->extendable ) {
+            return $this->imports;
+        }
+
+        $tag = "xwp_extend_import_{$this->container_id}";
+
+        /**
+         * Filter the module imports.
+         *
+         * @param  array<int,class-string> $imports    Array of submodules to import.
+         * @param  class-string            $classname  Module classname.
+         * @return array<int,class-string>
+         *
+         * @since 1.0@beta.8
+         */
+        return \apply_filters( $tag, $this->imports, $this->classname );
     }
 
     /**

@@ -52,7 +52,7 @@ trait Accessible_Hook_Methods {
      * @throws \BadMethodCallException If the method does not exist or is not hooked.
      */
     public static function __callStatic( string $name, array $arguments ) {
-        if ( 'can_loadialize' === $name ) {
+        if ( 'can_initialize' === $name ) {
             return true;
         }
 

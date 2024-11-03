@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Hook;
+namespace XWP\DI;
 
 use Automattic\Jetpack\Constants;
 
@@ -15,7 +15,7 @@ use Automattic\Jetpack\Constants;
  *
  * @since 1.0.0
  */
-final class Context {
+final class Hook_Context {
     /**
      * Frontend context.
      */
@@ -81,7 +81,7 @@ final class Context {
      * @param  int $context The context to check.
      * @return bool
      */
-    public static function is_valid_context( int $context ): bool {
+    public static function validate( int $context ): bool {
         return 0 !== ( self::get() & $context );
     }
 

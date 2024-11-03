@@ -20,7 +20,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "zip -r '/tmp/release.zip' ./src README.md"
+        "prepareCmd": "zip -r '/tmp/release.zip' ./src README.md ./composer.json"
       }
     ],
     [
@@ -29,8 +29,8 @@
         "assets": [
           {
             "path": "/tmp/release.zip",
-            "name": "xwp-hook-invoker-${nextRelease.version}.zip",
-            "label": "xWP Hook Invoker v${nextRelease.version}"
+            "name": "xwp-di-v${nextRelease.version}.zip",
+            "label": "xWP Dependency Injection v${nextRelease.version}"
           }
         ]
       }
