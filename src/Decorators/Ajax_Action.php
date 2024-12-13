@@ -56,9 +56,9 @@ class Ajax_Action extends Action {
     /**
      * Capability required to perform the action.
      *
-     * @var string
+     * @var null|string|array<string,string|array<int,string>>
      */
-    protected ?string $cap;
+    protected null|string|array $cap;
 
     /**
      * Variables to fetch.
@@ -79,22 +79,22 @@ class Ajax_Action extends Action {
     /**
      * Variable getter function
      *
-     * @var Closure(string, string): string
+     * @var Closure(string, ?string=): string
      */
     protected Closure $getter;
 
     /**
      * Constructor.
      *
-     * @param string              $action   Ajax action name.
-     * @param string              $prefix   Prefix for the action name.
-     * @param bool                $public   Whether the action is public or not.
-     * @param 'GET'|'POST'|'REQ'  $method   Method to fetch the variable. GET, POST, or REQ.
-     * @param bool|string         $nonce    String defines the query var for nonce, true checks the default vars, false disables nonce check.
-     * @param string              $cap      Capability required to perform the action.
-     * @param array<string,mixed> $vars     Variables to fetch.
-     * @param array<int,mixed>    $params   Parameters to pass to the callback. Will be resolved by the container.
-     * @param int                 $priority Hook priority.
+     * @param string                                             $action   Ajax action name.
+     * @param string                                             $prefix   Prefix for the action name.
+     * @param bool                                               $public   Whether the action is public or not.
+     * @param 'GET'|'POST'|'REQ'                                 $method   Method to fetch the variable. GET, POST, or REQ.
+     * @param bool|string                                        $nonce    String defines the query var for nonce, true checks the default vars, false disables nonce check.
+     * @param null|string|array<string,string|array<int,string>> $cap      Capability required to perform the action.
+     * @param array<string,mixed>                                $vars     Variables to fetch.
+     * @param array<int,mixed>                                   $params   Parameters to pass to the callback. Will be resolved by the container.
+     * @param int                                                $priority Hook priority.
      */
     public function __construct(
         string $action,
@@ -102,7 +102,7 @@ class Ajax_Action extends Action {
         bool $public = true,
         string $method = self::AJAX_REQ,
         bool|string $nonce = false,
-        ?string $cap = null,
+        null|string|array $cap = null,
         array $vars = array(),
         array $params = array(),
         int $priority = 10,
@@ -141,7 +141,7 @@ class Ajax_Action extends Action {
      * Get the variable fetch callback.
      *
      * @param  'GET'|'POST'|'REQ' $method Method to fetch the variable.
-     * @return Closure(string, mixed): mixed
+     * @return Closure(string, mixed=): mixed
      */
     protected function get_fetch_cb( string $method ): Closure {
         $cb = match ( $method ) {
@@ -204,15 +204,15 @@ class Ajax_Action extends Action {
     }
 
     private function fire_guard_cb( string $type ): void {
-        $methods = array( "{$this->action}_guard", 'unverified_call', 'invalid_call' );
+        $methods = array( "{$this->action}_{$type}_guard", "{$type}_guard", "{$this->action}_guard", 'unverified_call', 'invalid_call' );
 
         foreach ( $methods as $method ) {
             if ( ! \method_exists( $this->handler->classname, $method ) ) {
                 continue;
             }
 
-            $this->container->call( array( $this->handler->classname, $method ), array( $type ) );
-            return;
+            $this->container->call( array( $this->handler->classname, $method ) );
+            exit;
         }
 
         \wp_die( \esc_html( $type ) );
@@ -225,6 +225,16 @@ class Ajax_Action extends Action {
     }
 
     private function cap_check(): bool {
-        return \current_user_can( $this->cap );
+        if ( \is_string( $this->cap ) ) {
+            return \current_user_can( $this->cap );
+        }
+
+        foreach ( $this->cap as $cap => $vars ) {
+            if ( ! \current_user_can( $cap, ...\array_map( $this->getter, \xwp_str_to_arr( $vars ) ) ) ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

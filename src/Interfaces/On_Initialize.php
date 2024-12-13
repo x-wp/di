@@ -16,6 +16,23 @@ namespace XWP\DI\Interfaces;
 interface On_Initialize {
     /**
      * Fired when the handler is initialized.
+     *
+     * This method can have an `Inject` attribute to receive dependencies.
+     * Function arguments must have default values in signature.
+     *
+     * Example:
+     * ```php
+     * use DI\Attribute\Inject;
+     *
+     * class My_Handler implements On_Initialize {
+     *   #[Inject( array( 'inst' => My_Dependency::class, 'dep' => 'definition.id' ) )]
+     *   public function on_initialize( My_Dependency $inst = null, array $dep = array() ): void {
+     *     $inst->do($dep);
+     *   }
+     * }
+     * ```
+     *
+     * @see https://php-di.org/doc/attributes.html#inject
      */
     public function on_initialize(): void;
 }

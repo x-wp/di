@@ -9,9 +9,11 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
+use DI\Attribute\Inject;
 use DI\Container;
 use ReflectionClass;
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Utils\Reflection;
 
 /**
  * Decorator for handling WordPress hooks.
@@ -165,11 +167,33 @@ class Handler extends Hook implements Can_Handle {
     protected function on_initialize(): bool {
         $this->loaded = true;
 
-        if ( \method_exists( $this->classname, 'on_initialize' ) ) {
-            $this->container->call( array( $this->classname, 'on_initialize' ) );
+        $method = 'on_initialize';
+
+        if ( \method_exists( $this->classname, $method ) ) {
+
+            $this->container->call(
+                array( $this->classname, $method ),
+                $this->resolve_params( $method ),
+            );
         }
 
         return $this->loaded;
+    }
+
+    /**
+     * Resolve the parameters for a method.
+     *
+     * @param  string $method     Method name.
+     * @return array<string,mixed>
+     */
+    protected function resolve_params( string $method ): array {
+        return \array_map(
+            '\DI\get',
+            Reflection::get_decorator(
+                $this->reflector->getMethod( $method ),
+                Inject::class,
+            )?->getParameters() ?? array(),
+        );
     }
 
     /**
