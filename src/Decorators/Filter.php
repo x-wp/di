@@ -225,7 +225,9 @@ class Filter extends Hook implements Can_Invoke {
     protected function get_cb_args( array $args ): array {
         if ( $this->params ) {
             foreach ( $this->params as $param ) {
-                $args[] = $this->container->get( $param );
+                $args[] = ! \str_starts_with( $param, '!value:' )
+                    ? $this->container->get( $param )
+                    : \str_replace( '!value:', '', $param );
             }
 
             $args[] = $this;
