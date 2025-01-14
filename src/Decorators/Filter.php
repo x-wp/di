@@ -91,6 +91,17 @@ class Filter extends Hook implements Can_Invoke {
         return 'filter';
     }
 
+    /**
+     * Get the current hook.
+     *
+     * @return string
+     */
+    protected function current(): string {
+        $cb = "current_{$this->get_type()}";
+
+        return $cb();
+    }
+
     public function with_reflector( Reflector $r ): static {
         $this->args ??= $r->getNumberOfParameters();
 
