@@ -280,7 +280,7 @@ class Invoker {
                 function () use ( $handler ) {
                     $this->init_handler( $handler );
                 },
-                0,
+                -1,
                 0,
             );
         }

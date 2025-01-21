@@ -9,7 +9,6 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use DI\Attribute\Inject;
 use DI\Container;
 use ReflectionClass;
 use XWP\DI\Interfaces\Can_Handle;
@@ -28,6 +27,13 @@ use XWP\DI\Utils\Reflection;
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
 class Handler extends Hook implements Can_Handle {
+    /**
+     * Array of handlers that have been initialized.
+     *
+     * @var array<string,bool>
+     */
+    protected static array $did_init = array();
+
     /**
      * Handler classname.
      *
@@ -146,8 +152,9 @@ class Handler extends Hook implements Can_Handle {
         }
 
         $this->instance ??= $this->initialize();
+        $this->loaded     = $this->instance::class === $this->classname;
 
-        return $this->on_initialize();
+        return $this->loaded && $this->on_initialize();
     }
 
     /**
@@ -165,35 +172,32 @@ class Handler extends Hook implements Can_Handle {
      * @return bool
      */
     protected function on_initialize(): bool {
-        $this->loaded = true;
-
-        $method = 'on_initialize';
-
-        if ( \method_exists( $this->classname, $method ) ) {
-
-            $this->container->call(
-                array( $this->classname, $method ),
-                $this->resolve_params( $method ),
-            );
+        if ( ! \method_exists( $this->instance, 'on_initialize' ) ) {
+            return static::$did_init[ $this->id ] ??= true;
         }
 
-        return $this->loaded;
+        if ( isset( static::$did_init[ $this->id ] ) ) {
+            return true;
+        }
+
+        $this->container->call(
+            array( $this->instance, 'on_initialize' ),
+            $this->resolve_params( 'on_initialize' ),
+        );
+
+        return static::$did_init[ $this->id ] ??= true;
     }
 
     /**
      * Resolve the parameters for a method.
      *
      * @param  string $method     Method name.
-     * @return array<string,mixed>
+     * @return array<mixed>
      */
     protected function resolve_params( string $method ): array {
-        return \array_map(
-            '\DI\get',
-            Reflection::get_decorator(
-                $this->reflector->getMethod( $method ),
-                Inject::class,
-            )?->getParameters() ?? array(),
-        );
+        $injector = Reflection::get_decorator( $this->reflector->getMethod( $method ), Infuse::class );
+
+        return $injector ? $injector->resolve( $this ) : array();
     }
 
     /**

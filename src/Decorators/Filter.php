@@ -26,6 +26,13 @@ use XWP\DI\Interfaces\Can_Invoke;
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Filter extends Hook implements Can_Invoke {
     /**
+     * Array of lazy loaded handlers.
+     *
+     * @var array<string,bool>
+     */
+    public static array $lazy = array();
+
+    /**
      * The handler.
      *
      * @var H
@@ -143,7 +150,10 @@ class Filter extends Hook implements Can_Invoke {
             return $this->can_load();
         }
 
-        \do_action( "{$this->handler->id}_{$strategy}_init" );
+        if ( ! isset( static::$lazy[ $this->handler->id ] ) ) {
+            static::$lazy[ $this->handler->id ] = true;
+            \do_action( "{$this->handler->id}_{$strategy}_init", $this->handler );
+        }
 
         return $this->handler->loaded;
     }
@@ -236,15 +246,25 @@ class Filter extends Hook implements Can_Invoke {
     protected function get_cb_args( array $args ): array {
         if ( $this->params ) {
             foreach ( $this->params as $param ) {
-                $args[] = ! \str_starts_with( $param, '!value:' )
-                    ? $this->container->get( $param )
-                    : \str_replace( '!value:', '', $param );
+                $args[] = $this->get_cb_arg( $param );
             }
-
-            $args[] = $this;
         }
 
         return $args;
+    }
+
+    protected function get_cb_arg( string $param ): mixed {
+        if ( '!self.hook' === $param ) {
+            return $this;
+        }
+
+        if ( '!self.handler' === $param ) {
+            return $this->handler;
+        }
+
+        return ! \str_starts_with( $param, '!value:' )
+            ? $this->container->get( $param )
+            : \str_replace( '!value:', '', $param );
     }
 
     /**
