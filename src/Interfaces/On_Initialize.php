@@ -17,7 +17,7 @@ interface On_Initialize {
     /**
      * Fired when the handler is initialized.
      *
-     * This method can have an `Inject` attribute to receive dependencies.
+     * This method can have an `Infuse` attribute to receive dependencies.
      * Function arguments must have default values in signature.
      *
      * Example:
@@ -25,7 +25,7 @@ interface On_Initialize {
      * use DI\Attribute\Inject;
      *
      * class My_Handler implements On_Initialize {
-     *   #[Inject( array( 'inst' => My_Dependency::class, 'dep' => 'definition.id' ) )]
+     *   #[Infuse( My_Dependency::class, 'definition.id' )]
      *   public function on_initialize( My_Dependency $inst = null, array $dep = array() ): void {
      *     $inst->do($dep);
      *   }

@@ -28,11 +28,12 @@ use XWP\DI\Utils\Reflection;
 #[\Attribute( \Attribute::TARGET_CLASS )]
 class Handler extends Hook implements Can_Handle {
     /**
-     * Array of handlers that have been initialized.
+     * Did we fire the on_initialize method.
      *
-     * @var array<string,bool>
+     * @var bool
      */
-    protected static array $did_init = array();
+    protected bool $did_init = false;
+
 
     /**
      * Handler classname.
@@ -65,9 +66,9 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Is the handler hookable.
      *
-     * @var bool
+     * @var ?bool
      */
-    protected bool $hookable;
+    protected ?bool $hookable;
 
     /**
      * Constructor.
@@ -89,7 +90,7 @@ class Handler extends Hook implements Can_Handle {
         array|string|Closure|null $conditional = null,
         string|array|false $modifiers = false,
         string $strategy = self::INIT_DEFFERED,
-        bool $hookable = true,
+        ?bool $hookable = null,
     ) {
         $this->strategy     = $strategy;
         $this->loaded       = self::INIT_DYNAMICALY === $strategy;
@@ -138,6 +139,13 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
+     * Lazy load the handler.
+     */
+    public function lazy_load(): void {
+        $this->load();
+    }
+
+    /**
      * Loads the handler.
      *
      * @return bool
@@ -147,23 +155,49 @@ class Handler extends Hook implements Can_Handle {
             return true;
         }
 
-        if ( ! $this->can_load() ) {
-            return false;
-        }
+        return $this->can_load() &&
+            $this->initialize()->configure_async()->on_initialize();
+    }
 
-        $this->instance ??= $this->initialize();
-        $this->loaded     = $this->instance::class === $this->classname;
-
-        return $this->loaded && $this->on_initialize();
+    /**
+     * Instantiate the handler.
+     *
+     * @return T
+     */
+    protected function instantiate(): object {
+        return $this->container->get( $this->classname );
     }
 
     /**
      * Initialize the handler.
      *
-     * @return T
+     * @return static
      */
-    protected function initialize(): object {
-        return $this->container->get( $this->classname );
+    protected function initialize(): static {
+        if ( \doing_action( $this->lazy_hook ) ) {
+            \remove_all_actions( $this->lazy_hook );
+        }
+
+        $this->instance ??= $this->instantiate();
+
+        return $this;
+    }
+
+    /**
+     * Configure the handler asynchronously.
+     *
+     * @return static
+     */
+    protected function configure_async(): static {
+        if ( \method_exists( $this->classname, 'configure_async' ) ) {
+            foreach ( $this->classname::configure_async() as $key => $val ) {
+                $this->container->set( $key, $val );
+            }
+        }
+
+        $this->loaded = true;
+
+        return $this;
     }
 
     /**
@@ -172,20 +206,26 @@ class Handler extends Hook implements Can_Handle {
      * @return bool
      */
     protected function on_initialize(): bool {
-        if ( ! \method_exists( $this->instance, 'on_initialize' ) ) {
-            return static::$did_init[ $this->id ] ??= true;
+        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
+            $this->container->call(
+                array( $this->instance, __FUNCTION__ ),
+                $this->resolve_params( __FUNCTION__ ),
+            );
         }
 
-        if ( isset( static::$did_init[ $this->id ] ) ) {
-            return true;
-        }
+        $this->did_init = true;
 
-        $this->container->call(
-            array( $this->instance, 'on_initialize' ),
-            $this->resolve_params( 'on_initialize' ),
-        );
+        return true;
+    }
 
-        return static::$did_init[ $this->id ] ??= true;
+    /**
+     * Check if the method exists.
+     *
+     * @param  string $method Method to check.
+     * @return bool
+     */
+    protected function method_exists( string $method ): bool {
+        return \method_exists( $this->instance, $method );
     }
 
     /**
@@ -244,6 +284,6 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function is_hookable(): bool {
-        return $this->hookable;
+        return null === $this->hookable && $this->check_context() || $this->hookable;
     }
 }

@@ -254,16 +254,12 @@ class Invoker {
      * @return array<int,Can_Invoke<T,H>>
      */
 	private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
-		$hooks = array();
-
-		foreach ( Reflection::get_decorators( $method, Can_Invoke::class ) as $hook ) {
-			$hooks[] = $hook
-            ->with_reflector( $method )
-            ->with_target( $method->getName() )
-            ->with_handler( $handler );
-		}
-
-		return $hooks;
+        return \array_map(
+            static fn( $h ) => $h
+                ->with_reflector( $method )
+                ->with_handler( $handler ),
+            Reflection::get_decorators( $method, Can_Invoke::class ),
+        );
 	}
 
     /**
@@ -275,14 +271,7 @@ class Invoker {
      */
     protected function queue_methods( Can_Handle $handler ): static {
         if ( $handler->is_lazy() ) {
-            \add_action(
-                $handler->lazy_hook,
-                function () use ( $handler ) {
-                    $this->init_handler( $handler );
-                },
-                -1,
-                0,
-            );
+            \add_action( $handler->lazy_hook, array( $handler, 'lazy_load' ), -1, 0 );
         }
 
         \add_action(
@@ -313,7 +302,7 @@ class Invoker {
 			}
 		}
 
-        \do_action( 'xwp_di_hooks_loaded_' . $handler->classname, $handler );
+        \do_action( "xwp_di_hooks_loaded_{$handler->classname}", $handler );
 
         return $this;
     }

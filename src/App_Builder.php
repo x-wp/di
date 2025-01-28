@@ -65,7 +65,7 @@ class App_Builder extends \DI\ContainerBuilder {
      */
     public function addDefinitions( string|array|DefinitionSource ...$definitions ): static {
         return \is_string( $definitions[0] ) && \class_exists( $definitions[0] )
-            ? parent::addDefinitions( \xwp_register_module( $definitions[0] )->get_definitions() )
+            ? parent::addDefinitions( ...\xwp_register_module( $definitions[0] )->get_definitions() )
             : parent::addDefinitions( ...$definitions );
     }
 }

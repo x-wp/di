@@ -58,10 +58,10 @@ class REST_Handler extends Handler {
      *
      * Sets the namespace and basename.
      *
-     * @return object
+     * @return T
      */
-    protected function initialize(): object {
-        return parent::initialize()
+    protected function instantiate(): object {
+        return parent::instantiate()
             ->with_namespace( $this->namespace )
             ->with_basename( $this->basename );
     }

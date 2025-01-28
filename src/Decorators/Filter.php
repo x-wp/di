@@ -26,13 +26,6 @@ use XWP\DI\Interfaces\Can_Invoke;
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Filter extends Hook implements Can_Invoke {
     /**
-     * Array of lazy loaded handlers.
-     *
-     * @var array<string,bool>
-     */
-    public static array $lazy = array();
-
-    /**
      * The handler.
      *
      * @var H
@@ -70,7 +63,7 @@ class Filter extends Hook implements Can_Invoke {
      * @param array<int,string>|string|false                 $modifiers   Values to replace in the tag name.
      * @param int                                            $invoke      The invocation strategy.
      * @param int|null                                       $args        The number of arguments to pass to the callback.
-     * @param array<int,string>                              $params      The parameters to pass to the callback.
+     * @param array<string>                                  $params      The parameters to pass to the callback.
      */
     public function __construct(
         string $tag,
@@ -110,7 +103,8 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     public function with_reflector( Reflector $r ): static {
-        $this->args ??= $r->getNumberOfParameters();
+        $this->args   ??= $r->getNumberOfParameters();
+        $this->method ??= $r->getName();
 
         return parent::with_reflector( $r );
     }
@@ -150,10 +144,7 @@ class Filter extends Hook implements Can_Invoke {
             return $this->can_load();
         }
 
-        if ( ! isset( static::$lazy[ $this->handler->id ] ) ) {
-            static::$lazy[ $this->handler->id ] = true;
-            \do_action( "{$this->handler->id}_{$strategy}_init", $this->handler );
-        }
+        \do_action( "{$this->handler->id}_{$strategy}_init", $this->handler );
 
         return $this->handler->loaded;
     }

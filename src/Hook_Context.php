@@ -76,6 +76,23 @@ final class Hook_Context {
     }
 
     /**
+     * Get the current context as a string.
+     *
+     * @return string
+     */
+    public static function show(): string {
+        return match ( self::get() ) {
+            self::Admin    => 'Admin',
+            self::Ajax     => 'Ajax',
+            self::Cron     => 'Cron',
+            self::REST     => 'REST',
+            self::CLI      => 'CLI',
+            self::Frontend => 'Frontend',
+            default        => 'Frontend',
+        };
+    }
+
+    /**
      * Check if the context is valid.
      *
      * @param  int $context The context to check.
@@ -139,5 +156,5 @@ final class Hook_Context {
      */
     public static function cli(): bool {
         return Constants::is_true( 'WP_CLI' );
-	}
+    }
 }

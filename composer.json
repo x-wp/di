@@ -8,8 +8,8 @@
     "hooks",
     "actions",
     "filters",
-    "hook-manager",
-    "extended-wp"
+    "dependency-injection",
+    "di"
   ],
   "authors": [
     {
@@ -35,7 +35,9 @@
     "phpstan/phpstan": "^1.12",
     "phpstan/phpstan-deprecation-rules": "^1.2",
     "swissspidy/phpstan-no-private": "^0.2",
-    "szepeviktor/phpstan-wordpress": "^1.3"
+    "symfony/polyfill-php82": "^1.31",
+    "szepeviktor/phpstan-wordpress": "^1.3",
+    "wp-cli/wp-cli": "^2.11"
   },
   "conflict": {
     "oblak/wp-hook-di": "*"

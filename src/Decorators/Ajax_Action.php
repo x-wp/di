@@ -167,7 +167,7 @@ class Ajax_Action extends Action {
         return true;
     }
 
-	/**
+    /**
      * Fire the hook.
      *
      * @param  mixed ...$args Arguments to pass to the callback.

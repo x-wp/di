@@ -8,6 +8,8 @@
 
 namespace XWP\DI\Decorators;
 
+use DI\Definition\Source\DefinitionSource;
+
 /**
  * Module decorator.
  *
@@ -84,20 +86,20 @@ class Module extends Handler {
     /**
      * Get the module definitions.
      *
-     * @return array<string,mixed>
+     * @return array<array<DefinitionSource>>
      */
     public function get_definitions(): array {
-        $definitions = $this->get_definition();
+        $defs = array( $this->get_definition() );
 
         foreach ( $this->get_imports() as $import ) {
             $module = $this->imported ? \xwp_get_module( $import ) : \xwp_register_module( $import );
 
-            $definitions = \array_merge( $definitions, $module->get_definitions() );
+            $defs = \array_merge( $defs, $module->get_definitions() );
         }
 
         $this->imported = true;
 
-        return $definitions;
+        return \array_values( ( \array_filter( $defs, static fn( $d ) => \count( $d ) > 0 ) ) );
     }
 
     /**
