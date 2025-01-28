@@ -40,13 +40,6 @@ class Ajax_Action extends Action {
     protected string $prefix;
 
     /**
-     * Ajax method.
-     *
-     * @var 'GET'|'POST'|'REQ'
-     */
-    protected string $method;
-
-    /**
      * Nonce query var.
      *
      * @var bool|string
@@ -109,7 +102,6 @@ class Ajax_Action extends Action {
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
-        $this->method = $method;
         $this->nonce  = $nonce;
         $this->cap    = $cap;
         $this->vars   = $vars;

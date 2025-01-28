@@ -19,8 +19,8 @@ namespace XWP\DI\Interfaces;
  * @property-read int    $fired  Number of times the hook has fired.
  * @property-read string $method The method name.
  *
- * @property-read array{TInst,string} $target The target method.
- * @property-read THndl $handler The handler instance.
+ * @property-read array{0:TInst,1:string} $target  The target method.
+ * @property-read THndl                   $handler The handler instance.
  */
 interface Can_Invoke extends Can_Hook {
     /**
