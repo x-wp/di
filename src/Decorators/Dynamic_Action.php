@@ -15,7 +15,7 @@ namespace XWP\DI\Decorators;
  * @template H of Ajax_Handler<T>
  * @extends Dynamic_Filter<T,H>
  */
-#[\Attribute( \Attribute::TARGET_METHOD )]
+#[\Attribute( \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE )]
 class Dynamic_Action extends Dynamic_Filter {
     protected function get_type(): string {
         return 'action';

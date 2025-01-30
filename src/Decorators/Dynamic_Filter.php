@@ -18,7 +18,7 @@ use Reflector;
  * @template H of Ajax_Handler<T>
  * @extends Filter<T,H>
  */
-#[\Attribute( \Attribute::TARGET_METHOD )]
+#[\Attribute( \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE )]
 class Dynamic_Filter extends Filter {
     /**
      * Variables to fetch.
