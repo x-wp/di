@@ -284,6 +284,10 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function is_hookable(): bool {
-        return null === $this->hookable && $this->check_context() || $this->hookable;
+        if ( ! $this->check_context() ) {
+            return false;
+        }
+
+        return $this->hookable ?? true;
     }
 }

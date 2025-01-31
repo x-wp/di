@@ -6,8 +6,6 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI;
-
 use Automattic\Jetpack\Constants;
 
 /**
@@ -15,7 +13,7 @@ use Automattic\Jetpack\Constants;
  *
  * @since 1.0.0
  */
-final class Hook_Context {
+final class XWP_Context {
     /**
      * Frontend context.
      */
@@ -121,12 +119,33 @@ final class Hook_Context {
     }
 
     /**
+     * Check if the request is an admin request for a specific page.
+     *
+     * @param  string      $page The page to check.
+     * @param  string|null $type The post type to check.
+     * @return bool
+     */
+    public static function admin_page( string $page, ?string $type = null ): bool {
+        return self::admin() && ( $GLOBALS['pagenow'] ?? '' ) === $page && ( ! $type || ( $GLOBALS['typenow'] ?? '' ) === $type );
+    }
+
+    /**
      * Check if the request is an AJAX request.
      *
      * @return bool
      */
     public static function ajax(): bool {
         return Constants::is_true( 'DOING_AJAX' );
+    }
+
+    /**
+     * Check if the request is an AJAX request for a specific action.
+     *
+     * @param  string $action The action to check.
+     * @return bool
+     */
+    public static function ajax_action( string $action ): bool {
+        return self::ajax() && \xwp_fetch_req_var( 'action', '' ) === $action;
     }
 
     /**
