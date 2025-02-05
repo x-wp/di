@@ -79,15 +79,16 @@ class Ajax_Action extends Action {
     /**
      * Constructor.
      *
-     * @param string                                             $action   Ajax action name.
-     * @param string                                             $prefix   Prefix for the action name.
-     * @param bool                                               $public   Whether the action is public or not.
-     * @param 'GET'|'POST'|'REQ'                                 $method   Method to fetch the variable. GET, POST, or REQ.
-     * @param bool|string                                        $nonce    String defines the query var for nonce, true checks the default vars, false disables nonce check.
-     * @param null|string|array<string,string|array<int,string>> $cap      Capability required to perform the action.
-     * @param array<string,mixed>                                $vars     Variables to fetch.
-     * @param array<int,mixed>                                   $params   Parameters to pass to the callback. Will be resolved by the container.
-     * @param int                                                $priority Hook priority.
+     * @param string                                             $action      Ajax action name.
+     * @param string                                             $prefix      Prefix for the action name.
+     * @param bool                                               $public      Whether the action is public or not.
+     * @param 'GET'|'POST'|'REQ'                                 $method      Method to fetch the variable. GET, POST, or REQ.
+     * @param bool|string                                        $nonce       String defines the query var for nonce, true checks the default vars, false disables nonce check.
+     * @param null|string|array<string,string|array<int,string>> $cap         Capability required to perform the action.
+     * @param array<string,mixed>                                $vars        Variables to fetch.
+     * @param array<int,mixed>                                   $params      Parameters to pass to the callback. Will be resolved by the container.
+     * @param int                                                $priority    Hook priority.
+     * @param null|Closure|string|array{0:class-string,1:string} $conditional Conditional callback.
      */
     public function __construct(
         string $action,
@@ -99,6 +100,7 @@ class Ajax_Action extends Action {
         array $vars = array(),
         array $params = array(),
         int $priority = 10,
+        null|Closure|string|array $conditional = null,
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
@@ -112,7 +114,7 @@ class Ajax_Action extends Action {
             tag: '%s_%s_%s',
             priority:$priority,
             context: self::CTX_AJAX,
-            conditional: '__return_true',
+            conditional: $conditional,
             modifiers: array( '%s', \rtrim( $prefix, '_' ), $action ),
             invoke: self::INV_PROXIED,
             args: 0,

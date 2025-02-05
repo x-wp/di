@@ -73,14 +73,14 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Constructor.
      *
-     * @param string                                         $tag         Hook tag.
-     * @param Closure|string|int|array{class-string,string}  $priority    Hook priority.
-     * @param string                                         $container   Container ID.
-     * @param int                                            $context     Hook context.
-     * @param null|Closure|string|array{class-string,string} $conditional Conditional callback.
-     * @param array<int,string>|string|false                 $modifiers   Values to replace in the tag name.
-     * @param string                                         $strategy    Initialization strategy.
-     * @param bool                                           $hookable    Is the handler hookable.
+     * @param string                                             $tag         Hook tag.
+     * @param Closure|string|int|array{0:class-string,1:string}  $priority    Hook priority.
+     * @param string                                             $container   Container ID.
+     * @param int                                                $context     Hook context.
+     * @param null|Closure|string|array{0:class-string,1:string} $conditional Conditional callback.
+     * @param array<int,string>|string|false                     $modifiers   Values to replace in the tag name.
+     * @param string                                             $strategy    Initialization strategy.
+     * @param bool                                               $hookable    Is the handler hookable.
      */
     public function __construct(
         ?string $tag = null,
