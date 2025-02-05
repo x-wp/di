@@ -44,10 +44,7 @@
   },
   "provide": {
     "psr/container-implementation": "^1.0",
-    "x-wp/di-implementation": "^1.0"
-  },
-  "replace": {
-    "x-wp/hook-invoker": "*"
+    "x-wp/di-implementation": "self.version"
   },
   "suggest": {
     "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
