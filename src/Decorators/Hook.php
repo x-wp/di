@@ -121,7 +121,21 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     protected function check_method( array|string|\Closure|null $method ): bool {
-        return ! \is_callable( $method ) || $this->container->call( $method );
+        return ! $this->can_call( $method ) || $this->container->call( $method );
+    }
+
+    /**
+     * Check if the method is callable.
+     *
+     * @param  array{0:class-string|object,1:string}|string|\Closure|null $method Method to call.
+     * @return bool
+     */
+    protected function can_call( array|string|\Closure|null $method ): bool {
+        if ( ! \is_array( $method ) ) {
+            return \is_callable( $method );
+        }
+
+        return \method_exists( $method[0], $method[1] );
     }
 
     /**
