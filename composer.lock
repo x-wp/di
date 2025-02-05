@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f3916b368725b4661d6b289dcedf1512",
+    "content-hash": "2182a4f2287e047bc85600ef95172541",
     "packages": [
         {
             "name": "automattic/jetpack-constants",
@@ -377,16 +377,16 @@
         },
         {
             "name": "x-wp/helper-classes",
-            "version": "v1.18.1",
+            "version": "v1.19.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/x-wp/helper-classes.git",
-                "reference": "451dff53964c2fbdf086882c868709e4e36fb1cd"
+                "reference": "a8d3424b875696c87d5dc26e73d66dbbb9992d74"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/x-wp/helper-classes/zipball/451dff53964c2fbdf086882c868709e4e36fb1cd",
-                "reference": "451dff53964c2fbdf086882c868709e4e36fb1cd",
+                "url": "https://api.github.com/repos/x-wp/helper-classes/zipball/a8d3424b875696c87d5dc26e73d66dbbb9992d74",
+                "reference": "a8d3424b875696c87d5dc26e73d66dbbb9992d74",
                 "shasum": ""
             },
             "require": {
@@ -427,9 +427,9 @@
             ],
             "support": {
                 "issues": "https://github.com/x-wp/helper-classes/issues",
-                "source": "https://github.com/x-wp/helper-classes/tree/v1.18.1"
+                "source": "https://github.com/x-wp/helper-classes/tree/v1.19.3"
             },
-            "time": "2024-09-23T14:31:15+00:00"
+            "time": "2025-02-05T15:40:56+00:00"
         },
         {
             "name": "x-wp/helper-functions",

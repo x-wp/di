@@ -59,9 +59,9 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Container ID.
      *
-     * @var string
+     * @var ?string
      */
-    protected string $container_id;
+    protected ?string $container_id;
 
     /**
      * Is the handler hookable.
