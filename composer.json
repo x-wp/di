@@ -1,6 +1,6 @@
 {
   "name": "x-wp/di",
-  "description": "Provides standardized way to declare and invoke WordPress hooks",
+  "description": "The dependency injection container for WordPress",
   "license": "GPL-2.0-only",
   "type": "library",
   "keywords": [

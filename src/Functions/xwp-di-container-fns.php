@@ -9,6 +9,16 @@
 use DI\Container;
 
 /**
+ * Check if a container exists.
+ *
+ * @param  string $container_id Container ID.
+ * @return bool
+ */
+function xwp_has( string $container_id ): bool {
+    return \XWP\DI\App_Factory::has( $container_id );
+}
+
+/**
  * Get a container by ID.
  *
  * @param  string $container_id Container ID.
