@@ -1,0 +1,18 @@
+{
+  "require": {
+    "automattic/jetpack-autoloader": "^5.0",
+    "x-wp/di": "^1.7"
+  },
+  "autoload": {
+    "psr-4": {
+      "Example\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "automattic/jetpack-autoloader": true
+    },
+    "classmap-authoritative": true,
+    "optimize-autoloader": true
+  }
+}
