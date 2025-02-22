@@ -115,6 +115,10 @@ class My_Handler {
 }
 ```
 
+### Examples
+
+You can find the examples in the [examples](https://github.com/x-wp/di/tree/master/examples) directory.
+
 ## Documentation
 
 For more information, please refer to the [official documentation](https://extended.wp.rs/dependency-injection).
