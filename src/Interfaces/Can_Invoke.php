@@ -15,6 +15,7 @@ namespace XWP\DI\Interfaces;
  * @template THndl of Can_Handle<TInst>
  * @extends Can_Hook<TInst,\ReflectionMethod>
  *
+ * @property-read string $tag    The hook tag.
  * @property-read bool   $firing Is the hook firing?
  * @property-read int    $fired  Number of times the hook has fired.
  * @property-read string $method The method name.

@@ -1,4 +1,4 @@
-<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh, SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
 /**
  * Filter decorator class file.
  *
@@ -8,6 +8,7 @@
 
 namespace XWP\DI\Decorators;
 
+use Automattic\Jetpack\Constants;
 use Closure;
 use DI\Container;
 use ReflectionMethod;
@@ -245,17 +246,14 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     protected function get_cb_arg( string $param ): mixed {
-        if ( '!self.hook' === $param ) {
-            return $this;
-        }
-
-        if ( '!self.handler' === $param ) {
-            return $this->handler;
-        }
-
-        return ! \str_starts_with( $param, '!value:' )
-            ? $this->container->get( $param )
-            : \str_replace( '!value:', '', $param );
+        return match ( true ) {
+            '!self.hook' === $param                => $this,
+            '!self.handler' === $param             => $this->handler,
+            \str_starts_with( $param, '!value:' )  => \str_replace( '!value:', '', $param ),
+            \str_starts_with( $param, '!global:' ) => $GLOBALS[ \str_replace( '!global:', '', $param ) ] ?? null,
+            \str_starts_with( $param, '!const:' )  => Constants::get_constant( \str_replace( '!const:', '', $param ) ),
+            default                                => $this->container->get( $param ),
+        };
     }
 
     /**

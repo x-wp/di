@@ -20,8 +20,9 @@ use XWP_Context;
  *
  * @template THndlr of object
  * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
+ * @implements Can_Hook<THndlr,TRflct>
  *
- * @implements Can_Hook<THndlr, TRflct>
+ * @property-read string    $tag       The hook tag.
  */
 abstract class Hook implements Can_Hook {
     /**

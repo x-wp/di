@@ -2,5 +2,7 @@ parameters:
   level: 6
   paths:
     - src
+  bootstrapFiles:
+    - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
   scanFiles:
     - vendor/wp-cli/wp-cli/php/utils.php

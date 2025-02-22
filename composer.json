@@ -30,6 +30,7 @@
   },
   "require-dev": {
     "oblak/wordpress-coding-standard": "^1.1",
+    "php-stubs/woocommerce-stubs": "^9.5",
     "php-stubs/wordpress-stubs": "^6.6",
     "phpstan/extension-installer": "^1.4",
     "phpstan/phpstan": "^1.12",
@@ -43,7 +44,7 @@
     "oblak/wp-hook-di": "*"
   },
   "provide": {
-    "psr/container-implementation": "^1.0",
+    "psr/container-implementation": "1.1|2.0",
     "x-wp/di-implementation": "self.version"
   },
   "suggest": {

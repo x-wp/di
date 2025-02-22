@@ -9,6 +9,7 @@
 namespace XWP\DI\Decorators;
 
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Action hook decorator.
