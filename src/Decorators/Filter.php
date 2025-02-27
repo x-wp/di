@@ -1,4 +1,4 @@
-<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh, SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
 /**
  * Filter decorator class file.
  *
@@ -8,6 +8,7 @@
 
 namespace XWP\DI\Decorators;
 
+use Automattic\Jetpack\Constants;
 use Closure;
 use DI\Container;
 use ReflectionMethod;
@@ -63,7 +64,7 @@ class Filter extends Hook implements Can_Invoke {
      * @param array<int,string>|string|false                 $modifiers   Values to replace in the tag name.
      * @param int                                            $invoke      The invocation strategy.
      * @param int|null                                       $args        The number of arguments to pass to the callback.
-     * @param array<int,string>                              $params      The parameters to pass to the callback.
+     * @param array<string>                                  $params      The parameters to pass to the callback.
      */
     public function __construct(
         string $tag,
@@ -91,8 +92,20 @@ class Filter extends Hook implements Can_Invoke {
         return 'filter';
     }
 
+    /**
+     * Get the current hook.
+     *
+     * @return string
+     */
+    protected function current(): string {
+        $cb = "current_{$this->get_type()}";
+
+        return $cb();
+    }
+
     public function with_reflector( Reflector $r ): static {
-        $this->args ??= $r->getNumberOfParameters();
+        $this->args   ??= $r->getNumberOfParameters();
+        $this->method ??= $r->getName();
 
         return parent::with_reflector( $r );
     }
@@ -132,7 +145,7 @@ class Filter extends Hook implements Can_Invoke {
             return $this->can_load();
         }
 
-        \do_action( "{$this->handler->id}_{$strategy}_init" );
+        \do_action( "{$this->handler->id}_{$strategy}_init", $this->handler );
 
         return $this->handler->loaded;
     }
@@ -225,13 +238,22 @@ class Filter extends Hook implements Can_Invoke {
     protected function get_cb_args( array $args ): array {
         if ( $this->params ) {
             foreach ( $this->params as $param ) {
-                $args[] = $this->container->get( $param );
+                $args[] = $this->get_cb_arg( $param );
             }
-
-            $args[] = $this;
         }
 
         return $args;
+    }
+
+    protected function get_cb_arg( string $param ): mixed {
+        return match ( true ) {
+            '!self.hook' === $param                => $this,
+            '!self.handler' === $param             => $this->handler,
+            \str_starts_with( $param, '!value:' )  => \str_replace( '!value:', '', $param ),
+            \str_starts_with( $param, '!global:' ) => $GLOBALS[ \str_replace( '!global:', '', $param ) ] ?? null,
+            \str_starts_with( $param, '!const:' )  => Constants::get_constant( \str_replace( '!const:', '', $param ) ),
+            default                                => $this->container->get( $param ),
+        };
     }
 
     /**

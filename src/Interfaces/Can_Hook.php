@@ -21,6 +21,7 @@ use ReflectionMethod;
  * @property-read string    $id        The hook ID.
  * @property-read string    $tag       The hook tag.
  * @property-read int       $priority  The real priority.
+ * @property-read int       $context   The hook context.
  * @property-read Container $container Container instance.
  * @property-read bool      $loaded    Is the hook loaded?
  */
@@ -98,4 +99,11 @@ interface Can_Hook {
      * @return bool
      */
     public function load(): bool;
+
+    /**
+     * Check if the context is valid.
+     *
+     * @return bool
+     */
+    public function check_context(): bool;
 }

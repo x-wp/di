@@ -1,0 +1,699 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "79c0a82a11e1923658d5b18fcb38ad32",
+    "packages": [
+        {
+            "name": "automattic/jetpack-autoloader",
+            "version": "v5.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Automattic/jetpack-autoloader.git",
+                "reference": "ba3f5146426367c718312a0da87ebd596ed9cf33"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Automattic/jetpack-autoloader/zipball/ba3f5146426367c718312a0da87ebd596ed9cf33",
+                "reference": "ba3f5146426367c718312a0da87ebd596ed9cf33",
+                "shasum": ""
+            },
+            "require": {
+                "composer-plugin-api": "^2.2",
+                "php": ">=7.2"
+            },
+            "require-dev": {
+                "automattic/jetpack-changelogger": "^5.1.0",
+                "composer/composer": "^2.2",
+                "yoast/phpunit-polyfills": "^1.1.1"
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "Automattic\\Jetpack\\Autoloader\\CustomAutoloaderPlugin",
+                "autotagger": true,
+                "mirror-repo": "Automattic/jetpack-autoloader",
+                "branch-alias": {
+                    "dev-trunk": "5.0.x-dev"
+                },
+                "changelogger": {
+                    "link-template": "https://github.com/Automattic/jetpack-autoloader/compare/v${old}...v${new}"
+                },
+                "version-constants": {
+                    "::VERSION": "src/AutoloadGenerator.php"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Automattic\\Jetpack\\Autoloader\\": "src"
+                },
+                "classmap": [
+                    "src/AutoloadGenerator.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Creates a custom autoloader for a plugin or theme.",
+            "keywords": [
+                "autoload",
+                "autoloader",
+                "composer",
+                "jetpack",
+                "plugin",
+                "wordpress"
+            ],
+            "support": {
+                "source": "https://github.com/Automattic/jetpack-autoloader/tree/v5.0.1"
+            },
+            "time": "2025-01-20T16:46:39+00:00"
+        },
+        {
+            "name": "automattic/jetpack-constants",
+            "version": "v2.0.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Automattic/jetpack-constants.git",
+                "reference": "0c2644d642b06ae2a31c561f5bfc6f74a4abc8f1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Automattic/jetpack-constants/zipball/0c2644d642b06ae2a31c561f5bfc6f74a4abc8f1",
+                "reference": "0c2644d642b06ae2a31c561f5bfc6f74a4abc8f1",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.0"
+            },
+            "require-dev": {
+                "automattic/jetpack-changelogger": "^4.2.8",
+                "brain/monkey": "2.6.1",
+                "yoast/phpunit-polyfills": "^1.1.1"
+            },
+            "suggest": {
+                "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+            },
+            "type": "jetpack-library",
+            "extra": {
+                "autotagger": true,
+                "mirror-repo": "Automattic/jetpack-constants",
+                "branch-alias": {
+                    "dev-trunk": "2.0.x-dev"
+                },
+                "changelogger": {
+                    "link-template": "https://github.com/Automattic/jetpack-constants/compare/v${old}...v${new}"
+                }
+            },
+            "autoload": {
+                "classmap": [
+                    "src/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "A wrapper for defining constants in a more testable way.",
+            "support": {
+                "source": "https://github.com/Automattic/jetpack-constants/tree/v2.0.5"
+            },
+            "time": "2024-11-04T09:23:35+00:00"
+        },
+        {
+            "name": "laravel/serializable-closure",
+            "version": "v2.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/laravel/serializable-closure.git",
+                "reference": "f379c13663245f7aa4512a7869f62eb14095f23f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/laravel/serializable-closure/zipball/f379c13663245f7aa4512a7869f62eb14095f23f",
+                "reference": "f379c13663245f7aa4512a7869f62eb14095f23f",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "illuminate/support": "^10.0|^11.0|^12.0",
+                "nesbot/carbon": "^2.67|^3.0",
+                "pestphp/pest": "^2.36|^3.0",
+                "phpstan/phpstan": "^2.0",
+                "symfony/var-dumper": "^6.2.0|^7.0.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Laravel\\SerializableClosure\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Taylor Otwell",
+                    "email": "taylor@laravel.com"
+                },
+                {
+                    "name": "Nuno Maduro",
+                    "email": "nuno@laravel.com"
+                }
+            ],
+            "description": "Laravel Serializable Closure provides an easy and secure way to serialize closures in PHP.",
+            "keywords": [
+                "closure",
+                "laravel",
+                "serializable"
+            ],
+            "support": {
+                "issues": "https://github.com/laravel/serializable-closure/issues",
+                "source": "https://github.com/laravel/serializable-closure"
+            },
+            "time": "2025-02-11T15:03:05+00:00"
+        },
+        {
+            "name": "php-di/invoker",
+            "version": "2.3.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/PHP-DI/Invoker.git",
+                "reference": "59f15608528d8a8838d69b422a919fd6b16aa576"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/PHP-DI/Invoker/zipball/59f15608528d8a8838d69b422a919fd6b16aa576",
+                "reference": "59f15608528d8a8838d69b422a919fd6b16aa576",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.3",
+                "psr/container": "^1.0|^2.0"
+            },
+            "require-dev": {
+                "athletic/athletic": "~0.1.8",
+                "mnapoli/hard-mode": "~0.3.0",
+                "phpunit/phpunit": "^9.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Invoker\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Generic and extensible callable invoker",
+            "homepage": "https://github.com/PHP-DI/Invoker",
+            "keywords": [
+                "callable",
+                "dependency",
+                "dependency-injection",
+                "injection",
+                "invoke",
+                "invoker"
+            ],
+            "support": {
+                "issues": "https://github.com/PHP-DI/Invoker/issues",
+                "source": "https://github.com/PHP-DI/Invoker/tree/2.3.6"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/mnapoli",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-01-17T12:49:27+00:00"
+        },
+        {
+            "name": "php-di/php-di",
+            "version": "7.0.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/PHP-DI/PHP-DI.git",
+                "reference": "98ddc81f8f768a2ad39e4cbe737285eaeabe577a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/PHP-DI/PHP-DI/zipball/98ddc81f8f768a2ad39e4cbe737285eaeabe577a",
+                "reference": "98ddc81f8f768a2ad39e4cbe737285eaeabe577a",
+                "shasum": ""
+            },
+            "require": {
+                "laravel/serializable-closure": "^1.0 || ^2.0",
+                "php": ">=8.0",
+                "php-di/invoker": "^2.0",
+                "psr/container": "^1.1 || ^2.0"
+            },
+            "provide": {
+                "psr/container-implementation": "^1.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3",
+                "friendsofphp/proxy-manager-lts": "^1",
+                "mnapoli/phpunit-easymock": "^1.3",
+                "phpunit/phpunit": "^9.6",
+                "vimeo/psalm": "^4.6"
+            },
+            "suggest": {
+                "friendsofphp/proxy-manager-lts": "Install it if you want to use lazy injection (version ^1)"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/functions.php"
+                ],
+                "psr-4": {
+                    "DI\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "The dependency injection container for humans",
+            "homepage": "https://php-di.org/",
+            "keywords": [
+                "PSR-11",
+                "container",
+                "container-interop",
+                "dependency injection",
+                "di",
+                "ioc",
+                "psr11"
+            ],
+            "support": {
+                "issues": "https://github.com/PHP-DI/PHP-DI/issues",
+                "source": "https://github.com/PHP-DI/PHP-DI/tree/7.0.8"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/mnapoli",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/php-di/php-di",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2025-01-28T21:02:46+00:00"
+        },
+        {
+            "name": "psr/container",
+            "version": "2.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-fig/container.git",
+                "reference": "c71ecc56dfe541dbd90c5360474fbc405f8d5963"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-fig/container/zipball/c71ecc56dfe541dbd90c5360474fbc405f8d5963",
+                "reference": "c71ecc56dfe541dbd90c5360474fbc405f8d5963",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.4.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Psr\\Container\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "PHP-FIG",
+                    "homepage": "https://www.php-fig.org/"
+                }
+            ],
+            "description": "Common Container Interface (PHP FIG PSR-11)",
+            "homepage": "https://github.com/php-fig/container",
+            "keywords": [
+                "PSR-11",
+                "container",
+                "container-interface",
+                "container-interop",
+                "psr"
+            ],
+            "support": {
+                "issues": "https://github.com/php-fig/container/issues",
+                "source": "https://github.com/php-fig/container/tree/2.0.2"
+            },
+            "time": "2021-11-05T16:47:00+00:00"
+        },
+        {
+            "name": "symfony/polyfill-php81",
+            "version": "v1.31.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/polyfill-php81.git",
+                "reference": "4a4cfc2d253c21a5ad0e53071df248ed48c6ce5c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/polyfill-php81/zipball/4a4cfc2d253c21a5ad0e53071df248ed48c6ce5c",
+                "reference": "4a4cfc2d253c21a5ad0e53071df248ed48c6ce5c",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.2"
+            },
+            "type": "library",
+            "extra": {
+                "thanks": {
+                    "url": "https://github.com/symfony/polyfill",
+                    "name": "symfony/polyfill"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "bootstrap.php"
+                ],
+                "psr-4": {
+                    "Symfony\\Polyfill\\Php81\\": ""
+                },
+                "classmap": [
+                    "Resources/stubs"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Nicolas Grekas",
+                    "email": "p@tchwork.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Symfony polyfill backporting some PHP 8.1+ features to lower PHP versions",
+            "homepage": "https://symfony.com",
+            "keywords": [
+                "compatibility",
+                "polyfill",
+                "portable",
+                "shim"
+            ],
+            "support": {
+                "source": "https://github.com/symfony/polyfill-php81/tree/v1.31.0"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2024-09-09T11:45:10+00:00"
+        },
+        {
+            "name": "x-wp/di",
+            "version": "v1.7.4",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/x-wp/di.git",
+                "reference": "21a26e76e405842460ab68f32dd4aedef0deef8a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/x-wp/di/zipball/21a26e76e405842460ab68f32dd4aedef0deef8a",
+                "reference": "21a26e76e405842460ab68f32dd4aedef0deef8a",
+                "shasum": ""
+            },
+            "require": {
+                "automattic/jetpack-constants": "^2",
+                "php": ">=8.0",
+                "php-di/php-di": "^7",
+                "symfony/polyfill-php81": "^1.31",
+                "x-wp/helper-classes": "^1.13",
+                "x-wp/helper-functions": "^1.13"
+            },
+            "conflict": {
+                "oblak/wp-hook-di": "*"
+            },
+            "provide": {
+                "psr/container-implementation": "^1.0",
+                "x-wp/di-implementation": "self.version"
+            },
+            "require-dev": {
+                "oblak/wordpress-coding-standard": "^1.1",
+                "php-stubs/wordpress-stubs": "^6.6",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan": "^1.12",
+                "phpstan/phpstan-deprecation-rules": "^1.2",
+                "swissspidy/phpstan-no-private": "^0.2",
+                "symfony/polyfill-php82": "^1.31",
+                "szepeviktor/phpstan-wordpress": "^1.3",
+                "wp-cli/wp-cli": "^2.11"
+            },
+            "suggest": {
+                "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/Functions/xwp-di-container-fns.php",
+                    "src/Functions/xwp-di-helper-fns.php"
+                ],
+                "psr-4": {
+                    "XWP\\DI\\": "src/"
+                },
+                "classmap": [
+                    "src/Core/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-only"
+            ],
+            "authors": [
+                {
+                    "name": "Sibin Grasic",
+                    "email": "sibin.grasic@oblak.studio"
+                }
+            ],
+            "description": "The dependency injection container for WordPress",
+            "keywords": [
+                "actions",
+                "dependency-injection",
+                "di",
+                "filters",
+                "hooks",
+                "wordpress"
+            ],
+            "support": {
+                "issues": "https://github.com/x-wp/hook-manager/issues",
+                "source": "https://github.com/x-wp/di/tree/v1.7.4"
+            },
+            "time": "2025-02-05T17:03:52+00:00"
+        },
+        {
+            "name": "x-wp/helper-classes",
+            "version": "v1.19.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/x-wp/helper-classes.git",
+                "reference": "9d0e4611a41846e5407c61548d0de2f7da9c7478"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/x-wp/helper-classes/zipball/9d0e4611a41846e5407c61548d0de2f7da9c7478",
+                "reference": "9d0e4611a41846e5407c61548d0de2f7da9c7478",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.0",
+                "x-wp/helper-traits": "^1"
+            },
+            "suggest": {
+                "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "XWP\\Helper\\Classes\\": ""
+                },
+                "classmap": [
+                    "WP/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-only"
+            ],
+            "authors": [
+                {
+                    "name": "Sibin Grasic",
+                    "email": "sibin.grasic@oblak.studio"
+                }
+            ],
+            "description": "Generic abstraction related to xWP packages",
+            "keywords": [
+                "abstractions",
+                "contracts",
+                "decoupling",
+                "extended-wp",
+                "interfaces",
+                "interoperability",
+                "standards"
+            ],
+            "support": {
+                "issues": "https://github.com/x-wp/helper-classes/issues",
+                "source": "https://github.com/x-wp/helper-classes/tree/v1.19.6"
+            },
+            "time": "2025-02-11T18:24:14+00:00"
+        },
+        {
+            "name": "x-wp/helper-functions",
+            "version": "v1.19.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/x-wp/helper-functions.git",
+                "reference": "ff6fdfed54450ecfba106858b8caee822a556c5f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/x-wp/helper-functions/zipball/ff6fdfed54450ecfba106858b8caee822a556c5f",
+                "reference": "ff6fdfed54450ecfba106858b8caee822a556c5f",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.0"
+            },
+            "suggest": {
+                "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "xwp-helper-fns-arr.php",
+                    "xwp-helper-fns-num.php",
+                    "xwp-helper-fns-req.php",
+                    "xwp-helper-fns.php"
+                ],
+                "psr-4": {
+                    "XWP\\Helper\\Functions\\": "."
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-only"
+            ],
+            "authors": [
+                {
+                    "name": "Sibin Grasic",
+                    "email": "sibin.grasic@oblak.studio"
+                }
+            ],
+            "description": "Various traits related to xWP packages",
+            "keywords": [
+                "contracts",
+                "decoupling",
+                "extended-wp",
+                "interfaces",
+                "interoperability",
+                "standards",
+                "traits"
+            ],
+            "support": {
+                "issues": "https://github.com/x-wp/helper-functions/issues",
+                "source": "https://github.com/x-wp/helper-functions/tree/v1.19.6"
+            },
+            "time": "2025-02-13T16:07:44+00:00"
+        },
+        {
+            "name": "x-wp/helper-traits",
+            "version": "v1.19.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/x-wp/helper-traits.git",
+                "reference": "0367d136d6ba36e2ae0fe1854584ef760ea7cae9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/x-wp/helper-traits/zipball/0367d136d6ba36e2ae0fe1854584ef760ea7cae9",
+                "reference": "0367d136d6ba36e2ae0fe1854584ef760ea7cae9",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.0"
+            },
+            "suggest": {
+                "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "XWP\\Helper\\Traits\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-only"
+            ],
+            "authors": [
+                {
+                    "name": "Sibin Grasic",
+                    "email": "sibin.grasic@oblak.studio"
+                }
+            ],
+            "description": "Various traits related to xWP packages",
+            "keywords": [
+                "contracts",
+                "decoupling",
+                "extended-wp",
+                "interfaces",
+                "interoperability",
+                "standards",
+                "traits"
+            ],
+            "support": {
+                "issues": "https://github.com/x-wp/helper-traits/issues",
+                "source": "https://github.com/x-wp/helper-traits/tree/v1.19.6"
+            },
+            "time": "2024-09-18T12:43:44+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": [],
+    "plugin-api-version": "2.6.0"
+}

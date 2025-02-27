@@ -24,6 +24,13 @@ class Invoker {
     use Singleton_Ex;
 
     /**
+     * Is WP in debug mode.
+     *
+     * @var bool
+     */
+    protected bool $debug = false;
+
+    /**
      * Handlers.
      *
      * @var array<class-string,Can_Handle>
@@ -32,12 +39,35 @@ class Invoker {
     protected array $handlers = array();
 
     /**
+     * Registered hooks.
+     *
+     * @var array<class-string,string>
+     */
+    protected array $reg_hooks = array();
+
+    /**
      * Hooks.
      *
      * @var array<class-string,array<string,array<int,Can_Invoke>>>
      * @phpstan-ignore missingType.generics
      */
     protected array $hooks = array();
+
+    /**
+     * Constructor.
+     */
+    protected function __construct() {
+        $this->debug = \defined( 'WP_DEBUG' ) && WP_DEBUG;
+    }
+
+    /**
+     * Get debug info.
+     *
+     * @return array<class-string,string>
+     */
+    public function debug_info(): array {
+        return $this->reg_hooks;
+    }
 
     /**
      * Check if a handler is registered.
@@ -62,6 +92,15 @@ class Invoker {
     }
 
     /**
+     * Get all handlers.
+     *
+     * @return array<class-string,Can_Handle<object>>
+     */
+    public function all_handlers(): array {
+        return $this->handlers;
+    }
+
+    /**
      * Add a handler.
      *
      * @template T of object
@@ -70,10 +109,12 @@ class Invoker {
      * @return static
      */
     public function add_handler( Can_Handle $handler, bool $clear = true ): static {
-        $this->handlers[ $handler->classname ] = $handler;
+        $cname = $handler->classname;
+
+        $this->handlers[ $cname ] = $handler;
 
         if ( $clear ) {
-            $this->hooks[ $handler->classname ] = array();
+            $this->hooks[ $cname ] = array();
         }
 
         return $this;
@@ -99,6 +140,15 @@ class Invoker {
      */
     public function get_hooks( string $classname ): array {
         return $this->has_hooks( $classname ) ? $this->hooks[ $classname ] : array();
+    }
+
+    /**
+     * Get all hooks.
+     *
+     * @return array<class-string,array<string,array<int,Can_Invoke<object,Can_Handle<object>>>>>
+     */
+    public function all_hooks(): array {
+        return $this->hooks;
     }
 
     /**
@@ -170,11 +220,11 @@ class Invoker {
      * @return static
      */
     public function load_handler( object $instance, ?string $container = null ): static {
-        $handler = Handler_Factory::from_instance( $instance, $container );
-
-        if ( $this->has_handler( $handler->classname ) ) {
+        if ( $this->has_handler( Handler_Factory::get_target( $instance ) ) ) {
             return $this;
         }
+
+        $handler = Handler_Factory::from_instance( $instance, $container );
 
         return $this
             ->add_handler( $handler )
@@ -215,6 +265,10 @@ class Invoker {
     protected function init_handler( Can_Handle $handler ): static {
         $handler->load();
 
+        if ( $this->debug ) {
+            $this->reg_hooks[ $handler->classname ] ??= \current_action();
+        }
+
         return $this;
     }
 
@@ -254,16 +308,12 @@ class Invoker {
      * @return array<int,Can_Invoke<T,H>>
      */
 	private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
-		$hooks = array();
-
-		foreach ( Reflection::get_decorators( $method, Can_Invoke::class ) as $hook ) {
-			$hooks[] = $hook
-            ->with_reflector( $method )
-            ->with_target( $method->getName() )
-            ->with_handler( $handler );
-		}
-
-		return $hooks;
+        return \array_map(
+            static fn( $h ) => $h
+                ->with_reflector( $method )
+                ->with_handler( $handler ),
+            Reflection::get_decorators( $method, Can_Invoke::class ),
+        );
 	}
 
     /**
@@ -280,7 +330,7 @@ class Invoker {
                 function () use ( $handler ) {
                     $this->init_handler( $handler );
                 },
-                0,
+                -1,
                 0,
             );
         }
@@ -313,7 +363,7 @@ class Invoker {
 			}
 		}
 
-        \do_action( 'xwp_di_hooks_loaded_' . $handler->classname, $handler );
+        \do_action( "xwp_di_hooks_loaded_{$handler->classname}", $handler );
 
         return $this;
     }

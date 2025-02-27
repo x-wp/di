@@ -115,7 +115,7 @@ trait Accessible_Hook_Methods {
      */
     protected static function get_registered_hooks( string $classname, string $method ): array {
         static::$hooks[ $classname ][ $method ] ??= \array_unique(
-            \wp_list_pluck( static::get_manager()->get_hooks( $classname )[ $method ] ?? array(), 'tag' ),
+            \wp_list_pluck( \xwp_hook_invoker()->get_hooks( $classname )[ $method ] ?? array(), 'tag' ),
         );
 
         return static::$hooks[ $classname ][ $method ];

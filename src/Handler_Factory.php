@@ -8,6 +8,7 @@
 
 namespace XWP\DI;
 
+use ReflectionClass;
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Utils\Reflection;
@@ -18,6 +19,24 @@ use XWP\DI\Utils\Reflection;
  * @since 1.0.0
  */
 class Handler_Factory {
+    /**
+     * Get a handler target classname from an instance.
+     *
+     * @param  object $instance The handler instance.
+     * @return string
+     */
+    public static function get_target( object $instance ): string {
+        if ( $instance instanceof Can_Handle ) {
+            return $instance->classname;
+        }
+
+        if ( $instance instanceof ReflectionClass ) {
+            return $instance->getName();
+        }
+
+        return $instance::class;
+    }
+
     /**
      * Create a handler from a classname.
      *
@@ -43,8 +62,8 @@ class Handler_Factory {
      */
     public static function from_instance( object $instance, ?string $container = null ): Can_Handle {
         if ( Reflection::class_implements( $instance, Can_Handle::class ) ) {
-			return $instance;
-		}
+            return $instance;
+        }
 
         $refl    = Reflection::get_reflector( $instance );
         $handler = Reflection::get_decorator( $refl, Can_Handle::class )

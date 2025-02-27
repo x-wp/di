@@ -78,4 +78,11 @@ interface Can_Handle extends Can_Hook {
      * @return bool
      */
     public function is_hookable(): bool;
+
+    /**
+     * Lazy load the handler.
+     *
+     * @return void
+     */
+    public function lazy_load(): void;
 }

@@ -8,16 +8,17 @@
 
 namespace XWP\DI\Decorators;
 
+use Closure;
 use XWP\DI\Interfaces\Can_Handle;
 
 /**
  * Decorator for REST routes.
  *
- * @property-read array{0:T, 1: string} $callback REST route callback.
- * @property-read string                $methods  REST route methods.
- * @property-read string                $route    REST route.
- * @property-read array                 $vars   REST route parameters.
- * @property-read string                $guard    REST route guard.
+ * @property-read array{0:T, 1: string}|Closure $callback REST route callback.
+ * @property-read string                        $methods  REST route methods.
+ * @property-read string                        $route    REST route.
+ * @property-read array                         $vars   REST route parameters.
+ * @property-read string                        $guard    REST route guard.
  *
  * @template T of \XWP_REST_Controller
  * @template H of REST_Handler<T>
@@ -58,24 +59,29 @@ class REST_Route extends Action {
      *
      * @param  string                     $route   REST route.
      * @param  string                     $methods HTTP methods.
-     * @param  string|array<string,mixed> $params  Route parameters.
+     * @param  string|array<string,mixed> $vars    Route parameters.
      * @param  string|null                $guard   Route guard.
+     * @param  int                        $invoke  Invocation strategy.
+     * @param  array<string>              $params  Additional parameters.
      */
     public function __construct(
         string $route,
         string $methods,
-        string|array $params = array(),
+        string|array $vars = array(),
         ?string $guard = null,
+        int $invoke = self::INV_PROXIED,
+        array $params = array(),
     ) {
         parent::__construct(
             tag: 'rest_api_init',
             priority: 10,
             context: self::CTX_REST,
-            invoke:self::INV_PROXIED,
+            invoke: $invoke,
+            params: $params,
         );
 
         $this->endpoint    = $route;
-        $this->route_args  = $params;
+        $this->route_args  = $vars;
         $this->methods     = $methods;
         $this->route_guard = $guard ?? '__return_true';
     }
@@ -156,16 +162,18 @@ class REST_Route extends Action {
             return $this->route_args;
         }
 
-        return $this->handler->target->{$this->route_args}( $this->methods );
+        return $this->container->call( array( $this->handler->target, $this->route_args ) );
     }
 
     /**
      * Get the route callback.
      *
-     * @return array{0:T, 1: string}
+     * @return array{0:T, 1: string}|Closure
      */
-    protected function get_callback(): array {
-        return array( $this->handler->target, $this->method );
+    protected function get_callback(): array|Closure {
+        return $this->cb_valid( self::INV_STANDARD )
+            ? array( $this->handler->target, $this->method )
+            : fn( ...$args ) => $this->fire_hook( ...$args );
     }
 
     /**

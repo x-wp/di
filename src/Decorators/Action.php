@@ -9,6 +9,7 @@
 namespace XWP\DI\Decorators;
 
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Action hook decorator.
@@ -21,21 +22,10 @@ use XWP\DI\Interfaces\Can_Handle;
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Action extends Filter {
-    /**
-     * Get the hook type.
-     *
-     * @return string
-     */
     protected function get_type(): string {
         return 'action';
     }
 
-    /**
-     * Indirect call to the hook callback.
-     *
-     * @param  mixed ...$args Arguments passed to the hook callback.
-     * @return mixed          Always null.
-     */
     public function invoke( mixed ...$args ): mixed {
         parent::invoke( ...$args );
 

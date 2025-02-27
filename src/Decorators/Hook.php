@@ -12,16 +12,17 @@ use Closure;
 use DI\Container;
 use ReflectionClass;
 use ReflectionMethod;
-use XWP\DI\Hook_Context;
 use XWP\DI\Interfaces\Can_Hook;
+use XWP_Context;
 
 /**
  * Base hook from which the action and filter decorators inherit.
  *
  * @template THndlr of object
  * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
+ * @implements Can_Hook<THndlr,TRflct>
  *
- * @implements Can_Hook<THndlr, TRflct>
+ * @property-read string    $tag       The hook tag.
  */
 abstract class Hook implements Can_Hook {
     /**
@@ -111,7 +112,7 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     public function check_context(): bool {
-        return Hook_Context::validate( $this->context );
+        return XWP_Context::validate( $this->context );
     }
 
     /**
@@ -121,7 +122,21 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     protected function check_method( array|string|\Closure|null $method ): bool {
-        return ! \is_callable( $method ) || $this->container->call( $method );
+        return ! $this->can_call( $method ) || $this->container->call( $method );
+    }
+
+    /**
+     * Check if the method is callable.
+     *
+     * @param  array{0:class-string|object,1:string}|string|\Closure|null $method Method to call.
+     * @return bool
+     */
+    protected function can_call( array|string|\Closure|null $method ): bool {
+        if ( ! \is_array( $method ) ) {
+            return \is_callable( $method );
+        }
+
+        return \method_exists( $method[0], $method[1] );
     }
 
     /**

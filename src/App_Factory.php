@@ -14,8 +14,9 @@ use XWP\Helper\Traits\Singleton;
 /**
  * Create and manage DI containers.
  *
- * @method static Container create( array $config)                                                        Create a new container.
+ * @method static bool      has( string $id)                                                              Check if a container exists.
  * @method static Container get( string $id )                                                             Get a container instance.
+ * @method static Container create( array $config)                                                        Create a new container.
  * @method static void      extend( string $container, array $module, string $position, ?string $target ) Extend an application container definition.
  * @method static bool      decompile( string $id, bool $now )                                            Decompile a container.
  */
@@ -86,6 +87,16 @@ final class App_Factory {
             10,
             2,
         );
+    }
+
+    /**
+     * Check if a container exists.
+     *
+     * @param  string $id Container ID.
+     * @return bool
+     */
+    protected function call_has( string $id ): bool {
+        return isset( $this->containers[ $id ] );
     }
 
     /**

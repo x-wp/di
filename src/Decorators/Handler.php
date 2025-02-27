@@ -12,6 +12,7 @@ use Closure;
 use DI\Container;
 use ReflectionClass;
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Utils\Reflection;
 
 /**
  * Decorator for handling WordPress hooks.
@@ -26,6 +27,14 @@ use XWP\DI\Interfaces\Can_Handle;
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
 class Handler extends Hook implements Can_Handle {
+    /**
+     * Did we fire the on_initialize method.
+     *
+     * @var bool
+     */
+    protected bool $did_init = false;
+
+
     /**
      * Handler classname.
      *
@@ -50,28 +59,28 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Container ID.
      *
-     * @var string
+     * @var ?string
      */
-    protected string $container_id;
+    protected ?string $container_id;
 
     /**
      * Is the handler hookable.
      *
-     * @var bool
+     * @var ?bool
      */
-    protected bool $hookable;
+    protected ?bool $hookable;
 
     /**
      * Constructor.
      *
-     * @param string                                         $tag         Hook tag.
-     * @param Closure|string|int|array{class-string,string}  $priority    Hook priority.
-     * @param string                                         $container   Container ID.
-     * @param int                                            $context     Hook context.
-     * @param null|Closure|string|array{class-string,string} $conditional Conditional callback.
-     * @param array<int,string>|string|false                 $modifiers   Values to replace in the tag name.
-     * @param string                                         $strategy    Initialization strategy.
-     * @param bool                                           $hookable    Is the handler hookable.
+     * @param string                                             $tag         Hook tag.
+     * @param Closure|string|int|array{0:class-string,1:string}  $priority    Hook priority.
+     * @param string                                             $container   Container ID.
+     * @param int                                                $context     Hook context.
+     * @param null|Closure|string|array{0:class-string,1:string} $conditional Conditional callback.
+     * @param array<int,string>|string|false                     $modifiers   Values to replace in the tag name.
+     * @param string                                             $strategy    Initialization strategy.
+     * @param bool                                               $hookable    Is the handler hookable.
      */
     public function __construct(
         ?string $tag = null,
@@ -81,7 +90,7 @@ class Handler extends Hook implements Can_Handle {
         array|string|Closure|null $conditional = null,
         string|array|false $modifiers = false,
         string $strategy = self::INIT_DEFFERED,
-        bool $hookable = true,
+        ?bool $hookable = null,
     ) {
         $this->strategy     = $strategy;
         $this->loaded       = self::INIT_DYNAMICALY === $strategy;
@@ -130,6 +139,13 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
+     * Lazy load the handler.
+     */
+    public function lazy_load(): void {
+        $this->load();
+    }
+
+    /**
      * Loads the handler.
      *
      * @return bool
@@ -139,22 +155,49 @@ class Handler extends Hook implements Can_Handle {
             return true;
         }
 
-        if ( ! $this->can_load() ) {
-            return false;
-        }
+        return $this->can_load() &&
+            $this->initialize()->configure_async()->on_initialize();
+    }
 
-        $this->instance ??= $this->initialize();
-
-        return $this->on_initialize();
+    /**
+     * Instantiate the handler.
+     *
+     * @return T
+     */
+    protected function instantiate(): object {
+        return $this->container->get( $this->classname );
     }
 
     /**
      * Initialize the handler.
      *
-     * @return T
+     * @return static
      */
-    protected function initialize(): object {
-        return $this->container->get( $this->classname );
+    protected function initialize(): static {
+        if ( \doing_action( $this->lazy_hook ) ) {
+            \remove_all_actions( $this->lazy_hook );
+        }
+
+        $this->instance ??= $this->instantiate();
+
+        return $this;
+    }
+
+    /**
+     * Configure the handler asynchronously.
+     *
+     * @return static
+     */
+    protected function configure_async(): static {
+        if ( \method_exists( $this->classname, 'configure_async' ) ) {
+            foreach ( $this->classname::configure_async() as $key => $val ) {
+                $this->container->set( $key, $val );
+            }
+        }
+
+        $this->loaded = true;
+
+        return $this;
     }
 
     /**
@@ -163,13 +206,38 @@ class Handler extends Hook implements Can_Handle {
      * @return bool
      */
     protected function on_initialize(): bool {
-        $this->loaded = true;
-
-        if ( \method_exists( $this->classname, 'on_initialize' ) ) {
-            $this->container->call( array( $this->classname, 'on_initialize' ) );
+        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
+            $this->container->call(
+                array( $this->instance, __FUNCTION__ ),
+                $this->resolve_params( __FUNCTION__ ),
+            );
         }
 
-        return $this->loaded;
+        $this->did_init = true;
+
+        return true;
+    }
+
+    /**
+     * Check if the method exists.
+     *
+     * @param  string $method Method to check.
+     * @return bool
+     */
+    protected function method_exists( string $method ): bool {
+        return \method_exists( $this->instance, $method );
+    }
+
+    /**
+     * Resolve the parameters for a method.
+     *
+     * @param  string $method     Method name.
+     * @return array<mixed>
+     */
+    protected function resolve_params( string $method ): array {
+        $injector = Reflection::get_decorator( $this->reflector->getMethod( $method ), Infuse::class );
+
+        return $injector ? $injector->resolve( $this ) : array();
     }
 
     /**
@@ -216,6 +284,10 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function is_hookable(): bool {
-        return $this->hookable;
+        if ( ! $this->check_context() ) {
+            return false;
+        }
+
+        return $this->hookable ?? true;
     }
 }
