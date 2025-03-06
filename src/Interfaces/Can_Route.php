@@ -1,4 +1,10 @@
 <?php
+/**
+ * Can_Route interface file.
+ *
+ * @package eXtended WordPress
+ * @subpackage Dependency Injection
+ */
 
 namespace XWP\DI\Interfaces;
 

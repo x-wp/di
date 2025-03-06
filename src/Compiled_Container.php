@@ -1,4 +1,4 @@
-<?php //phpcs:disable SlevomatCodingStandard.Namespaces.FullyQualifiedExceptions.NonFullyQualifiedException, SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall, WordPress.NamingConventions, WordPress.Security.EscapeOutput.ExceptionNotEscaped
+<?php //phpcs:disable SlevomatCodingStandard.Namespaces.FullyQualifiedExceptions.NonFullyQualifiedException, SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall, WordPress.NamingConventions, WordPress.Security.EscapeOutput.ExceptionNotEscaped, Squiz.Commenting.FunctionComment.Missing, Universal.NamingConventions
 
 namespace XWP\DI;
 

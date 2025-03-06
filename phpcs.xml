@@ -14,7 +14,5 @@
     <severity>0</severity>
   </rule>
 
-  <file>config/</file>
   <file>src/</file>
-  <file>wc-sync-core.php</file>
 </ruleset>

@@ -90,8 +90,6 @@ class Compiler {
      * @return array<string,mixed>
      */
     private function get_definition(): array {
-        // \dump( $this->parser->get_parsed() );
-        // die;
         return $this->parser->get_parsed();
     }
 }
