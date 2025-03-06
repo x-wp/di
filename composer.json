@@ -22,7 +22,7 @@
   },
   "require": {
     "php": ">=8.0",
-    "automattic/jetpack-constants": "^2",
+    "automattic/jetpack-constants": "^2|^3",
     "php-di/php-di": "^7",
     "symfony/polyfill-php81": "^1.31",
     "x-wp/helper-classes": "^1.13",
