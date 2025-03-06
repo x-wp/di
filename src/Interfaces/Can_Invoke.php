@@ -21,7 +21,6 @@ namespace XWP\DI\Interfaces;
  * @property-read string $method The method name.
  *
  * @property-read array{0:TInst,1:string} $target  The target method.
- * @property-read THndl                   $handler The handler instance.
  */
 interface Can_Invoke extends Can_Hook {
     /**
@@ -62,5 +61,26 @@ interface Can_Invoke extends Can_Hook {
      * @param  string $method Method name.
      * @return static
      */
-    public function with_target( string $method ): static;
+    public function with_method( string $method ): static;
+
+    /**
+     * Get the handler instance.
+     *
+     * @return THndl
+     */
+    public function get_handler(): Can_Handle;
+
+    /**
+     * Get the target method.
+     *
+     * @return string
+     */
+    public function get_method(): string;
+
+    /**
+     * Get the number of arguments for the method.
+     *
+     * @return int
+     */
+    public function get_num_args(): int;
 }

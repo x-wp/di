@@ -1,4 +1,4 @@
-<?php //phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.namespaceFound
+<?php //phpcs:disable Universal.NamingConventions.NoReservedKeywordParameterNames.namespaceFound, Squiz.Commenting.FunctionComment.Missing
 /**
  * REST_Handler class file.
  *
@@ -7,6 +7,8 @@
  */
 
 namespace XWP\DI\Decorators;
+
+use XWP\DI\Interfaces\Can_Handle_REST;
 
 /**
  * Decorator for grouping ajax actions.
@@ -17,9 +19,10 @@ namespace XWP\DI\Decorators;
  *
  * @template T of \XWP_REST_Controller
  * @extends Handler<T>
+ * @implements Can_Handle_REST<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class REST_Handler extends Handler {
+class REST_Handler extends Handler implements Can_Handle_REST {
     /**
      * Constructor
      *
@@ -40,6 +43,30 @@ class REST_Handler extends Handler {
             container: $container,
             context: self::CTX_REST,
         );
+    }
+
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'basename'  => $this->basename,
+                    'namespace' => $this->namespace,
+                ),
+            ),
+        );
+    }
+
+    public function get_namespace(): string {
+        return $this->namespace;
+    }
+
+    public function get_basename(): string {
+        return $this->basename;
+    }
+
+    public function get_rest_hook(): string {
+        return $this->namespace . '/' . $this->basename;
     }
 
     /**
@@ -64,32 +91,5 @@ class REST_Handler extends Handler {
         return parent::instantiate()
             ->with_namespace( $this->namespace )
             ->with_basename( $this->basename );
-    }
-
-    /**
-     * Get the REST namespace.
-     *
-     * @return string
-     */
-    protected function get_namespace(): string {
-        return $this->namespace;
-    }
-
-    /**
-     * Get the REST basename.
-     *
-     * @return string
-     */
-    protected function get_basename(): string {
-        return $this->basename;
-    }
-
-    /**
-     * Get the REST hook.
-     *
-     * @return string
-     */
-    public function get_rest_hook(): string {
-        return $this->namespace . '/' . $this->basename;
     }
 }

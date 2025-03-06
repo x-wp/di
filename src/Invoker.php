@@ -8,96 +8,181 @@
 
 namespace XWP\DI;
 
-use XWP\DI\Decorators\Module;
-use XWP\DI\Handler_Factory;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Invoke;
-use XWP\DI\Utils\Reflection;
-use XWP\Helper\Traits\Singleton_Ex;
+use XWP\DI\Interfaces\Can_Import;
+use XWP\DI\Traits\Hook_Factory_Methods;
 
 /**
- * Manages handlers and hooks.
- *
- * @since 1.0.0
+ * Handles hook registration and invocation.
  */
 class Invoker {
-    use Singleton_Ex;
-
-    /**
-     * Is WP in debug mode.
-     *
-     * @var bool
-     */
-    protected bool $debug = false;
+    use Hook_Factory_Methods;
 
     /**
      * Handlers.
      *
-     * @var array<class-string,Can_Handle>
-     * @phpstan-ignore missingType.generics
+     * @var array<class-string,false|string>
      */
-    protected array $handlers = array();
-
-    /**
-     * Registered hooks.
-     *
-     * @var array<class-string,string>
-     */
-    protected array $reg_hooks = array();
+    private array $handlers = array();
 
     /**
      * Hooks.
      *
-     * @var array<class-string,array<string,array<int,Can_Invoke>>>
-     * @phpstan-ignore missingType.generics
+     * @var array<class-string,array<string,string>>>
      */
-    protected array $hooks = array();
+    private array $hooks = array();
+
+    /**
+     * Uncached handlers.
+     *
+     * @var array<string,string> //array<Can_Handle<object>>
+     */
+    private array $uncached = array();
+
+    /**
+     * Cache configuration.
+     *
+     * @var array{
+     *   app: bool,
+     *   defs: bool,
+     *   hooks: bool,
+     *   dir: bool,
+     * }
+     */
+    private array $cache;
+
+    /**
+     * WP Environment.
+     *
+     * @var string
+     */
+    private string $env;
+
+    /**
+     * Is debug mode enabled.
+     *
+     * @var bool
+     */
+    private bool $debug;
 
     /**
      * Constructor.
+     *
+     * @param  Container $container Container instance.
      */
-    protected function __construct() {
-        $this->debug = \defined( 'WP_DEBUG' ) && WP_DEBUG;
+    public function __construct( private Container $container ) {
+        $this->debug = $container->get( 'xwp.app.debug' );
+        $this->cache = $container->get( 'xwp.app.cache' );
+        $this->env   = $container->get( 'xwp.app.env' );
+
+        \add_action( "xwp_{$this->app_uuid()}_module_init", array( $this, 'init_module' ), 0, 1 );
+
+        if ( ! $this->debug ) {
+            return;
+        }
+
+        \add_action( 'shutdown', array( $this, 'debug' ) );
     }
 
     /**
-     * Get debug info.
-     *
-     * @return array<class-string,string>
+     * Debug output.
      */
-    public function debug_info(): array {
-        return $this->reg_hooks;
+    public function debug(): void {
+        if ( ! $this->uncached ) {
+            return;
+        }
+
+        // phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
+        \error_log( \str_pad( " XWP-DI: {$this->app_id()} ", 62, '*', STR_PAD_BOTH ) );
+        \error_log( 'Hook definition cache is active. The following handlers were loaded manually' );
+        \error_log( \esc_html( \implode( ', ', $this->uncached ) ) );
+        // phpcs:enable WordPress.PHP.DevelopmentFunctions.error_log_error_log
     }
 
     /**
-     * Check if a handler is registered.
+     * Get registered handlers, and their initialization hook.
      *
-     * @template T of object
-     * @param  class-string<T> $classname The handler classname.
-     * @return bool
+     * @return array<class-string,false|string>
      */
-    public function has_handler( string $classname ): bool {
-        return isset( $this->handlers[ $classname ] );
-    }
-
-    /**
-     * Check if a handler is registered.
-     *
-     * @template T of object
-     * @param  class-string<T> $classname The handler classname.
-     * @return null|Can_Handle<T>
-     */
-    public function get_handler( string $classname ): ?Can_Handle {
-        return $this->has_handler( $classname ) ? $this->handlers[ $classname ] : null;
-    }
-
-    /**
-     * Get all handlers.
-     *
-     * @return array<class-string,Can_Handle<object>>
-     */
-    public function all_handlers(): array {
+    public function get_handlers(): array {
         return $this->handlers;
+    }
+
+    /**
+     * Get registered hooks.
+     *
+     * @param  string|null $handler Handler classname.
+     * @return ($handler is null ? array<class-string,array<string,string>> : array<string,string>)
+     */
+    public function get_actions( ?string $handler = null ): array {
+        return $handler ? $this->hooks[ $handler ] ?? array() : $this->hooks;
+    }
+
+    /**
+     * Run the module.
+     *
+     * @template T of object
+     *
+     * @param  Can_Import<T> $module Module instance.
+     * @return static
+     */
+    public function load_module( Can_Import $module ): static {
+        return $this->register_handler( $module )->load_imports( $module );
+    }
+
+    /**
+     * Initialize the module.
+     *
+     * @hooked xwp_{app_uuid}_module_init Registers handlers for the module.
+     *
+     * @template T of object
+     * @param  Can_Import<T> $m Module to initialize.
+     */
+    public function init_module( Can_Import $m ): void {
+        foreach ( $m->get_handlers() as $handler ) {
+            $handler =
+
+            $this->register_handler( $handler );
+        }
+    }
+
+    /**
+     * Register a handler.
+     *
+     * @template T of object
+     * @param  class-string<T>|T|Can_Handle<T>|array<string,mixed> ...$handlers Handlers to register.
+     * @return static
+     */
+    public function register_handlers( string|object|array ...$handlers ): static {
+        foreach ( $handlers as $handler ) {
+            $this->register_handler( $handler );
+        }
+
+        return $this;
+    }
+
+    /**
+     * Register a handler.
+     *
+     * @template T of object
+     * @param  class-string<T>|T|Can_Handle<T>|array<string,mixed> $h Handler to register.
+     * @return static
+     */
+    public function register_handler( string|object|array $h ): static {
+        $h = \is_string( $h ) && \class_exists( $h ) && $this->container->has( 'Handler-' . $h )
+            ? $this->container->get( 'Handler-' . $h )
+            : $this->make_handler( $h );
+
+        //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+        return match ( $h->get_strategy() ) {
+            $h::INIT_LAZY,
+            $h::INIT_JIT   => $this->add_handler( $h )->queue_lazy_handler( $h )->queue_methods( $h ),
+            $h::INIT_EARLY => $this->add_handler( $h )->init_handler( $h )->queue_methods( $h ),
+            $h::INIT_NOW   => $this->add_handler( $h )->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
+            $h::INIT_USER  => $this->add_handler( $h )->register_methods( $h )->invoke_methods( $h ),
+            default        => $this->add_handler( $h )->queue_handler( $h ),
+        };
+        //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
     }
 
     /**
@@ -109,148 +194,77 @@ class Invoker {
      * @return static
      */
     public function add_handler( Can_Handle $handler, bool $clear = true ): static {
-        $cname = $handler->classname;
+        $cname = $handler->get_classname();
 
-        $this->handlers[ $cname ] = $handler;
+        if ( isset( $this->handlers[ $cname ] ) ) {
+            return $this;
+        }
 
         if ( $clear ) {
             $this->hooks[ $cname ] = array();
         }
 
+        $this->handlers[ $cname ] = $handler->is_loaded() ? $handler->get_init_hook() : false;
+
         return $this;
     }
 
     /**
-     * Check if a handler has hooks.
+     * Load module imports.
      *
      * @template T of object
-     * @param  class-string<T> $classname The handler classname.
-     * @return bool
-     */
-    public function has_hooks( string $classname ): bool {
-        return isset( $this->hooks[ $classname ] ) && \count( $this->hooks[ $classname ] ) > 0;
-    }
-
-    /**
-     * Get hooks for a handler.
-     *
-     * @template T of object
-     * @param  class-string<T> $classname The handler classname.
-     * @return array<string,array<int,Can_Invoke<T,Can_Handle<T>>>>
-     */
-    public function get_hooks( string $classname ): array {
-        return $this->has_hooks( $classname ) ? $this->hooks[ $classname ] : array();
-    }
-
-    /**
-     * Get all hooks.
-     *
-     * @return array<class-string,array<string,array<int,Can_Invoke<object,Can_Handle<object>>>>>
-     */
-    public function all_hooks(): array {
-        return $this->hooks;
-    }
-
-    /**
-     * Register a module.
-     *
-     * @template T of object
-     * @param  class-string<T> $classname The module classname.
-     * @return Module<T>
-     */
-    public function register_module( string $classname ): Module {
-        return $this->register_handler( $classname )->get_handler( $classname );
-    }
-
-    /**
-     * Register a module.
-     *
-     * @template T of object
-     * @param  class-string<T> ...$classnames Handler classnames.
+     * @param  Can_Import<T> $module Module instance.
      * @return static
      */
-    public function register_handlers( string ...$classnames ): static {
-        foreach ( $classnames as $classname ) {
-            $this->register_handler( $classname );
+    private function load_imports( Can_Import $module ): static {
+        foreach ( $module->get_imports() as $import ) {
+            $this->load_module( $this->fetch_module( $import ) );
         }
 
         return $this;
     }
 
     /**
-     * Register a handler.
+     * Queue a handler.
      *
      * @template T of object
-     * @param  class-string<T> $classname The handler classname.
+     * @param  Can_Handle<T> $h Handler to queue.
      * @return static
      */
-    public function register_handler( string $classname ): static {
-        if ( $this->has_handler( $classname ) ) {
-            return $this;
-        }
-
-        $handler = Handler_Factory::from_classname( $classname );
-
-        return match ( $handler->strategy ) {
-            $handler::INIT_EARLY       => $this
-                                        ->add_handler( $handler )
-                                        ->init_handler( $handler )
-                                        ->queue_methods( $handler ),
-            $handler::INIT_IMMEDIATELY => $this
-                                        ->add_handler( $handler )
-                                        ->init_handler( $handler )
-                                        ->register_methods( $handler )
-                                        ->invoke_methods( $handler ),
-            $handler::INIT_ON_DEMAND,
-            $handler::INIT_JUST_IN_TIME => $this
-                                        ->add_handler( $handler )
-                                        ->queue_methods( $handler ),
-            default                     => $this
-                                        ->add_handler( $handler )
-                                        ->queue_handler( $handler ),
-        };
-    }
-
-    /**
-     * Load a handler.
-     *
-     * @template T of object
-     * @param  T           $instance  The handler instance.
-     * @param  null|string $container The container to use.
-     * @return static
-     */
-    public function load_handler( object $instance, ?string $container = null ): static {
-        if ( $this->has_handler( Handler_Factory::get_target( $instance ) ) ) {
-            return $this;
-        }
-
-        $handler = Handler_Factory::from_instance( $instance, $container );
-
-        return $this
-            ->add_handler( $handler )
-            ->register_methods( $handler )
-            ->invoke_methods( $handler );
-    }
-
-    /**
-     * Enqueue a handler.
-     *
-     * @template T of object
-     * @param  Can_Handle<T> $handler The handler to enqueue.
-     * @return static
-     */
-    protected function queue_handler( Can_Handle $handler ): static {
+    private function queue_handler( Can_Handle $h ): static {
         \add_action(
-            $handler->tag,
-            function () use ( $handler ) {
+            $h->get_tag(),
+            function () use ( $h ) {
                 $this
-                    ->init_handler( $handler )
-                    ->register_methods( $handler )
-                    ->invoke_methods( $handler );
+                    ->init_handler( $h )
+                    ->register_methods( $h )
+                    ->invoke_methods( $h );
             },
-            $handler->priority,
+            $h->get_priority(),
             0,
         );
+
+        return $this;
+    }
+
+    /**
+     * Queue a handler.
+     *
+     * @template T of object
+     * @param  Can_Handle<T> $h Handler to queue.
+     * @return static
+     */
+    private function queue_lazy_handler( Can_Handle $h ): static {
+        if ( $h->is_lazy() ) {
+            \add_action(
+                $h->get_lazy_tag(),
+                function () use ( $h ) {
+                    $this->init_handler( $h );
+                },
+                $h->get_priority(),
+                0,
+            );
+        }
 
         return $this;
     }
@@ -259,133 +273,121 @@ class Invoker {
      * Initialize a handler.
      *
      * @template T of object
-     * @param  Can_Handle<T> $handler The handler to initialize.
+     * @param  Can_Handle<T> $h Handler to initialize.
      * @return static
      */
-    protected function init_handler( Can_Handle $handler ): static {
-        $handler->load();
-
-        if ( $this->debug ) {
-            $this->reg_hooks[ $handler->classname ] ??= \current_action();
+    private function init_handler( Can_Handle $h ): static {
+        if ( $h->load() ) {
+            $this->handlers[ $h->get_classname() ] = $h->get_init_hook();
         }
 
         return $this;
     }
 
     /**
-     * Register methods.
+     * Register handler methods
      *
      * @template T of object
-     * @param  Can_Handle<T> $handler The handler to register methods for.
+     * @param  Can_Handle<T> $h Handler instance.
      * @return static
      */
-    protected function register_methods( Can_Handle $handler ): static {
-		if ( $this->has_hooks( $handler->classname ) || ! $handler->is_hookable() ) {
-			return $this;
+    private function register_methods( Can_Handle $h ): static {
+        if ( null !== $h->get_hooks() ) {
+            return $this;
         }
 
-        foreach ( Reflection::get_hookable_methods( $handler->reflector ) as $m ) {
-            $hooks = $this->register_method( $handler, $m );
+        $h->with_hooks( $this->get_hooks( $h ) );
 
-			if ( ! $hooks ) {
-				continue;
-			}
-
-			$this->hooks[ $handler->classname ][ $m->getName() ] = $hooks;
+        if ( $this->is_cached( 'hooks' ) && ( $this->debug || $this->is_prod() ) ) {
+            $this->uncached[ $h->get_token() ] = $h->get_classname();
         }
 
         return $this;
     }
 
     /**
-     * Register a method.
+     * Queue handler methods
      *
      * @template T of object
-     * @template H of Can_Handle<T>
-     *
-     * @param  H                 $handler The handler to register the method for.
-     * @param  \ReflectionMethod $method       The method to register.
-     * @return array<int,Can_Invoke<T,H>>
-     */
-	private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
-        return \array_map(
-            static fn( $h ) => $h
-                ->with_reflector( $method )
-                ->with_handler( $handler ),
-            Reflection::get_decorators( $method, Can_Invoke::class ),
-        );
-	}
-
-    /**
-     * Enqueue methods.
-     *
-     * @template T of object
-     * @param  Can_Handle<T> $handler The handler to enqueue methods for.
+     * @param  Can_Handle<T> $h Handler instance.
      * @return static
      */
-    protected function queue_methods( Can_Handle $handler ): static {
-        if ( $handler->is_lazy() ) {
+    private function queue_methods( Can_Handle $h ): static {
+        if ( $h->is_hookable() ) {
             \add_action(
-                $handler->lazy_hook,
-                function () use ( $handler ) {
-                    $this->init_handler( $handler );
+                $h->get_tag(),
+                function () use ( $h ) {
+                    $this
+                    ->register_methods( $h )
+                    ->invoke_methods( $h );
                 },
-                -1,
+                $h->get_priority(),
                 0,
             );
         }
 
-        \add_action(
-            $handler->tag,
-            function () use ( $handler ) {
-                $this
-                    ->register_methods( $handler )
-                    ->invoke_methods( $handler );
-            },
-            $handler->priority,
-            0,
-        );
+        return $this;
+    }
+
+    /**
+     * Invoke handler methods
+     *
+     * @template T of object
+     * @param  Can_Handle<T> $h Handler instance.
+     * @return static
+     */
+    private function invoke_methods( Can_Handle $h ): static {
+        if ( \is_null( $h->get_hooks() ) ) {
+            \dump( $h );
+            die;
+        }
+        foreach ( $h->get_hooks() as $hook_id ) {
+            $m = $this->fetch_hook( $hook_id );
+
+            if ( ! $m->load() ) {
+                continue;
+            }
+
+            $this->hooks[ $m->get_classname() ][ $m->get_token() ] = $m->get_init_hook();
+        }
 
         return $this;
     }
 
     /**
-     * Invoke methods.
+     * Get the application ID.
      *
-     * @template T of object
-     * @param  Can_Handle<T> $handler The handler to invoke methods for.
-     * @return static
+     * @return string
      */
-    public function invoke_methods( Can_Handle $handler ): static {
-        foreach ( $this->hooks[ $handler->classname ] as $hooks ) {
-			foreach ( $hooks as $hook ) {
-				$hook->load();
-			}
-		}
-
-        \do_action( "xwp_di_hooks_loaded_{$handler->classname}", $handler );
-
-        return $this;
+    private function app_id(): string {
+        return $this->container->get( 'xwp.app.id' );
     }
 
     /**
-     * Load hooks for a handler.
+     * Get the application UUID.
      *
-     * @template T of object
-     * @template H of Can_Handle<T>
-     * @param  H                                        $handler The handler to load hooks for.
-     * @param  array<string,array<int,Can_Invoke<T,H>>> $hooks The hooks to load.
-     * @return static
+     * @return string
      */
-    public function load_hooks( Can_Handle $handler, array $hooks ): static {
-        if ( ! $this->has_handler( $handler->classname, ) ) {
-            $this->add_handler( $handler, false );
-        }
+    private function app_uuid(): string {
+        return $this->container->get( 'xwp.app.uuid' );
+    }
 
-        if ( ! $this->has_hooks( $handler->classname ) ) {
-            $this->hooks[ $handler->classname ] = $hooks;
-        }
+    /**
+     * Check if cache is enabled for a feature.
+     *
+     * @param  'app'|'defs'|'hooks' $feature Feature to check.
+     * @return bool
+     */
+    private function is_cached( string $feature ): bool {
+        return $this->cache[ $feature ] ?? false;
+    }
 
-        return $this;
+    /**
+     * Are we in production?
+     *
+     * @return bool
+     */
+    private function is_prod(): bool {
+        return 'production' === $this->env;
     }
 }

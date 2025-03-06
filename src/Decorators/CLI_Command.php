@@ -4,7 +4,9 @@ namespace XWP\DI\Decorators;
 
 use Closure;
 use WP_CLI;
+use XWP\DI\Interfaces\Can_Execute;
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Can_Handle_CLI;
 
 use function WP_CLI\Utils\get_flag_value;
 
@@ -12,18 +14,11 @@ use function WP_CLI\Utils\get_flag_value;
  * Decorator for defining CLI commands.
  *
  * @template T of object
- * @extends Action<T,CLI_Handler<T>>
- *
- * @property-read string                         $command       Command name.
- * @property-read string                         $shortdesc     Command short description.
- * @property-read string                         $longdesc      Command long description.
- * @property-read array{0:T, 1: string}|Closure  $callback      Command callback.
- * @property-read null|Closure                   $before_invoke Before invoke callback.
- * @property-read null|Closure                   $after_invoke  After invoke callback.
- * @property-read array<int,array<string,mixed>> $hook_args      Command arguments.
+ * @extends Action<T,Can_Handle_CLI<T>>
+ * @implements Can_Execute<T,Can_Handle_CLI<T>>
  */
 #[\Attribute( \Attribute::TARGET_METHOD )]
-class CLI_Command extends Action {
+class CLI_Command extends Action implements Can_Execute {
     protected const ARG_TYPE = array( 'positional', 'assoc', 'flag' );
 
     /**
@@ -76,41 +71,23 @@ class CLI_Command extends Action {
         );
     }
 
-    /**
-     * Get the before/after invoke callback.
-     *
-     * @param  null|Closure|string|array{0:class-string,1:string} $cb Callback.
-     * @return null|Closure
-     */
-    protected function get_invoke( null|Closure|string|array $cb ): null|Closure {
-        if ( null !== $cb ) {
-            return fn() => $this->container->call( $cb );
-        }
-
-        return null;
-    }
-
-    protected function get_before_invoke(): null|Closure {
+    public function get_before_invoke(): ?Closure {
         return $this->get_invoke( $this->before );
     }
 
-    protected function get_after_invoke(): null|Closure {
+    public function get_after_invoke(): ?Closure {
         return $this->get_invoke( $this->after );
     }
 
-    protected function get_priority(): int {
-        return $this->handler->priority;
+    public function get_command(): string {
+        return \sprintf( '%s %s', $this->get_handler()->get_namespace(), $this->get_subcommand() );
     }
 
-    protected function get_command(): string {
-        return \sprintf( '%s %s', $this->handler->namespace, $this->subcommand );
+    public function get_subcommand(): string {
+        return $this->subcommand;
     }
 
-    protected function get_shortdesc(): ?string {
-        return $this->summary ?: null;
-    }
-
-    protected function get_longdesc(): ?string {
+    public function get_longdesc(): ?string {
         $desc = array();
 
         foreach ( (array) $this->description as $line ) {
@@ -125,6 +102,28 @@ class CLI_Command extends Action {
         return \implode( "\n", $desc ) ?: null;
     }
 
+    public function get_priority(): int {
+        return $this->get_handler()->get_priority();
+    }
+
+    public function get_shortdesc(): ?string {
+        return $this->summary ?: null;
+    }
+
+    /**
+     * Get the before/after invoke callback.
+     *
+     * @param  null|Closure|string|array{0:class-string,1:string} $cb Callback.
+     * @return null|Closure
+     */
+    protected function get_invoke( null|Closure|string|array $cb ): ?Closure {
+        if ( null !== $cb ) {
+            return fn() => $this->get_container()->call( $cb );
+        }
+
+        return null;
+    }
+
     /**
      * Get the command arguments.
      *
@@ -132,11 +131,11 @@ class CLI_Command extends Action {
      */
     protected function get_hook_args(): array {
         $args = array(
-            'after_invoke'  => $this->after_invoke,
-            'before_invoke' => $this->before_invoke,
+            'after_invoke'  => $this->get_after_invoke(),
+            'before_invoke' => $this->get_before_invoke(),
             'is_deferred'   => $this->deferred,
-            'longdesc'      => $this->longdesc,
-            'shortdesc'     => $this->shortdesc,
+            'longdesc'      => $this->get_longdesc(),
+            'shortdesc'     => $this->get_shortdesc(),
             'synopsis'      => $this->cmd_args,
             'when'          => $this->when,
         );
@@ -145,7 +144,7 @@ class CLI_Command extends Action {
     }
 
     protected function load_hook( ?string $tag = null ): bool {
-        WP_CLI::add_command( $this->command, $this->callback, $this->hook_args );
+        WP_CLI::add_command( $this->get_command(), $this->get_callback(), $this->get_hook_args() );
 
         return true;
     }
@@ -157,7 +156,7 @@ class CLI_Command extends Action {
      */
     protected function get_callback(): array|Closure {
         return $this->cb_valid( self::INV_STANDARD )
-            ? array( $this->handler->target, $this->method )
+            ? array( $this->get_handler()->get_target(), $this->get_method() )
             : array( $this, 'run_cmd' );
     }
 
@@ -271,6 +270,6 @@ class CLI_Command extends Action {
             \array_map( array( $this, 'get_cb_arg' ), $this->params ),
         );
 
-        $this->container->call( array( $this->handler->target, $this->method ), $args );
+        $this->get_container()->call( array( $this->get_handler()->get_target(), $this->get_method() ), $args );
     }
 }

@@ -8,7 +8,7 @@
 
 namespace XWP\DI;
 
-use DI\Container;
+use DI\Definition\Source\SourceCache;
 use XWP\Helper\Traits\Singleton;
 
 /**
@@ -26,9 +26,16 @@ final class App_Factory {
     /**
      * Array of container instances.
      *
-     * @var array<string, Container>
+     * @var array<string,Container>
      */
-    private array $containers = array();
+    private array $apps = array();
+
+    /**
+     * Array of public container IDs.
+     *
+     * @var array<string,bool>
+     */
+    private array $public = array();
 
     /**
      * Call a static method on the instance.
@@ -48,18 +55,22 @@ final class App_Factory {
      *
      * @param  array<string,mixed> $config Configuration.
      * @return Container
+     *
+     * @throws \InvalidArgumentException If the app_id is missing.
+     * @throws \InvalidArgumentException If the container already exists.
      */
     protected function call_create( array $config ): Container {
-        if ( isset( $this->containers[ $config['id'] ] ) ) {
-            return $this->containers[ $config['id'] ];
+        $id = $config['app_id'] ?? $config['id'] ?? throw new \InvalidArgumentException( 'Missing app_id' );
+
+        if ( isset( $this->apps[ $id ] ) ) {
+            throw new \InvalidArgumentException( \esc_html( "Container {$id} already exists" ) );
         }
 
         $config = $this->parse_config( $config );
 
-        return $this->containers[ $config['id'] ] ??= App_Builder::configure( $config )
-            ->addDefinitions( $config['module'] )
-            ->addDefinitions( array( 'xwp.app.config' => $config ) )
-            ->build();
+        $this->public[ $id ] = $config['public'];
+
+        return $this->apps[ $id ] ??= App_Builder::configure( $config )->build();
     }
 
     /**
@@ -73,7 +84,7 @@ final class App_Factory {
     protected function call_extend( string $container, array $module, string $position = 'after', ?string $target = null ): void {
         \add_filter(
             "xwp_extend_import_{$container}",
-            static function ( array $imports, string $classname ) use( $module, $position, $target ): array {
+            static function ( array $imports, string $classname ) use ( $module, $position, $target ): array {
                 if ( $target && $target !== $classname ) {
                     return $imports;
                 }
@@ -96,7 +107,7 @@ final class App_Factory {
      * @return bool
      */
     protected function call_has( string $id ): bool {
-        return isset( $this->containers[ $id ] );
+        return isset( $this->apps[ $id ] );
     }
 
     /**
@@ -104,9 +115,19 @@ final class App_Factory {
      *
      * @param  string $id Container ID.
      * @return Container
+     *
+     * @throws \InvalidArgumentException If the container does not exist.
+     * @throws \InvalidArgumentException If the container is not public.
      */
     protected function call_get( string $id ): Container {
-        return $this->containers[ $id ];
+        if ( ! isset( $this->apps[ $id ] ) ) {
+            throw new \InvalidArgumentException( \esc_html( "Container {$id} does not exist" ) );
+        }
+
+        if ( ! $this->public[ $id ] ) {
+            throw new \InvalidArgumentException( \esc_html( "Container {$id} cannot be accessed externally" ) );
+        }
+        return $this->apps[ $id ];
     }
 
     /**
@@ -117,7 +138,7 @@ final class App_Factory {
      * @return bool
      */
     protected function call_decompile( string $id, bool $now = false ): bool {
-        $config = $this->containers[ $id ]->get( 'xwp.app.config' );
+        $config = $this->apps[ $id ]->get( 'xwp.app.config' );
 
         if ( ! $config['compile'] || ! \xwp_wpfs()->is_dir( $config['compile_dir'] ) ) {
             return false;
@@ -132,20 +153,81 @@ final class App_Factory {
     /**
      * Get the default configuration.
      *
-     * @param  array<string, mixed> $config Configuration options.
-     * @return array<string, mixed>
+     * @param  array<string,mixed> $config Configuration options.
+     * @return array<string,mixed>
      */
     protected function parse_config( array $config ): array {
-        return \wp_parse_args(
+        $is_prod = 'production' === \wp_get_environment_type();
+        $apcu_on = SourceCache::isSupported();
+        $config  = $this->parse_legacy_config( $config );
+
+        return \xwp_parse_args(
             $config,
             array(
-                'attributes'    => true,
-                'autowiring'    => true,
-                'compile'       => 'production' === \wp_get_environment_type(),
-                'compile_class' => 'CompiledContainer' . \strtoupper( $config['id'] ),
-                'compile_dir'   => \WP_CONTENT_DIR . '/cache/xwp-di/' . $config['id'],
-                'proxies'       => false,
+                'app_class'      => 'CompiledContainer' . \strtoupper( $config['app_id'] ),
+                'app_file'       => false,
+                'app_type'       => 'plugin',
+                'app_version'    => '0.0.0-dev',
+                'cache_app'      => $is_prod,
+                'cache_defs'     => $is_prod && $apcu_on,
+                'cache_dir'      => \WP_CONTENT_DIR . '/cache/xwp-di/' . $config['app_id'],
+                'cache_hooks'    => $is_prod,
+                'public'         => true,
+                'use_attributes' => true,
+                'use_autowiring' => true,
+                'use_proxies'    => false,
             ),
         );
+    }
+
+    /**
+     * Parse legacy configuration options.
+     *
+     * @param  array<string,mixed> $config Configuration options.
+     * @return array<string,mixed>
+     *
+     * @throws \InvalidArgumentException If the app_module is missing.
+     */
+    protected function parse_legacy_config( $config ): array {
+        $legacy = array(
+            'attributes'    => 'use_attributes',
+            'autowiring'    => 'use_autowiring',
+            'compile'       => 'cache_app',
+            'compile_class' => 'app_class',
+            'compile_dir'   => 'cache_dir',
+            'id'            => 'app_id',
+            'module'        => 'app_module',
+            'proxies'       => 'use_proxies',
+        );
+        $legacy = \xwp_array_slice_assoc( $legacy, ...\array_keys( $config ) );
+
+        // @phpstan-ignore identical.alwaysFalse
+        if ( 0 === \count( $legacy ) ) {
+            return $config;
+        }
+
+        foreach ( $legacy as $old => $new ) {
+            $config[ $new ] = $config[ $old ];
+            unset( $config[ $old ] );
+        }
+
+        if ( ! isset( $config['app_module'] ) ) {
+            throw new \InvalidArgumentException( 'Missing app_module' );
+        }
+
+        if ( 'production' !== \wp_get_environment_type() && ! \defined( 'XWP-DI_HIDE_ERRORS' ) ) {
+            \_doing_it_wrong(
+                'xwp_create_app',
+                \sprintf(
+                    'Container %s initialized with deprecated options: %s. Use %s instead.',
+                    \esc_html( $config['app_id'] ),
+                    \esc_html( \implode( ', ', \array_keys( $legacy ) ) ),
+                    \esc_html( \implode( ', ', $legacy ) ),
+                ),
+                '2.0.0',
+            );
+        }
+
+        return $config;
     }
 }

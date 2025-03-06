@@ -8,72 +8,43 @@
 
 namespace XWP\DI\Interfaces;
 
-use DI\Container;
 use ReflectionClass;
 use ReflectionMethod;
+use Reflector;
+use XWP\DI\Container;
 
 /**
  * Describes decorators that can be hooked into WordPress.
  *
  * @template THndlr of object
- * @template TRflct of ReflectionMethod|ReflectionClass<THndlr>
+ * @template TRflct of Reflector
  *
- * @property-read string    $id        The hook ID.
- * @property-read string    $tag       The hook tag.
- * @property-read int       $priority  The real priority.
- * @property-read int       $context   The hook context.
- * @property-read Container $container Container instance.
  * @property-read bool      $loaded    Is the hook loaded?
  */
-interface Can_Hook {
+interface Can_Hook extends Has_Context {
     /**
-     * Indicates that a hook can be invoked in user-facing pages.
+     * Set the definition as cached or not.
      *
-     * @var int
+     * @param  bool $cached Cached or not.
+     * @return static
      */
-    public const CTX_FRONTEND = 1;  // 0000001
+    public function with_cache( bool $cached ): static;
 
     /**
-     * Indicates that a hook can be invoked in the admin area.
+     * Set the classname of the handler.
      *
-     * @var int
+     * @param  class-string<THndlr> $classname Handler classname.
+     * @return static
      */
-    public const CTX_ADMIN = 2;  // 0000010
+    public function with_classname( string $classname ): static;
 
     /**
-     * Indicates that a hook can be invoked on AJAX requests.
+     * Set the container.
      *
-     * @var int
+     * @param  null|string|Container $container Container instance.
+     * @return static
      */
-    public const CTX_AJAX = 4;  // 0000100
-
-    /**
-     * Indicates that a hook can be invoked when a cron job is running.
-     *
-     * @var int
-     */
-    public const CTX_CRON = 8;  // 0001000
-
-    /**
-     * Indicates that a hook can be invoked on REST API requests.
-     *
-     * @var int
-     */
-    public const CTX_REST = 16; // 0010000
-
-    /**
-     * Indicates that a hook can be invoked when WP CLI is running.
-     *
-     * @var int
-     */
-    public const CTX_CLI = 32; // 0100000
-
-    /**
-     * Indicates that a hook can be invoked in any context.
-     *
-     * @var int
-     */
-    public const CTX_GLOBAL = 63; // 0111111
+    public function with_container( null|string|Container $container ): static;
 
     /**
      * Set the reflector
@@ -81,7 +52,82 @@ interface Can_Hook {
      * @param  TRflct $reflector Reflector instance.
      * @return static
      */
-    public function with_reflector( ReflectionClass|ReflectionMethod $reflector ): static;
+    public function with_reflector( Reflector $reflector ): static;
+
+    /**
+     * Set hook parameters.
+     *
+     * @param  array<string,mixed> $data Parameters to pass to the callback.
+     * @return static
+     */
+    public function with_data( array $data ): static;
+
+    /**
+     * Get the hook tag.
+     *
+     * @return string
+     */
+    public function get_tag(): string;
+
+    /**
+     * Get the hook priority.
+     *
+     * @return int
+     */
+    public function get_priority(): int;
+
+    /**
+     * Get the container.
+     *
+     * @return ?Container
+     */
+    public function get_container(): ?Container;
+
+    /**
+     * Get the handler classname.
+     *
+     * @return class-string<THndlr>
+     */
+    public function get_classname(): string;
+
+    /**
+     * Get the hook token.
+     *
+     * @return string
+     */
+    public function get_token(): string;
+
+    /**
+     * Get the reflector.
+     *
+     * @return TRflct
+     */
+    public function get_reflector(): Reflector;
+
+    /**
+     * Get the hook definition.
+     *
+     * @return array{
+     *   args: array<string,mixed>,
+     *   type: class-string<static>,
+     *   params: array{classname: class-string<THndlr>},
+     * }
+     */
+    public function get_data(): array;
+
+    /**
+     * Get the handler initialization hook.
+     *
+     * @return string
+     */
+    public function get_init_hook(): string;
+
+    /**
+     * Is the hook definition cached?
+     *
+     * @return bool
+     */
+    public function is_cached(): bool;
 
     /**
      * Can the hook be loaded?
@@ -99,11 +145,4 @@ interface Can_Hook {
      * @return bool
      */
     public function load(): bool;
-
-    /**
-     * Check if the context is valid.
-     *
-     * @return bool
-     */
-    public function check_context(): bool;
 }

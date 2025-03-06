@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-use DI\Container;
+use XWP\DI\Container;
 
 /**
  * Check if a container exists.
@@ -31,16 +31,29 @@ function xwp_app( string $container_id ): Container {
 /**
  * Create a new app container.
  *
+ * @template TCtr of Container
  * @param  array{
- *   id: string,
- *   module: class-string,
+ *   app_class?: class-string<TCtr>,
+ *   app_id?: string|false,
+ *   app_module?: class-string,
+ *   app_file?: string,
+ *   app_type?: 'plugin'|'theme',
+ *   app_version?: string,
+ *   cache_hooks?: bool,
+ *   cache_defs?: bool,
+ *   cache_app?: bool,
+ *   cache_dir?: string,
+ *   public?: bool,
+ *   use_autowiring?: bool,
+ *   use_attributes?: bool,
+ *   use_proxies?: bool,
  *   attributes?: bool,
  *   autowiring?: bool,
  *   compile?: bool,
  *   compile_class?: string,
  *   compile_dir?: string,
- *   proxies?: bool,
- * } $app Application configuration.
+ *   proxies?: bool
+ * }              $app      Application configuration.
  * @param  string $hook     Hook to create the container on.
  * @param  int    $priority Hook priority.
  * @return true
@@ -48,8 +61,8 @@ function xwp_app( string $container_id ): Container {
 function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN ): bool {
     return add_action(
         $hook,
-        static function () use( $app ): void {
-            xwp_create_app( $app );
+        static function () use ( $app ): void {
+            xwp_create_app( $app )->run();
         },
         $priority,
     );
@@ -58,16 +71,30 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
 /**
  * Create a new app container.
  *
+ * @template TCtr of Container
+ *
  * @param  array{
- *   id: string,
- *   module: class-string,
+ *   app_class?: class-string<TCtr>,
+ *   app_id?: string|false,
+ *   app_module?: class-string,
+ *   app_file?: string,
+ *   app_type?: 'plugin'|'theme',
+ *   app_version?: string,
+ *   cache_app?: bool,
+ *   cache_defs?: bool,
+ *   cache_dir?: string,
+ *   cache_hooks?: bool,
+ *   public?: bool,
+ *   use_autowiring?: bool,
+ *   use_attributes?: bool,
+ *   use_proxies?: bool,
  *   attributes?: bool,
  *   autowiring?: bool,
  *   compile?: bool,
  *   compile_class?: string,
  *   compile_dir?: string,
  *   proxies?: bool,
- * } $args Application configuration.
+ * }  $args Application configuration.
  * @return Container
  */
 function xwp_create_app( array $args ): Container {

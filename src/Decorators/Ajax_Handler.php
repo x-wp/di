@@ -1,4 +1,4 @@
-<?php
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing
 /**
  * Ajax_Handler decorator class file.
  *
@@ -9,15 +9,17 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
+use XWP\DI\Interfaces\Can_Handle_Ajax;
 
 /**
  * Decorator for grouping ajax actions.
  *
  * @template T of object
  * @extends Handler<T>
+ * @implements Can_Handle_Ajax<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Ajax_Handler extends Handler {
+class Ajax_Handler extends Handler implements Can_Handle_Ajax {
     /**
      * Constructor
      *
@@ -36,6 +38,18 @@ class Ajax_Handler extends Handler {
             container: $container,
             context: self::CTX_AJAX,
             conditional: $conditional,
+        );
+    }
+
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'conditional' => $this->conditional,
+                    'priority'    => $this->get_priority(),
+                ),
+            ),
         );
     }
 }

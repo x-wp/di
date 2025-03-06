@@ -20,13 +20,20 @@ final class Reflection extends \XWP\Helper\Classes\Reflection {
      *
      * @template T of object
      * @param  \ReflectionClass<T> $r The reflection class to get the methods for.
-     * @return array<Method>
+     * @return array<string,Method>
      */
     public static function get_hookable_methods( \ReflectionClass $r ): array {
-        return \array_filter(
-            $r->getMethods( self::get_method_types( self::class_uses_deep( $r->getName() ) ) ),
-            array( self::class, 'is_method_hookable' ),
-        );
+        $methods = array();
+
+        foreach ( $r->getMethods( self::get_method_types( self::class_uses_deep( $r->getName() ) ) ) as $m ) {
+            if ( ! self::is_method_hookable( $m ) ) {
+                continue;
+            }
+
+            $methods[ $m->getName() ] = $m;
+        }
+
+        return $methods;
     }
 
     /**
@@ -37,8 +44,8 @@ final class Reflection extends \XWP\Helper\Classes\Reflection {
      */
     public static function get_method_types( array $traits ): int {
         return \in_array( Accessible_Hook_Methods::class, $traits, true )
-            ? Method::IS_PUBLIC | Method::IS_PRIVATE | Method::IS_PROTECTED
-            : Method::IS_PUBLIC;
+            ? Method::IS_PUBLIC | Method::IS_PRIVATE | Method::IS_PROTECTED & ~Method::IS_STATIC
+            : Method::IS_PUBLIC & ~Method::IS_STATIC;
     }
 
     /**
@@ -49,7 +56,7 @@ final class Reflection extends \XWP\Helper\Classes\Reflection {
      */
     private static function is_method_hookable( Method $m, ): bool {
         $ignore = array( '__call', '__callStatic', 'check_method_access', 'is_method_valid', 'get_registered_hooks', '__construct' );
-        return ! \in_array( $m->getName(), $ignore, true ) &&
-            ! $m->isStatic() && self::get_attribute( $m, Can_Invoke::class );
+
+        return ! \in_array( $m->getName(), $ignore, true );
     }
 }

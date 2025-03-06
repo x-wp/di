@@ -155,7 +155,7 @@ class Ajax_Action extends Action {
      */
     protected function load_hook( ?string $tag = null ): bool {
         foreach ( $this->hooks as $hook ) {
-            parent::load_hook( $this->define_tag( $this->tag, array( $hook ) ) );
+            parent::load_hook( $this->resolve_tag( $this->tag, array( $hook ) ) );
         }
 
         return true;

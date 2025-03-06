@@ -5,6 +5,7 @@ namespace XWP\DI\Decorators;
 use cli\progress\Bar;
 use Closure;
 use WP_CLI;
+use XWP\DI\Interfaces\Can_Handle_CLI;
 use XWP_CLI_Namespace as NSC;
 
 use function WP_CLI\Utils\make_progress_bar;
@@ -14,11 +15,10 @@ use function WP_CLI\Utils\make_progress_bar;
  *
  * @template T of object
  * @extends Handler<T>
- *
- * @property-read string $namespace The command namespace.
+ * @implements Can_Handle_CLI<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class CLI_Handler extends Handler {
+class CLI_Handler extends Handler implements Can_Handle_CLI {
     /**
      * Array of root commands.
      *
@@ -128,6 +128,23 @@ class CLI_Handler extends Handler {
             container: $container,
             context: static::CTX_CLI,
         );
+    }
+
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'description' => $this->description,
+                    'namespace'   => $this->namespace,
+                    'priority'    => $this->get_priority(),
+                ),
+            ),
+        );
+    }
+
+    public function get_namespace(): string {
+        return $this->namespace;
     }
 
     protected function add_command(): bool {

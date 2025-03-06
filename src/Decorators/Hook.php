@@ -1,4 +1,4 @@
-<?php
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing
 /**
  * Hook class file.
  *
@@ -9,10 +9,11 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use DI\Container;
 use ReflectionClass;
 use ReflectionMethod;
+use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Hook;
+use XWP\DI\Traits\Hook_Invoke_Methods;
 use XWP_Context;
 
 /**
@@ -21,10 +22,22 @@ use XWP_Context;
  * @template THndlr of object
  * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
  * @implements Can_Hook<THndlr,TRflct>
- *
- * @property-read string    $tag       The hook tag.
  */
 abstract class Hook implements Can_Hook {
+    /**
+     * Is the hook definition cached?
+     *
+     * @var bool
+     */
+    protected bool $cached = false;
+
+    /**
+     * Define the shared methods needed for hook invocation.
+     *
+     * @use Hook_Invoke_Methods<THndlr>
+     */
+    use Hook_Invoke_Methods;
+
     /**
      * The name of the action to which the function is hooked.
      *
@@ -35,9 +48,32 @@ abstract class Hook implements Can_Hook {
     /**
      * Priority when hook was invoked.
      *
-     * @var null|Closure|string|int|array{class-string,string}
+     * @var null|Closure|string|int|array{0: class-string,1: string}
      */
-    protected array|int|string|Closure|null $prio;
+    protected null|Closure|string|int|array $prio;
+
+    /**
+     * The classname of the handler.
+     *
+     * @var class-string<THndlr>
+     */
+    protected string $classname;
+
+    /**
+     * Container ID.
+     *
+     * Kept for backward compatibility.
+     *
+     * @var null|string
+     */
+    protected ?string $container_id;
+
+    /**
+     * The container instance.
+     *
+     * @var Container
+     */
+    protected Container $container;
 
     /**
      * Is the handler initialized?
@@ -54,23 +90,30 @@ abstract class Hook implements Can_Hook {
     protected ReflectionClass|ReflectionMethod $reflector;
 
     /**
+     * Initialization hook.
+     *
+     * @var string
+     */
+    protected string $init_hook;
+
+    /**
      * Constructor.
      *
-     * @param string|null                                        $tag         Hook tag.
-     * @param null|Closure|string|int|array{class-string,string} $priority    Hook priority.
-     * @param int                                                $context     Hook context.
-     * @param null|Closure|string|array{class-string,string}     $conditional Conditional callback.
-     * @param array<int,string>|string|false                     $modifiers   Values to replace in the tag name.
+     * @param string|null                                             $tag         Hook tag.
+     * @param null|Closure|string|int|array{0:class-string,1: string} $priority    Hook priority.
+     * @param int                                                     $context     Hook context.
+     * @param null|Closure|string|array{0:class-string,1: string}     $conditional Conditional callback.
+     * @param array<int,string>|string|false                          $modifiers   Values to replace in the tag name.
      */
     public function __construct(
         ?string $tag,
         array|int|string|Closure|null $priority = null,
         protected int $context = self::CTX_GLOBAL,
         protected array|string|Closure|null $conditional = null,
-        string|array|bool $modifiers = false,
+        protected string|array|bool $modifiers = false,
     ) {
         $this->prio = $priority;
-        $this->tag  = $this->define_tag( $tag ?? '', $modifiers );
+        $this->tag  = $tag ?? '';
     }
 
     /**
@@ -85,6 +128,28 @@ abstract class Hook implements Can_Hook {
             : $this->$name ?? null;
     }
 
+    public function with_cache( bool $cached ): static {
+        $this->cached = $cached;
+
+        return $this;
+    }
+
+    public function with_classname( string $classname ): static {
+        $this->classname = $classname;
+
+        return $this;
+    }
+
+    public function with_container( null|string|Container $container ): static {
+        match ( true ) {
+            null === $container             => '',
+            $container instanceof Container => $this->container    = $container,
+            default                         => $this->container_id = $container,
+        };
+
+        return $this;
+    }
+
     /**
      * Set the reflector instance.
      *
@@ -95,6 +160,66 @@ abstract class Hook implements Can_Hook {
         $this->reflector ??= $r;
 
         return $this;
+    }
+
+    public function with_data( array $data ): static {
+        foreach ( $data as $arg => $value ) {
+            $this->{"with_{$arg}"}( $value );
+        }
+
+        return $this;
+    }
+
+    public function get_tag(): string {
+        return $this->resolve_tag( $this->tag, $this->modifiers );
+    }
+
+    public function get_priority(): int {
+        return $this->resolve_priority( $this->prio );
+    }
+
+    public function get_container(): ?Container {
+        return $this->container ?? null;
+    }
+
+    public function get_classname(): string {
+        return $this->classname;
+    }
+
+    public function get_token(): string {
+        $prefix = \rtrim( $this->get_token_prefix(), '-' );
+        $suffix = \ltrim( $this->get_token_suffix(), '-' );
+        $base   = \trim( $this->get_token_base(), '-' );
+
+        return \trim( "{$prefix}-{$base}::{$suffix}", '-:/' );
+    }
+
+    public function get_data(): array {
+        return array(
+            'args'   => array(
+                'conditional' => $this->conditional,
+                'context'     => $this->context,
+                'modifiers'   => $this->modifiers,
+                'priority'    => $this->prio,
+                'tag'         => $this->tag,
+            ),
+            'params' => array(
+                'classname' => $this->classname,
+            ),
+            'type'   => static::class,
+        );
+    }
+
+    public function get_context(): int {
+        return $this->context;
+    }
+
+    public function get_init_hook(): string {
+        return $this->init_hook;
+    }
+
+    public function is_cached(): bool {
+        return $this->cached;
     }
 
     /**
@@ -112,103 +237,37 @@ abstract class Hook implements Can_Hook {
      * @return bool
      */
     public function check_context(): bool {
-        return XWP_Context::validate( $this->context );
+        return XWP_Context::validate( $this->get_context() );
     }
 
     /**
-     * Calls a method if it exists and is callable.
-     *
-     * @param  array{0:class-string|object,1:string}|string|\Closure|null $method Method to call.
-     * @return bool
-     */
-    protected function check_method( array|string|\Closure|null $method ): bool {
-        return ! $this->can_call( $method ) || $this->container->call( $method );
-    }
-
-    /**
-     * Check if the method is callable.
-     *
-     * @param  array{0:class-string|object,1:string}|string|\Closure|null $method Method to call.
-     * @return bool
-     */
-    protected function can_call( array|string|\Closure|null $method ): bool {
-        if ( ! \is_array( $method ) ) {
-            return \is_callable( $method );
-        }
-
-        return \method_exists( $method[0], $method[1] );
-    }
-
-    /**
-     * If the tag is dynamic (contains %s), replace the placeholders with the provided arguments.
-     *
-     * @param  ?string                        $tag       Tag to set.
-     * @param  array<int,string>|string|false $modifiers Values to replace in the tag name.
-     * @return string
-     */
-    protected function define_tag( ?string $tag, array|string|bool $modifiers ): string {
-        if ( ! $modifiers || ! $tag ) {
-            return $tag;
-        }
-
-        $modifiers = \is_array( $modifiers )
-            ? $modifiers
-            : array( $modifiers );
-
-        return \vsprintf( $tag, $modifiers );
-    }
-
-    /**
-     * Parse the real priority.
-     *
-     * @return int
-     */
-    protected function get_priority(): int {
-        $prio = $this->prio;
-        $prio = match ( true ) {
-            \is_numeric( $prio )  => \intval( $prio ),
-            \defined( $prio )     => \constant( $prio ),
-            \is_array( $prio )    => $this->call_priority( $prio ),
-            \is_callable( $prio ) => $this->call_priority( $prio ),
-            \is_string( $prio )   => $this->filter_priority( $prio ),
-            default               => 10,
-        };
-
-        return $prio;
-    }
-
-    /**
-     * Filter the priority.
-     *
-     * @param  string $prio Filter name.
-     * @return int
-     */
-    protected function filter_priority( string $prio ): int {
-        $expl = \explode( ':', $prio, 2 );
-
-        return \apply_filters( $expl[0], $expl[1] ?? 10, $this->tag );
-    }
-
-    /**
-     * Get the hook priority by calling the priority callback.
-     *
-     * @param string|array{class-string,string} $args Priority callback.
-     */
-    protected function call_priority( array|string $args ): int {
-        return $this->container->call( $args, array( $this->tag ) );
-    }
-
-    /**
-     * Get the container instance.
-     *
-     * @return Container
-     */
-    abstract protected function get_container(): Container;
-
-    /**
-     * Get the hook ID.
+     * Get the token prefix.
      *
      * @return string
      */
-    abstract protected function get_id(): string;
+    protected function get_token_prefix(): string {
+        return \basename( \str_replace( '\\', '/', static::class ) );
+    }
+
+    /**
+     * Get the token base.
+     *
+     * @return string
+     */
+    protected function get_token_base(): string {
+        return $this->get_classname();
+    }
+
+    /**
+     * Get the token suffix.
+     *
+     * @return string
+     */
+    protected function get_token_suffix(): string {
+        return '';
+    }
+
+    protected function get_app_uuid(): string {
+        return $this->get_container()->get( 'xwp.app.uuid' );
+    }
 }

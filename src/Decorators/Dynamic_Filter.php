@@ -71,6 +71,21 @@ class Dynamic_Filter extends Filter {
         );
     }
 
+    public function get_data(): array {
+        $data = parent::get_data();
+
+        $data['args'] = array(
+            'args'     => $this->args,
+            'context'  => $this->context,
+            'params'   => $this->params,
+            'priority' => $this->prio,
+            'tag'      => $this->tag,
+            'vars'     => $this->raw_vars,
+        );
+
+        return $data;
+    }
+
     /**
      * Process variables.
      *
@@ -117,7 +132,7 @@ class Dynamic_Filter extends Filter {
         $res = true;
 
         foreach ( $this->parse_vars( $this->raw_vars ) as $var => $param ) {
-            $tag = $this->define_tag( $this->tag, array( $var ) );
+            $tag = $this->resolve_tag( $this->tag, array( $var ) );
 
             $this->extra[ $tag ] = $param;
 

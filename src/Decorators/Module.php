@@ -1,4 +1,4 @@
-<?php
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing
 /**
  * Module decorator class file.
  *
@@ -8,39 +8,43 @@
 
 namespace XWP\DI\Decorators;
 
-use DI\Definition\Source\DefinitionSource;
+use XWP\DI\Interfaces\Can_Import;
 
 /**
  * Module decorator.
  *
  * @template T of object
  * @extends Handler<T>
+ * @implements Can_Import<T>
  *
  * @since 1.0.0
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Module extends Handler {
+class Module extends Handler implements Can_Import {
     /**
      * Did the module import submodules?
      *
-     * @var bool
+     * @var array<class-string,bool>
      */
-    protected bool $imported = false;
+    protected static array $imported = array();
 
     /**
      * Constructor.
      *
-     * @param  string                  $container  Container ID.
-     * @param  string                  $hook       Hook name.
-     * @param  int                     $priority   Hook priority.
-     * @param  array<int,class-string> $imports    Array of submodules to import.
-     * @param  array<int,class-string> $handlers   Array of handlers to register.
-     * @param  bool                    $extendable Is the module extendable.
+     * @param string                  $hook       Hook name.
+     * @param int                     $priority   Hook priority.
+     * @param string                  $container  Container ID.
+     * @param int                     $context    Module context.
+     * @param array<int,class-string> $imports    Array of submodules to import.
+     * @param array<int,class-string> $handlers   Array of handlers to register.
+     * @param array<int,class-string> $services   Array of autowired services.
+     * @param bool                    $extendable Is the module extendable.
      */
     public function __construct(
-        string $container,
         string $hook,
         int $priority,
+        string $container = '',
+        int $context = self::CTX_GLOBAL,
         /**
          * Array of submodules to import.
          *
@@ -54,6 +58,12 @@ class Module extends Handler {
          */
         protected array $handlers = array(),
         /**
+         * Array of autowired services.
+         *
+         * @var array<int,class-string>
+         */
+        protected array $services = array(),
+        /**
          * Is the module extendable?
          *
          * @var bool
@@ -63,9 +73,44 @@ class Module extends Handler {
         parent::__construct(
             tag: $hook,
             priority: $priority,
-            strategy: self::INIT_DEFFERED,
+            context: $context,
+            strategy: self::INIT_AUTO,
             container: $container,
         );
+    }
+
+    public function get_imports(): array {
+        return $this->imports;
+    }
+
+    public function get_handlers(): array {
+        return $this->handlers;
+    }
+
+    public function get_services(): array {
+        return $this->services;
+    }
+
+    public function get_definition(): array {
+        return \method_exists( $this->classname, 'configure' )
+            ? $this->classname::configure()
+            : array();
+    }
+
+    public function get_data(): array {
+        $data = parent::get_data();
+
+        $data['args'] = \array_merge(
+            \xwp_array_diff_assoc( $data['args'], 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' ),
+            array(
+                'extendable' => $this->extendable,
+                'handlers'   => $this->handlers,
+                'hook'       => $this->tag,
+                'imports'    => $this->imports,
+            ),
+        );
+
+        return $data;
     }
 
     /**
@@ -76,64 +121,21 @@ class Module extends Handler {
      * @return bool
      */
     protected function on_initialize(): bool {
-        foreach ( $this->handlers as $handler ) {
-            \xwp_register_hook_handler( $handler );
-        }
-
-        return parent::on_initialize();
-    }
-
-    /**
-     * Get the module definitions.
-     *
-     * @return array<array<DefinitionSource>>
-     */
-    public function get_definitions(): array {
-        $defs = array( $this->get_definition() );
-
-        foreach ( $this->get_imports() as $import ) {
-            $module = $this->imported ? \xwp_get_module( $import ) : \xwp_register_module( $import );
-
-            $defs = \array_merge( $defs, $module->get_definitions() );
-        }
-
-        $this->imported = true;
-
-        return \array_values( ( \array_filter( $defs, static fn( $d ) => \count( $d ) > 0 ) ) );
-    }
-
-    /**
-     * Get the module imports.
-     *
-     * @return array<int,class-string>
-     */
-    protected function get_imports(): array {
-        if ( ! $this->extendable ) {
-            return $this->imports;
-        }
-
-        $tag = "xwp_extend_import_{$this->container_id}";
+        parent::on_initialize();
 
         /**
-         * Filter the module imports.
+         * Fires when a module is initialized.
          *
-         * @param  array<int,class-string> $imports    Array of submodules to import.
-         * @param  class-string            $classname  Module classname.
-         * @return array<int,class-string>
+         * @param Module<T> $module Module instance.
          *
-         * @since 1.0@beta.8
+         * @since 2.0.0
          */
-        return \apply_filters( $tag, $this->imports, $this->classname );
+        \do_action( "xwp_{$this->get_app_uuid()}_module_init", $this );
+
+        return true;
     }
 
-    /**
-     * Get the module definition.
-     *
-     * @return array<string,mixed>
-     */
-    public function get_definition(): array {
-        return \method_exists( $this->classname, 'configure' )
-            ? $this->classname::configure()
-            : array();
+    protected function get_token_prefix(): string {
+        return 'Module';
     }
 }

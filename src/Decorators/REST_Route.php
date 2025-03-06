@@ -1,4 +1,4 @@
-<?php
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing
 /**
  * REST_Route class file.
  *
@@ -10,22 +10,22 @@ namespace XWP\DI\Decorators;
 
 use Closure;
 use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Can_Route;
 
 /**
  * Decorator for REST routes.
  *
- * @property-read array{0:T, 1: string}|Closure $callback REST route callback.
  * @property-read string                        $methods  REST route methods.
- * @property-read string                        $route    REST route.
  * @property-read array                         $vars   REST route parameters.
  * @property-read string                        $guard    REST route guard.
  *
  * @template T of \XWP_REST_Controller
  * @template H of REST_Handler<T>
  * @extends Action<T,H>
+ * @implements Can_Route<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
-class REST_Route extends Action {
+class REST_Route extends Action implements Can_Route {
     /**
      * REST Route arguments.
      *
@@ -94,32 +94,70 @@ class REST_Route extends Action {
      */
     public function with_handler( Can_Handle $handler ): static {
         return parent::with_handler( $handler )
-            ->with_tag( $handler->rest_hook )
-            ->with_priority( $handler->priority + 1 );
+            ->with_tag( $handler->get_rest_hook() )
+            ->with_priority( $handler->get_priority() + 1 );
     }
 
-    /**
-     * Set the route priority.
-     *
-     * @param  int $priority Priority.
-     * @return static
-     */
-    protected function with_priority( int $priority ): static {
+    public function with_priority( int $priority ): static {
         $this->prio = $priority;
 
         return $this;
     }
 
-    /**
-     * Set the route tag.
-     *
-     * @param  string $tag Tag.
-     * @return static
-     */
-    protected function with_tag( string $tag ): static {
+    public function with_tag( string $tag ): static {
         $this->tag = $tag;
 
         return $this;
+    }
+
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'guard'   => $this->route_guard,
+                    'methods' => $this->methods,
+                    'params'  => $this->params,
+                    'route'   => $this->endpoint,
+                    'vars'    => $this->route_args,
+                ),
+            ),
+        );
+    }
+
+    public function get_route(): string {
+        return $this->endpoint
+            ? "/{$this->get_handler()->get_basename()}/{$this->endpoint}"
+            : "/{$this->get_handler()->get_basename()}";
+    }
+
+    public function get_guard(): string|array {
+        return \method_exists( $this->get_handler()->get_classname(), $this->route_guard )
+            ? array( $this->get_handler()->get_target(), $this->route_guard )
+            : $this->route_guard;
+    }
+
+    public function get_callback(): array|Closure {
+        return $this->cb_valid( self::INV_STANDARD )
+            ? array( $this->get_handler()->get_target(), $this->get_method() )
+            : fn( ...$args ) => $this->fire_hook( ...$args );
+    }
+
+    /**
+     * Get the route parameters.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_vars(): array {
+        if ( \is_array( $this->route_args ) ) {
+            return $this->route_args;
+        }
+
+        return $this->get_container()->call( array( $this->get_handler()->get_target(), $this->route_args ) );
+    }
+
+    public function get_methods(): string {
+        return $this->methods;
     }
 
     /**
@@ -130,60 +168,14 @@ class REST_Route extends Action {
      */
     public function invoke( mixed ...$args ): mixed {
         return \register_rest_route(
-            $this->handler->namespace,
-            $this->route,
+            $this->get_handler()->get_namespace(),
+            $this->get_route(),
             array(
-                'args'                => $this->vars,
-                'callback'            => $this->callback,
-                'methods'             => $this->methods,
-                'permission_callback' => $this->guard,
+                'args'                => $this->get_vars(),
+                'callback'            => $this->get_callback(),
+                'methods'             => $this->get_methods(),
+                'permission_callback' => $this->get_guard(),
             ),
         );
-    }
-
-    /**
-     * Get the route.
-     *
-     * @return string
-     */
-    protected function get_route(): string {
-        return $this->endpoint
-            ? "/{$this->handler->basename}/{$this->endpoint}"
-            : "/{$this->handler->basename}";
-    }
-
-    /**
-     * Get the route parameters.
-     *
-     * @return array<string,mixed>
-     */
-    protected function get_vars(): array {
-        if ( \is_array( $this->route_args ) ) {
-            return $this->route_args;
-        }
-
-        return $this->container->call( array( $this->handler->target, $this->route_args ) );
-    }
-
-    /**
-     * Get the route callback.
-     *
-     * @return array{0:T, 1: string}|Closure
-     */
-    protected function get_callback(): array|Closure {
-        return $this->cb_valid( self::INV_STANDARD )
-            ? array( $this->handler->target, $this->method )
-            : fn( ...$args ) => $this->fire_hook( ...$args );
-    }
-
-    /**
-     * Get the route guard.
-     *
-     * @return string|array{T,string}
-     */
-    protected function get_guard(): string|array {
-        return \method_exists( $this->handler->classname, $this->route_guard )
-            ? array( $this->handler->target, $this->route_guard )
-            : $this->route_guard;
     }
 }
