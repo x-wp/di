@@ -1,4 +1,4 @@
-<?php //phpcs:disable WordPress.NamingConventions.ValidVariableName
+<?php //phpcs:disable WordPress.NamingConventions.ValidVariableName, Squiz.PHP.CommentedOutCode.Found, Squiz.Commenting.InlineComment.InvalidEndChar
 /**
  * Builder class file.
  *
@@ -86,7 +86,7 @@ class App_Builder extends ContainerBuilder {
      * @return static
      */
     public function enableDefinitionCache( string $cacheNamespace = '', bool $enableCache = false ): static {
-        return $enableCache
+        return $enableCache && ! \defined( 'WP_CLI' )
             ? parent::enableDefinitionCache( \rtrim( $cacheNamespace, '.' ) . '.' )
             : $this;
     }
@@ -116,30 +116,35 @@ class App_Builder extends ContainerBuilder {
      */
     public function addBaseDefinition( array $config ): App_Builder {
         $definition = array(
-            'xwp.app'        => \DI\get( 'Module-' . $config['app_module'] ),
-            'xwp.app.cache'  => \DI\value(
+            'app'        => \DI\get( 'Module-' . $config['app_module'] ),
+            'app.cache'  => \DI\value(
                 array(
                     'app'   => $config['cache_app'],
                     'defs'  => $config['cache_defs'],
                     'dir'   => $config['cache_dir'],
                     'hooks' => $config['cache_hooks'],
+                    'ns'    => $config['app_id'],
                 ),
             ),
-            'xwp.app.debug'  => \DI\value( \defined( 'WP_DEBUG' ) && WP_DEBUG ),
-            'xwp.app.env'    => \DI\factory( 'wp_get_environment_type' ),
-            'xwp.app.id'     => \DI\value( $config['app_id'] ),
-            'xwp.app.module' => \DI\value( $config['app_module'] ),
-            'xwp.app.type'   => \DI\value( $config['app_type'] ),
-            'xwp.app.uuid'   => \DI\factory( 'wp_generate_uuid4' ),
-            'xwp.app.ver'    => \DI\value( $config['app_version'] ),
+            'app.debug'  => \DI\value( \defined( 'WP_DEBUG' ) && WP_DEBUG ),
+            'app.env'    => \DI\factory( 'wp_get_environment_type' ),
+            'app.extend' => \DI\value( $config['extendable'] ),
+            'app.id'     => \DI\value( $config['app_id'] ),
+            'app.module' => \DI\value( $config['app_module'] ),
+            'app.type'   => \DI\value( $config['app_type'] ),
+            'app.uuid'   => \DI\factory( 'wp_generate_uuid4' ),
+            'app.ver'    => \DI\value( $config['app_version'] ),
         );
 
         if ( $config['app_file'] && 'plugin' === $config['app_type'] ) {
-            $definition['xwp.app.file'] = \DI\value( $config['app_file'] );
-            $definition['xwp.app.base'] = \DI\factory( 'plugin_basename', )
-                ->parameter( 'file', \DI\get( 'xwp.app.file' ) );
-            $definition['xwp.app.path'] = \DI\factory( 'plugin_dir_path' )
-                ->parameter( 'file', \DI\get( 'xwp.app.file' ) );
+            $definition['app.file'] = \DI\value( $config['app_file'] );
+            $definition['app.base'] = \DI\factory( 'plugin_basename', )
+                ->parameter( 'file', \DI\get( 'app.file' ) );
+            $definition['app.path'] = \DI\factory( 'plugin_dir_path' )
+                ->parameter( 'file', \DI\get( 'app.file' ) );
+            $definition['app.url']  = \DI\factory( 'plugin_dir_url' )
+                ->parameter( 'file', \DI\get( 'app.file' ) );
+
         }
 
         return parent::addDefinitions( $definition );
@@ -152,11 +157,17 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addModuleDefinition( array $config ): App_Builder {
-        $parser = new Parser( $config['app_module'] );
+        $parser = ( new Parser( $config['app_module'], $config['app_id'] ) )
+            ->set_extendable( $config['extendable'] );
 
         $defns = $this->isHookCacheEnabled()
             ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )
             : $parser->make()->get_parsed();
+
+        // if ( 'woosync' === $config['app_id'] ) {
+        // \dump( $defns );
+        // die;
+        // }
 
         return $this->addDefinitions( $defns );
     }

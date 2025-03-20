@@ -62,10 +62,10 @@ class Container extends DI_Container {
 
         $this->call(
             array( 'xwp.invoker', 'load_module' ),
-            array( 'module' => $this->get( 'xwp.app' ) ),
+            array( 'module' => $this->get( 'app' ) ),
         );
 
-        \do_action( "xwp_{$this->get('xwp.app.uuid')}_app_start" );
+        \do_action( "xwp_{$this->get('app.uuid')}_app_start" );
 
         $this->started = true;
 

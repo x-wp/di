@@ -25,32 +25,30 @@ class Parser {
     use Hook_Factory_Methods;
 
     /**
-     * Raw hook definitions.
+     * Definitions array.
      *
-     * @var array<string,Can_Hook<object,Reflector>|array<string,mixed>>
+     * @var array{
+     *   services: array<string,class-string>,
+     *   hooks: array<string,Can_Hook<object,Reflector>|array<string,mixed>>,
+     *   values: array<string,mixed>,
+     *   aliases: array<string,string>,
+     *   definitions: array<string,mixed>,
+     *   extensions: array<int,array{
+     *     id: string,
+     *     module: class-string,
+     *     file: false|string,
+     *     version: string
+     *   }>
+     * }
      */
-    private array $hooks = array();
-
-    /**
-     * Values.
-     *
-     * @var array<string,mixed>
-     */
-    private array $values = array();
-
-    /**
-     * Aliases.
-     *
-     * @var array<string,string>
-     */
-    private array $aliases = array();
-
-    /**
-     * Undocumented variable
-     *
-     * @var array<array<string,mixed>>
-     */
-    private array $defs = array();
+    private array $data = array(
+        'aliases'     => array(),
+        'definitions' => array(),
+        'extensions'  => array(),
+        'hooks'       => array(),
+        'services'    => array(),
+        'values'      => array(),
+    );
 
     /**
      * List of tokens.
@@ -67,11 +65,30 @@ class Parser {
     private bool $cached = false;
 
     /**
+     * Is the module extendable?
+     *
+     * @var bool
+     */
+    private bool $extendable = false;
+
+    /**
      * Constructor.
      *
      * @param  class-string<TTgt> $module Application module.
+     * @param  string             $app_id Application ID.
      */
-    public function __construct( private string $module ) {
+    public function __construct( private string $module, private string $app_id ) {
+    }
+
+    /**
+     * Set the extendable flag.
+     *
+     * @param  bool $ext Extendable flag.
+     * @return static
+     */
+    public function set_extendable( bool $ext ): static {
+        $this->extendable = $ext;
+        return $this;
     }
 
     /**
@@ -81,12 +98,9 @@ class Parser {
      * @return static
      */
     public function load( array $definition ): static {
-        $this->hooks   = $definition['hooks'] ?? array();
-        $this->values  = $definition['values'] ?? array();
-        $this->aliases = $definition['aliases'] ?? array();
-        $this->defs    = $definition['defs'] ?? array();
-        $this->ids     = array();
-        $this->cached  = true;
+        $this->data   = \wp_parse_args( $definition, $this->data );
+        $this->ids    = array();
+        $this->cached = true;
 
         return $this;
     }
@@ -100,35 +114,33 @@ class Parser {
      * @throws \DI\DependencyException If a module is not found.
      */
     public function make( string $type = 'base' ): static {
-        $this->ids     = array();
-        $this->hooks   = array();
-        $this->values  = array();
-        $this->aliases = array();
-        $this->defs    = array();
-        $this->cached  = 'complete' === $type;
+        $this->data   = \array_fill_keys( \array_keys( $this->data ), array() );
+        $this->ids    = array();
+        $this->cached = 'complete' === $type;
 
-        $root = $this->get_module( $this->module ) ?? throw new \DI\DependencyException( 'Module not found.' );
-
-        return $this->parse_module( $root, $type );
+        return $this
+            ->parse_module(
+                $this->get_module( $this->module )
+                ??
+                throw new \DI\DependencyException( 'Module not found.' ),
+                $type,
+            )->extend( $type );
     }
 
     /**
      * Get the raw hook definitions.
      *
      * @return array{
-     *   aliases: array<string,string>,
-     *   defs: array<array<string,mixed>>,
-     *   hooks: array<string,array<string,mixed>>,
+     *   services: array<string,class-string>,
+     *   hooks: array<string,Can_Hook<object,Reflector>|array<string,mixed>>,
      *   values: array<string,mixed>,
+     *   aliases: array<string,string>,
+     *   definitions: array<string,mixed>,
+     *   extensions: array<array<string,mixed>>,
      * }
      */
     public function get_raw(): array {
-        return array(
-            'aliases' => $this->aliases,
-            'defs'    => $this->defs,
-            'hooks'   => $this->hooks,
-            'values'  => $this->values,
-        );
+        return $this->data;
     }
 
     /**
@@ -137,12 +149,47 @@ class Parser {
      * @return array<string,mixed>
      */
     public function get_parsed(): array {
+        //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
         return \array_merge(
-            \array_map( '\DI\get', $this->aliases ),
-            \array_map( array( $this, 'define' ), $this->hooks ),
-            \array_map( '\DI\value', $this->values ),
-            ...\array_map( array( $this, 'get_definition' ), $this->defs ),
+            \array_map( '\DI\get', $this->data['aliases'] ),
+            \array_map( array( $this, 'define' ), $this->data['hooks'] ),
+            \array_map( '\DI\value', $this->data['values'] ),
+            \array_map( static fn() => \DI\autowire(), $this->data['services'] ),
+            \array_reduce( $this->data['extensions'], array( $this, 'merge_definition' ), $this->get_definition( $this->module ) ),
+            ...\array_map( array( $this, 'get_configuration' ), $this->data['definitions'] ),
         );
+        //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+    }
+
+    /**
+     * Get extensions
+     *
+     * @return array<int,array{
+     *   id:string,
+     *   module:class-string,
+     *   file: false|string,
+     *   version: string
+     *  }>
+     */
+    private function get_extensions(): array {
+        if ( ! $this->extendable ) {
+            return array();
+        }
+
+        /**
+         * Filter the extended imports.
+         *
+         * @param  array<array<string,mixed>> $extra  Extra imports.
+         * @return array<int,array{
+         *   id:string,
+         *   module:class-string,
+         *   file: false|string,
+         *   version: string
+         *  }>
+         */
+        $this->data['extensions'] = \apply_filters( "xwp_extend_import_{$this->app_id}", array() );
+
+        return $this->data['extensions'];
     }
 
     /**
@@ -157,6 +204,40 @@ class Parser {
     }
 
     /**
+     * Parse the extended imports.
+     *
+     * @param  'base'|'complete' $type Type of definition.
+     * @return static
+     */
+    private function extend( string $type ): static {
+        foreach ( $this->get_extensions() as $addon ) {
+            $this
+                ->parse_extension( $addon )
+                ->parse_module( $this->get_module( $addon['module'] ), $type );
+
+        }
+
+        return $this;
+    }
+
+    /**
+     * Parse the extension.
+     *
+     * @param  array<string,mixed> $addon Extension data.
+     * @return static
+     */
+    private function parse_extension( array $addon ): static {
+        $this->data['values'][ "Module-{$this->module}[params]" ]['args']['imports'][] = $addon['module'];
+
+        if ( $this->cached && $addon['file'] ) {
+            \xwp_log( "Registering uninstall hook for {$addon['file']}" );
+            \register_uninstall_hook( $addon['file'], 'xwp_uninstall_ext' );
+        }
+
+        return $this;
+    }
+
+    /**
      * Parse the module.
      *
      * @template T of object
@@ -167,22 +248,23 @@ class Parser {
      * @throws \DI\DependencyException If a circular dependency is detected.
      */
     private function parse_module( Can_Import $module, string $type ): static {
-        if ( isset( $this->ids[ $module->get_token() ] ) ) {
-            throw new \DI\DependencyException( 'Circular dependency detected.' );
+        $this->parse_handler( $module, $type );
+
+        $this->data['aliases'][ $this->handler_token( $module ) ] = $module->get_token();
+        $this->data['definitions'][]                              = $module->get_classname();
+
+        foreach ( $module->get_imports() as $import ) {
+            $this->parse_module( $this->get_module( $import ), $type );
         }
 
-        $this->parse_handler( $module, $type );
-        $this->aliases[ $this->handler_token( $module ) ] = $module->get_token();
-        $this->defs[]                                     = $module->get_classname();
+        foreach ( $module->get_services() as $svc ) {
+            $this->data['services'][ $svc ] = $svc;
+        }
 
         if ( 'complete' === $type ) {
             foreach ( $module->get_handlers() as $handler ) {
                 $this->parse_handler( $this->make_handler( $handler ), $type );
             }
-        }
-
-        foreach ( $module->get_imports() as $import ) {
-            $this->parse_module( $this->get_module( $import ), $type );
         }
 
         return $this;
@@ -242,7 +324,7 @@ class Parser {
             $hooks[] = $this->add_hook( $hook )->get_token();
         }
 
-        $this->values[ 'Hooks-' . $handler->get_classname() ] = $hooks;
+        $this->data['values'][ 'Hooks-' . $handler->get_classname() ] = $hooks;
 
         return $hooks;
     }
@@ -261,23 +343,73 @@ class Parser {
 
         $data['params']['cache'] = $this->cached;
 
-        $this->ids[ $token ]    = true;
-        $this->hooks[ $token ]  = $param;
-        $this->values[ $param ] = $data;
+        $this->ids[ $token ]            = true;
+        $this->data['hooks'][ $token ]  = $param;
+        $this->data['values'][ $param ] = $data;
 
         return $hook;
     }
 
     /**
-     * Get the module definition.
+     * Get the module configuration.
+     *
+     * @template T of object
+     * @param  class-string<T> $cname Module classname.
+     * @return array<string,mixed>
+     */
+    private function get_configuration( string $cname ): array {
+        return \method_exists( $cname, 'configure' )
+            ? $cname::configure()
+            : array();
+    }
+
+    /**
+     * Get module definition.
      *
      * @template T of object
      * @param  class-string<T> $cname Module classname.
      * @return array<string,mixed>
      */
     private function get_definition( string $cname ): array {
-        return \method_exists( $cname, 'configure' )
-            ? $cname::configure()
-            : array();
+        return match ( true ) {
+            \method_exists( $cname, 'define' ) => $cname::define(),
+            \method_exists( $cname, 'extend' ) => $cname::extend(),
+            default                            => array(),
+        };
+    }
+
+    /**
+     * Merge the extended definition.
+     *
+     * @param  array<string,mixed> $merged Merged definition.
+     * @param  array<string,mixed> $ext    Extended definition.
+     * @return array<string,mixed>
+     */
+    private function merge_definition( ?array $merged, array $ext ): array {
+        $merged ??= $this->get_definition( $this->module );
+
+        $merged['app.extensions'] ??= array();
+
+        $info = array(
+            'file'   => $ext['file'],
+            'module' => $ext['module'],
+            'ver'    => $ext['version'],
+        );
+
+        if ( 'plugin' === $ext['type'] && $ext['file'] ) {
+            $info['base'] = \DI\factory( 'plugin_basename' )->parameter( 'file', $ext['file'] );
+            $info['path'] = \DI\factory( 'plugin_dir_path' )->parameter( 'file', $ext['file'] );
+            $info['url']  = \DI\factory( 'plugin_dir_url' )->parameter( 'file', $ext['file'] );
+        }
+
+        $merged[ "app.ext.{$ext['id']}" ] = $info;
+
+        $merged['app.extensions'][ $ext['id'] ] = \DI\get( "app.ext.{$ext['id']}" );
+
+        foreach ( $this->get_definition( $ext['module'] ) as $key => $val ) {
+            $merged[ $key ] = \array_merge( $merged[ $key ] ?? array(), $val );
+        }
+
+        return $merged;
     }
 }

@@ -1,4 +1,4 @@
-<?php
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.MissingParamName, Squiz.Commenting.FunctionComment.MissingParamTag
 /**
  * App_Factory class file.
  *
@@ -9,19 +9,25 @@
 namespace XWP\DI;
 
 use DI\Definition\Source\SourceCache;
+use XWP\DI\Interfaces\Extension_Module;
 use XWP\Helper\Traits\Singleton;
 
 /**
  * Create and manage DI containers.
  *
- * @method static bool      has( string $id)                                                              Check if a container exists.
- * @method static Container get( string $id )                                                             Get a container instance.
- * @method static Container create( array $config)                                                        Create a new container.
- * @method static void      extend( string $container, array $module, string $position, ?string $target ) Extend an application container definition.
- * @method static bool      decompile( string $id, bool $now )                                            Decompile a container.
+ * @method static bool      has( string $id)                                                 Check if a container exists.
+ * @method static Container get( string $id )                                                Get a container instance.
+ * @method static void      uninstall()                                                      Uninstall the container.
  */
 final class App_Factory {
     use Singleton;
+
+    /**
+     * Array of containers that need to be decompiled.
+     *
+     * @var array<string,bool>
+     */
+    private static array $decompiled = array();
 
     /**
      * Array of container instances.
@@ -38,6 +44,40 @@ final class App_Factory {
     private array $public = array();
 
     /**
+     * Array of files to register hooks for.
+     *
+     * @var array<string,string>
+     */
+    private array $files = array();
+
+    /**
+     * Add a container to the decompile list.
+     *
+     * @param  string $id  Container ID.
+     * @param  bool   $now Decompile now or on shutdown.
+     */
+    public static function decompile( string $id, bool $now = false ): void {
+        self::$decompiled[ $id ] = $now;
+    }
+
+    /**
+     * Clear the cache directory.
+     *
+     * @param  array<string,mixed> $config Configuration.
+     * @return bool
+     */
+    public static function clear( array $config ): bool {
+        $fs = \xwp_wpfs();
+
+        if ( ! $fs->is_dir( $config['dir'] ) ) {
+            \xwp_log( "Cache directory {$config['dir']} does not exist" );
+            return false;
+        }
+
+        return $fs->rmdir( $config['dir'], true );
+    }
+
+    /**
      * Call a static method on the instance.
      *
      * @param  string              $name Method name.
@@ -51,6 +91,45 @@ final class App_Factory {
     }
 
     /**
+     * Constructor.
+     */
+    protected function __construct() {
+        /**
+         * Fired when the app factory is initialized.
+         *
+         * @param App_Factory $factory App factory instance.
+         * @since 2.0.0
+         */
+        \do_action( 'xwp_di_init', $this );
+    }
+
+    /**
+     * Destructor.
+     *
+     * Decompile any containers that need to be decompiled.
+     */
+    public function __destruct() {
+        foreach ( self::$decompiled as $id => $now ) {
+            $this->call_decompile( $id, $now );
+        }
+    }
+
+    /**
+     * Uninstall the container.
+     */
+    private function call_uninstall(): void {
+        $app = \defined( 'WP_UNINSTALL_PLUGIN' )
+            ? $this->files[ WP_UNINSTALL_PLUGIN ] ?? false
+            : false;
+
+        if ( ! $app ) {
+            return;
+        }
+
+        $this->decompile( $app, true );
+    }
+
+    /**
      * Create a new container.
      *
      * @param  array<string,mixed> $config Configuration.
@@ -59,14 +138,14 @@ final class App_Factory {
      * @throws \InvalidArgumentException If the app_id is missing.
      * @throws \InvalidArgumentException If the container already exists.
      */
-    protected function call_create( array $config ): Container {
+    public function create( array $config ): Container {
         $id = $config['app_id'] ?? $config['id'] ?? throw new \InvalidArgumentException( 'Missing app_id' );
 
         if ( isset( $this->apps[ $id ] ) ) {
             throw new \InvalidArgumentException( \esc_html( "Container {$id} already exists" ) );
         }
 
-        $config = $this->parse_config( $config );
+        $config = $this->parse_app_config( $config );
 
         $this->public[ $id ] = $config['public'];
 
@@ -76,28 +155,37 @@ final class App_Factory {
     /**
      * Extend an application container definition.
      *
-     * @param  string              $container Container ID.
-     * @param  array<class-string> $module    Module classname or array of module classnames.
-     * @param  'before'|'after'    $position  Position to insert the module.
-     * @param  string|null         $target    Target module to extend.
+     * @template TMod of Extension_Module
+     * @param  array{
+     *   id: string,
+     *   module: class-string<TMod>,
+     *   file?: string,
+     *   type?: 'plugin'|'theme',
+     *   version?: string,
+     * }                     $ext        Application configuration.
+     * @param  string $app        Target application ID.
      */
-    protected function call_extend( string $container, array $module, string $position = 'after', ?string $target = null ): void {
-        \add_filter(
-            "xwp_extend_import_{$container}",
-            static function ( array $imports, string $classname ) use ( $module, $position, $target ): array {
-                if ( $target && $target !== $classname ) {
-                    return $imports;
-                }
+    public function extend( array $ext, string $app ): void {
+        $ext = $this->parse_ext_config( $ext );
 
-                $params = 'after' === $position
-                    ? array( $imports, $module )
-                    : array( $module, $imports );
+        if ( ! $this->is_uninstalling( $ext['file'] ) ) {
+            \add_filter(
+                "xwp_extend_import_{$app}",
+                static function ( array $addons ) use ( $ext ): array {
+                    $addons[] = $ext;
 
-                return \array_merge( ...$params );
-            },
-            10,
-            2,
-        );
+                    return $addons;
+                },
+                10,
+                1,
+            );
+        }
+
+        if ( ! $ext['file'] ) {
+            return;
+        }
+
+        $this->files[ $ext['file'] ] = $app;
     }
 
     /**
@@ -106,7 +194,7 @@ final class App_Factory {
      * @param  string $id Container ID.
      * @return bool
      */
-    protected function call_has( string $id ): bool {
+    private function call_has( string $id ): bool {
         return isset( $this->apps[ $id ] );
     }
 
@@ -119,7 +207,7 @@ final class App_Factory {
      * @throws \InvalidArgumentException If the container does not exist.
      * @throws \InvalidArgumentException If the container is not public.
      */
-    protected function call_get( string $id ): Container {
+    private function call_get( string $id ): Container {
         if ( ! isset( $this->apps[ $id ] ) ) {
             throw new \InvalidArgumentException( \esc_html( "Container {$id} does not exist" ) );
         }
@@ -137,17 +225,43 @@ final class App_Factory {
      * @param  bool   $now Decompile now or on shutdown.
      * @return bool
      */
-    protected function call_decompile( string $id, bool $now = false ): bool {
-        $config = $this->apps[ $id ]->get( 'xwp.app.config' );
+    private function call_decompile( string $id, bool $now = false ): bool {
+        $config = $this->apps[ $id ]->get( 'app.cache' );
 
-        if ( ! $config['compile'] || ! \xwp_wpfs()->is_dir( $config['compile_dir'] ) ) {
+        if ( ! $config['app'] && ! $config['hooks'] ) {
             return false;
         }
 
-        $cb = static fn() => \xwp_wpfs()->rmdir( $config['compile_dir'], true );
+        if ( $config['defs'] && SourceCache::isSupported() ) {
+            \xwp_log( "Clearing definitions cache for {$config['ns']}" );
+            \apcu_delete( new \APCUIterator( "/^php-di\.definitions\.{$config['ns']}\..+/" ) );
+        }
 
-        // @phpstan-ignore return.void
-        return ! $now ? \add_action( 'shutdown', $cb ) : $cb();
+        return ! $now
+            ? \add_action(
+                'shutdown',
+                static function () use ( $config ) {
+                    self::clear( $config );
+                },
+            )
+            : self::clear( $config );
+    }
+
+    /**
+     * Parse the extension configuration.
+     *
+     * @param  array<string,mixed> $config Configuration options.
+     * @return array<string,mixed>
+     */
+    private function parse_ext_config( array $config ): array {
+        return \wp_parse_args(
+            $config,
+            array(
+                'file'    => false,
+                'type'    => $this->parse_type( (string) ( $config['file'] ?? null ) ),
+                'version' => '0.0.0-dev',
+            ),
+        );
     }
 
     /**
@@ -156,7 +270,7 @@ final class App_Factory {
      * @param  array<string,mixed> $config Configuration options.
      * @return array<string,mixed>
      */
-    protected function parse_config( array $config ): array {
+    private function parse_app_config( array $config ): array {
         $is_prod = 'production' === \wp_get_environment_type();
         $apcu_on = SourceCache::isSupported();
         $config  = $this->parse_legacy_config( $config );
@@ -166,12 +280,13 @@ final class App_Factory {
             array(
                 'app_class'      => 'CompiledContainer' . \strtoupper( $config['app_id'] ),
                 'app_file'       => false,
-                'app_type'       => 'plugin',
+                'app_type'       => $this->parse_type( (string) ( $config['app_file'] ?? null ) ),
                 'app_version'    => '0.0.0-dev',
                 'cache_app'      => $is_prod,
                 'cache_defs'     => $is_prod && $apcu_on,
                 'cache_dir'      => \WP_CONTENT_DIR . '/cache/xwp-di/' . $config['app_id'],
                 'cache_hooks'    => $is_prod,
+                'extendable'     => true,
                 'public'         => true,
                 'use_attributes' => true,
                 'use_autowiring' => true,
@@ -188,7 +303,7 @@ final class App_Factory {
      *
      * @throws \InvalidArgumentException If the app_module is missing.
      */
-    protected function parse_legacy_config( $config ): array {
+    private function parse_legacy_config( $config ): array {
         $legacy = array(
             'attributes'    => 'use_attributes',
             'autowiring'    => 'use_autowiring',
@@ -215,7 +330,7 @@ final class App_Factory {
             throw new \InvalidArgumentException( 'Missing app_module' );
         }
 
-        if ( 'production' !== \wp_get_environment_type() && ! \defined( 'XWP-DI_HIDE_ERRORS' ) ) {
+        if ( 'production' !== \wp_get_environment_type() && ! \defined( 'XWP_DI_HIDE_ERRORS' ) ) {
             \_doing_it_wrong(
                 'xwp_create_app',
                 \sprintf(
@@ -229,5 +344,27 @@ final class App_Factory {
         }
 
         return $config;
+    }
+
+    /**
+     * Check if the file is a plugin file.
+     *
+     * @param  string $file File path.
+     * @return 'plugin'|'theme'
+     */
+    protected function parse_type( string $file ): string {
+        return \doing_action( 'plugins_loaded' ) || \str_contains( $file, \WP_PLUGIN_DIR )
+            ? 'plugin'
+            : 'theme';
+    }
+
+    /**
+     * Are we uninstalling the plugin?
+     *
+     * @param  string|bool $file File path.
+     * @return bool
+     */
+    protected function is_uninstalling( string|bool $file ): bool {
+        return \defined( 'WP_UNINSTALL_PLUGIN' ) && WP_UNINSTALL_PLUGIN === $file;
     }
 }

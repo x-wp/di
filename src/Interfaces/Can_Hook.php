@@ -70,6 +70,13 @@ interface Can_Hook extends Has_Context {
     public function get_tag(): string;
 
     /**
+     * Get the tag modifiers.
+     *
+     * @return array<int,string>|string|false
+     */
+    public function get_modifiers(): array|string|bool;
+
+    /**
      * Get the hook priority.
      *
      * @return int

@@ -20,7 +20,7 @@ require __DIR__ . '/vendor/autoload_packages.php';
  * We can extend the simple plugin by extending the container with an additional module.
  */
 xwp_extend_app(
-    container: 'example',          // Container ID we want to extend.
+    target_app: 'example',          // Container ID we want to extend.
     module: ExamplePro\App::class, // Entry module.
     target: Example\App::class,    // Which module we want to extend.
 );

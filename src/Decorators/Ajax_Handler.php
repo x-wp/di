@@ -23,22 +23,31 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
     /**
      * Constructor
      *
-     * @param string                                         $container   Container ID.
+     * @param null|string                                    $prefix      Prefix for the action name.
      * @param int                                            $priority    Handler priority.
      * @param null|Closure|string|array{class-string,string} $conditional Conditional callback.
+     * @param mixed                                          ...$args     Additional arguments.
      */
     public function __construct(
-        string $container,
+        protected ?string $prefix = null,
         int $priority = 10,
         array|string|Closure|null $conditional = null,
+        mixed ...$args,
     ) {
         parent::__construct(
             tag: 'admin_init',
             priority: $priority,
-            container: $container,
+            container: $args['container_id'] ?? null,
             context: self::CTX_AJAX,
+            strategy: self::INIT_LAZY,
             conditional: $conditional,
         );
+    }
+
+    public function get_prefix(): string {
+        return null !== $this->prefix
+            ? \rtrim( $this->prefix, '_' )
+            : '';
     }
 
     public function get_data(): array {
@@ -47,7 +56,8 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
             array(
                 'args' => array(
                     'conditional' => $this->conditional,
-                    'priority'    => $this->get_priority(),
+                    'prefix'      => $this->prefix,
+                    'priority'    => $this->prio,
                 ),
             ),
         );

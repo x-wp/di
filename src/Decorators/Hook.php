@@ -171,7 +171,11 @@ abstract class Hook implements Can_Hook {
     }
 
     public function get_tag(): string {
-        return $this->resolve_tag( $this->tag, $this->modifiers );
+        return $this->resolve_tag( $this->tag, $this->get_modifiers() );
+    }
+
+    public function get_modifiers(): array|string|bool {
+        return $this->modifiers;
     }
 
     public function get_priority(): int {
@@ -268,6 +272,6 @@ abstract class Hook implements Can_Hook {
     }
 
     protected function get_app_uuid(): string {
-        return $this->get_container()->get( 'xwp.app.uuid' );
+        return $this->get_container()->get( 'app.uuid' );
     }
 }

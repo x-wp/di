@@ -35,9 +35,9 @@ class Ajax_Action extends Action {
     /**
      * Prefix for the action name.
      *
-     * @var string
+     * @var null|string
      */
-    protected string $prefix;
+    protected ?string $prefix;
 
     /**
      * Nonce query var.
@@ -72,7 +72,14 @@ class Ajax_Action extends Action {
     /**
      * Variable getter function
      *
-     * @var Closure(string, ?string=): string
+     * @var 'GET'|'POST'|'REQ'
+     */
+    protected string $verb;
+
+    /**
+     * Variable fetch callback.
+     *
+     * @var Closure(string, ?string=): mixed
      */
     protected Closure $getter;
 
@@ -80,7 +87,7 @@ class Ajax_Action extends Action {
      * Constructor.
      *
      * @param string                                             $action      Ajax action name.
-     * @param string                                             $prefix      Prefix for the action name.
+     * @param null|string                                        $prefix      Prefix for the action name.
      * @param bool                                               $public      Whether the action is public or not.
      * @param 'GET'|'POST'|'REQ'                                 $method      Method to fetch the variable. GET, POST, or REQ.
      * @param bool|string                                        $nonce       String defines the query var for nonce, true checks the default vars, false disables nonce check.
@@ -92,7 +99,7 @@ class Ajax_Action extends Action {
      */
     public function __construct(
         string $action,
-        string $prefix,
+        ?string $prefix = null,
         bool $public = true,
         string $method = self::AJAX_REQ,
         bool|string $nonce = false,
@@ -108,17 +115,51 @@ class Ajax_Action extends Action {
         $this->cap    = $cap;
         $this->vars   = $vars;
         $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
-        $this->getter = Closure::fromCallable( $this->get_fetch_cb( $method ) );
+        $this->verb   = $method;
+        $this->getter = $this->getter_cb( $method );
 
         parent::__construct(
             tag: '%s_%s_%s',
             priority:$priority,
             context: self::CTX_AJAX,
             conditional: $conditional,
-            modifiers: array( '%s', \rtrim( $prefix, '_' ), $action ),
+            modifiers: false,
             invoke: self::INV_PROXIED,
             args: 0,
             params: $params,
+        );
+    }
+
+    /**
+     * Get the modifiers for the hook.
+     *
+     * @param  null|string $hook Optional hook name.
+     * @return array<int,string>
+     */
+    public function get_modifiers( ?string $hook = null ): array {
+        return array(
+            $hook ?? \next( $this->hooks ),
+            $this->get_prefix(),
+            $this->action,
+        );
+    }
+
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'action'      => $this->action,
+                    'cap'         => $this->cap,
+                    'conditional' => $this->conditional,
+                    'method'      => $this->verb,
+                    'nonce'       => $this->nonce,
+                    'prefix'      => $this->prefix,
+                    'priority'    => $this->prio,
+                    'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+                    'vars'        => $this->vars,
+                ),
+            ),
         );
     }
 
@@ -131,13 +172,21 @@ class Ajax_Action extends Action {
         return parent::can_load() && $this->handler->loaded;
     }
 
+    protected function get_prefix(): string {
+        return $this->prefix ?? $this->get_handler()->get_prefix();
+    }
+
+    protected function resolve_tag( ?string $tag, array|string|bool $modifiers ): string {
+        return \str_replace( '__', '_', parent::resolve_tag( $tag, $modifiers ) );
+    }
+
     /**
      * Get the variable fetch callback.
      *
      * @param  'GET'|'POST'|'REQ' $method Method to fetch the variable.
      * @return Closure(string, mixed=): mixed
      */
-    protected function get_fetch_cb( string $method ): Closure {
+    protected function getter_cb( string $method ): Closure {
         $cb = match ( $method ) {
             'GET'  => 'xwp_fetch_get_var',
             'POST' => 'xwp_fetch_post_var',
@@ -155,7 +204,7 @@ class Ajax_Action extends Action {
      */
     protected function load_hook( ?string $tag = null ): bool {
         foreach ( $this->hooks as $hook ) {
-            parent::load_hook( $this->resolve_tag( $this->tag, array( $hook ) ) );
+            parent::load_hook( $this->resolve_tag( $this->tag, $this->get_modifiers( $hook ) ) );
         }
 
         return true;

@@ -33,17 +33,15 @@ class Module extends Handler implements Can_Import {
      *
      * @param string                  $hook       Hook name.
      * @param int                     $priority   Hook priority.
-     * @param string                  $container  Container ID.
      * @param int                     $context    Module context.
      * @param array<int,class-string> $imports    Array of submodules to import.
      * @param array<int,class-string> $handlers   Array of handlers to register.
      * @param array<int,class-string> $services   Array of autowired services.
-     * @param bool                    $extendable Is the module extendable.
+     * @param mixed                   ...$args    Deprecated arguments.
      */
     public function __construct(
         string $hook,
-        int $priority,
-        string $container = '',
+        int $priority = 10,
         int $context = self::CTX_GLOBAL,
         /**
          * Array of submodules to import.
@@ -63,19 +61,18 @@ class Module extends Handler implements Can_Import {
          * @var array<int,class-string>
          */
         protected array $services = array(),
-        /**
-         * Is the module extendable?
-         *
-         * @var bool
-         */
-        protected bool $extendable = false,
+        mixed ...$args,
     ) {
-        parent::__construct(
-            tag: $hook,
-            priority: $priority,
-            context: $context,
-            strategy: self::INIT_AUTO,
-            container: $container,
+        parent::__construct( tag: $hook, priority: $priority, context: $context, strategy: self::INIT_AUTO );
+
+        if ( \defined( 'XWP_DI_HIDE_ERRORS' ) || ! $args ) {
+            return;
+        }
+
+        \_doing_it_wrong(
+            'Module::__construct',
+            \sprintf( 'Parameters %s are deprecated.', \esc_html( \implode( ', ', \array_keys( $args ) ) ) ),
+            '2.0.0',
         );
     }
 
@@ -91,7 +88,7 @@ class Module extends Handler implements Can_Import {
         return $this->services;
     }
 
-    public function get_definition(): array {
+    public function get_configuration(): array {
         return \method_exists( $this->classname, 'configure' )
             ? $this->classname::configure()
             : array();
@@ -103,10 +100,9 @@ class Module extends Handler implements Can_Import {
         $data['args'] = \array_merge(
             \xwp_array_diff_assoc( $data['args'], 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' ),
             array(
-                'extendable' => $this->extendable,
-                'handlers'   => $this->handlers,
-                'hook'       => $this->tag,
-                'imports'    => $this->imports,
+                'handlers' => $this->handlers,
+                'hook'     => $this->tag,
+                'imports'  => $this->imports,
             ),
         );
 

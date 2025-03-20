@@ -23,7 +23,7 @@ interface Can_Import extends Can_Handle {
      *
      * @return array<string,mixed>
      */
-    public function get_definition(): array;
+    public function get_configuration(): array;
 
     /**
      * Get the module imports.

@@ -71,9 +71,9 @@ class Invoker {
      * @param  Container $container Container instance.
      */
     public function __construct( private Container $container ) {
-        $this->debug = $container->get( 'xwp.app.debug' );
-        $this->cache = $container->get( 'xwp.app.cache' );
-        $this->env   = $container->get( 'xwp.app.env' );
+        $this->debug = $container->get( 'app.debug' );
+        $this->cache = $container->get( 'app.cache' );
+        $this->env   = $container->get( 'app.env' );
 
         \add_action( "xwp_{$this->app_uuid()}_module_init", array( $this, 'init_module' ), 0, 1 );
 
@@ -88,6 +88,11 @@ class Invoker {
      * Debug output.
      */
     public function debug(): void {
+        // if ( 'woosync' === $this->app_id() ) {
+        // \dump( $this->hooks, );
+        // die;
+        // }
+
         if ( ! $this->uncached ) {
             return;
         }
@@ -360,7 +365,7 @@ class Invoker {
      * @return string
      */
     private function app_id(): string {
-        return $this->container->get( 'xwp.app.id' );
+        return $this->container->get( 'app.id' );
     }
 
     /**
@@ -369,7 +374,7 @@ class Invoker {
      * @return string
      */
     private function app_uuid(): string {
-        return $this->container->get( 'xwp.app.uuid' );
+        return $this->container->get( 'app.uuid' );
     }
 
     /**

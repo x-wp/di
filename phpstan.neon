@@ -5,6 +5,7 @@ parameters:
   bootstrapFiles:
     - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
   scanFiles:
+    - stubs/const.php
     - vendor/wp-cli/wp-cli/php/utils.php
   ignoreErrors:
 

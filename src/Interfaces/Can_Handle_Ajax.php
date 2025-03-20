@@ -15,4 +15,10 @@ namespace XWP\DI\Interfaces;
  * @extends Can_Handle<T>
  */
 interface Can_Handle_Ajax extends Can_Handle {
+    /**
+     * Get the ajax prefix.
+     *
+     * @return string
+     */
+    public function get_prefix(): string;
 }
