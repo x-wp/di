@@ -42,9 +42,9 @@ class Ajax_Action extends Action {
     /**
      * Nonce query var.
      *
-     * @var bool|string
+     * @var bool|string|array<string,string>
      */
-    protected bool|string $nonce;
+    protected bool|string|array $nonce;
 
     /**
      * Capability required to perform the action.
@@ -90,7 +90,7 @@ class Ajax_Action extends Action {
      * @param null|string                                        $prefix      Prefix for the action name.
      * @param bool                                               $public      Whether the action is public or not.
      * @param 'GET'|'POST'|'REQ'                                 $method      Method to fetch the variable. GET, POST, or REQ.
-     * @param bool|string                                        $nonce       String defines the query var for nonce, true checks the default vars, false disables nonce check.
+     * @param bool|string|array<string,string>                   $nonce       Nonce query var, or false to disable nonce check, or query var => action keypair.
      * @param null|string|array<string,string|array<int,string>> $cap         Capability required to perform the action.
      * @param array<string,mixed>                                $vars        Variables to fetch.
      * @param array<int,mixed>                                   $params      Parameters to pass to the callback. Will be resolved by the container.
@@ -102,7 +102,7 @@ class Ajax_Action extends Action {
         ?string $prefix = null,
         bool $public = true,
         string $method = self::AJAX_REQ,
-        bool|string $nonce = false,
+        bool|string|array $nonce = false,
         null|string|array $cap = null,
         array $vars = array(),
         array $params = array(),
@@ -262,9 +262,9 @@ class Ajax_Action extends Action {
     }
 
     private function nonce_check(): bool {
-        $query_arg = \is_string( $this->nonce ) ? $this->nonce : false;
+        [ $arg, $action ] = $this->get_nonce_args();
 
-        return \check_ajax_referer( "{$this->prefix}_{$this->action}", $query_arg, false );
+        return \check_ajax_referer( $action, $arg, false );
     }
 
     private function cap_check(): bool {
@@ -279,5 +279,23 @@ class Ajax_Action extends Action {
         }
 
         return true;
+    }
+
+    /**
+     * Get the nonce arguments.
+     *
+     * @return array{0: string|false, 1: string}
+     */
+    private function get_nonce_args(): array {
+        $query_arg = match ( true ) {
+            \is_array( $this->nonce ) => \key( $this->nonce ),
+            \is_string( $this->nonce ) => $this->nonce,
+            default => false,
+        };
+        $action = \is_array( $this->nonce )
+            ? \current( $this->nonce )
+            : "{$this->prefix}_{$this->action}";
+
+        return array( $query_arg, $action );
     }
 }

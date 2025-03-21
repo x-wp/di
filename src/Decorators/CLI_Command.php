@@ -71,6 +71,25 @@ class CLI_Command extends Action implements Can_Execute {
         );
     }
 
+    public function get_data(): array {
+        return \array_merge(
+            parent::get_data(),
+            array(
+                'args' => array(
+                    'after'       => $this->after,
+                    'args'        => $this->cmd_args,
+                    'before'      => $this->before,
+                    'command'     => $this->subcommand,
+                    'deferred'    => $this->deferred,
+                    'description' => $this->description,
+                    'params'      => $this->params,
+                    'summary'     => $this->summary,
+                    'when'        => $this->when,
+                ),
+            ),
+        );
+    }
+
     public function get_before_invoke(): ?Closure {
         return $this->get_invoke( $this->before );
     }
@@ -185,14 +204,14 @@ class CLI_Command extends Action implements Can_Execute {
         $cb = \current( $raw );
 
         if ( \str_contains( $cb, '::' ) ) {
-            return $this->container->call( $cb, \array_slice( $raw, 1 ) );
+            return $this->get_container()->call( $cb, \array_slice( $raw, 1 ) );
         }
 
         $opts = array();
 
         foreach ( $raw as $opt ) {
-            $opt = $this->container->has( $opt )
-                ? $this->container->get( $opt )
+            $opt = $this->get_container()->has( $opt )
+                ? $this->get_container()->get( $opt )
                 : $opt;
 
             $opts = \array_merge( $opts, \xwp_str_to_arr( $opt ) );
@@ -217,7 +236,7 @@ class CLI_Command extends Action implements Can_Execute {
                 : $args[ $i ] ?? null;
 
             if ( isset( $arg['format'] ) ) {
-                $val = $this->container->call( $arg['format'], array( $val ) );
+                $val = $this->get_container()->call( $arg['format'], array( $val ) );
             }
 
             $fmtd[ $arg['var'] ?? $arg['name'] ] = $val;

@@ -64,9 +64,7 @@ trait Hook_Invoke_Methods {
             return $tag;
         }
 
-        $modifiers = \is_array( $modifiers )
-            ? $modifiers
-            : array( $modifiers );
+        $modifiers = (array) $modifiers;
 
         return \vsprintf( $tag, $modifiers );
     }

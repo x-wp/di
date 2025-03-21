@@ -8,7 +8,6 @@
 
 namespace XWP\DI\Decorators;
 
-use Automattic\Jetpack\Constants;
 use Closure;
 use ReflectionMethod;
 use Reflector;
@@ -291,13 +290,9 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     protected function get_cb_arg( string $param ): mixed {
-        return match ( true ) {
-            '!self.hook' === $param                => $this,
-            '!self.handler' === $param             => $this->handler,
-            \str_starts_with( $param, '!value:' )  => \str_replace( '!value:', '', $param ),
-            \str_starts_with( $param, '!global:' ) => $GLOBALS[ \str_replace( '!global:', '', $param ) ] ?? null,
-            \str_starts_with( $param, '!const:' )  => Constants::get_constant( \str_replace( '!const:', '', $param ) ),
-            default                                => $this->container->get( $param ),
+        return match ( $param ) {
+            '!self.handler' => $this->get_handler(),
+            default        => parent::get_cb_arg( $param ),
         };
     }
 

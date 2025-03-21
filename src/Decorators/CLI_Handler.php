@@ -62,6 +62,64 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
     protected static int $current;
 
     /**
+     * Ask for user input.
+     *
+     * @param  string        $question Question to ask.
+     * @param  array<string> $choices  Array of choices.
+     * @param  string|null   $def  Default choice.
+     * @return string
+     */
+    public static function choice( string $question, array $choices, ?string $def = null ): string {
+        $lines   = array( $question );
+        $choices = \array_values( $choices );
+        $length  = \strlen( (string) \count( $choices ) ) + 2;
+
+        foreach ( $choices as $i => $c ) {
+            $lines[] = \sprintf( '%s: %s', \str_pad( (string) ( $i + 1 ), $length, ' ', STR_PAD_LEFT ), $c );
+        }
+
+        $choice = \trim( self::prompt( \implode( \PHP_EOL, $lines ), false ) );
+
+        if ( ! \preg_match( '/^\d+$/', $choice ) || ! isset( $choices[ \intval( $choice ) - 1 ] ) ) {
+            WP_CLI::error( 'Invalid choice.' );
+        }
+
+        $choice = (int) $choice - 1;
+
+        return $choices[ $choice ] ?? $def ?? '';
+    }
+
+    /**
+     * Prompt for user input.
+     *
+     * @param  string $question  Question to ask.
+     * @param  bool   $multiline Whether to allow multiline input.
+     * @return string
+     */
+    public static function prompt( string $question, bool $multiline = false ): string {
+        if ( $multiline ) {
+            $question .= ' (Press Ctrl+D to finish)';
+        }
+
+        WP_CLI::line( $question );
+
+        $loop  = true;
+        $stdin = \fopen( 'php://stdin', 'r' );
+        $input = '';
+
+        do {
+            $input .= \fgets( $stdin );
+            $loop   = $multiline && ! \feof( $stdin );
+
+        } while ( $loop );
+
+        //phpcs:ignore
+        \fclose( $stdin );
+
+        return \rtrim( $input );
+    }
+
+    /**
      * Track progress.
      *
      * @param  string           $message Message to display.
@@ -114,20 +172,16 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      * @param string                                        $namespace   Command namespace.
      * @param string                                        $description Command description.
      * @param Closure|string|int|array{class-string,string} $priority    Hook priority.
-     * @param string|null                                   $container   Container ID.
+     * @param mixed                                         ...$args     Additional arguments.
      */
     public function __construct(
         protected string $namespace,
         protected string $description = '',
         Closure|string|int|array $priority = 10,
-        ?string $container = null,
+        mixed ...$args,
     ) {
-        parent::__construct(
-            tag: 'cli_init',
-            priority: $priority,
-            container: $container,
-            context: static::CTX_CLI,
-        );
+        $ctr = $args['container'] ?? null;
+        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
     }
 
     public function get_data(): array {

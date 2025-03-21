@@ -1,4 +1,4 @@
-<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing
+<?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
 /**
  * Hook class file.
  *
@@ -8,6 +8,7 @@
 
 namespace XWP\DI\Decorators;
 
+use Automattic\Jetpack\Constants;
 use Closure;
 use ReflectionClass;
 use ReflectionMethod;
@@ -175,7 +176,9 @@ abstract class Hook implements Can_Hook {
     }
 
     public function get_modifiers(): array|string|bool {
-        return $this->modifiers;
+        return $this->modifiers
+            ? \array_map( array( $this, 'get_cb_arg' ), (array) $this->modifiers )
+            : $this->modifiers;
     }
 
     public function get_priority(): int {
@@ -273,5 +276,16 @@ abstract class Hook implements Can_Hook {
 
     protected function get_app_uuid(): string {
         return $this->get_container()->get( 'app.uuid' );
+    }
+
+    protected function get_cb_arg( string $param ): mixed {
+        return match ( true ) {
+            '!self.hook' === $param                => $this,
+            \str_starts_with( $param, '!value:' )  => \str_replace( '!value:', '', $param ),
+            \str_starts_with( $param, '!global:' ) => $GLOBALS[ \str_replace( '!global:', '', $param ) ] ?? null,
+            \str_starts_with( $param, '!const:' )  => Constants::get_constant( \str_replace( '!const:', '', $param ) ),
+            $this->container->has( $param )        => $this->container->get( $param ),
+            default                                => $param,
+        };
     }
 }
