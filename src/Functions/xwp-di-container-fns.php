@@ -35,6 +35,7 @@ function xwp_app( string $container_id ): Container {
  * @template TCtr of Container
  * @param  array{
  *   app_class?: class-string<TCtr>,
+ *   app_debug?: bool,
  *   app_id?: string|false,
  *   app_module?: class-string,
  *   app_file?: string,
@@ -45,7 +46,12 @@ function xwp_app( string $container_id ): Container {
  *   cache_defs?: bool,
  *   cache_app?: bool,
  *   cache_dir?: string,
- *   logger?: bool,
+ *   logger?: bool|array{
+ *     basedir?: string,
+ *     enabled?: bool,
+ *     handler?: class-string,
+ *     level?: string,
+ *   },
  *   public?: bool,
  *   use_autowiring?: bool,
  *   use_attributes?: bool,
@@ -78,6 +84,7 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  *
  * @param  array{
  *   app_class?: class-string<TCtr>,
+ *   app_debug?: bool,
  *   app_id?: string|false,
  *   app_module?: class-string,
  *   app_file?: string,
@@ -87,7 +94,12 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  *   cache_defs?: bool,
  *   cache_dir?: string,
  *   cache_hooks?: bool,
- *   logger?: bool,
+ *    logger?: bool|array{
+ *     basedir?: string,
+ *     enabled?: bool,
+ *     handler?: class-string,
+ *     level?: string,
+ *   },
  *   public?: bool,
  *   use_autowiring?: bool,
  *   use_attributes?: bool,

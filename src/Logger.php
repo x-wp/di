@@ -29,6 +29,20 @@ use Stringable;
  */
 class Logger extends AbstractLogger {
     /**
+     * Instances of the Logger
+     *
+     * @var array<string,array<string,self|Logger>>
+     */
+    protected static array $instances = array();
+
+    /**
+     * Holds the directory in which the log file will be stored
+     *
+     * @var array<string,resource>
+     */
+    protected static array $handles = array();
+
+    /**
      * KLogger options
      *  Anything options not considered 'core' to the logging library should be
      *  settable view the third parameter in the constructor
@@ -36,31 +50,18 @@ class Logger extends AbstractLogger {
      *  Core options include the log file path and the log threshold
      *
      * @var array{
-     *   context: string,
+     *   filename: ?string,
      *   date_format: string,
-     *   extension: string,
-     *   filename: string|null,
      *   max_lines: false|int,
      *   log_format: false|string,
-     *   prefix: string,
      * }
      */
-    protected $options = array(
-        'context'     => 'App',
+    protected array $options = array(
         'date_format' => 'G:i:s',
-        'extension'   => 'txt',
         'filename'    => null,
         'log_format'  => false,
         'max_lines'   => false,
-        'prefix'      => 'log_',
     );
-
-    /**
-     * Path to the log file
-     *
-     * @var string
-     */
-    private $file_path;
 
     /**
      * The number of lines logged in this instance's lifetime
@@ -86,13 +87,6 @@ class Logger extends AbstractLogger {
     );
 
     /**
-     * This holds the file handle for this instance's log file
-     *
-     * @var ?resource
-     */
-    private mixed $handle;
-
-    /**
      * This holds the last line logged to the logger
      *  Used for unit tests
      *
@@ -101,30 +95,114 @@ class Logger extends AbstractLogger {
     private $last_line = '';
 
     /**
-     * Class constructor
+     * Get an instance of the Logger for the specified app_id and context.
      *
-     * @param string              $basedir      File path to the logging directory.
-     * @param string              $level Log level threshold.
-     * @param array<string,mixed> $options Extra options to set.
-     *
-     * @throws \RuntimeException If the directory can't be created.
+     * @param  string $app_id  Application ID.
+     * @param  string $context The context.
+     * @return self|null
      */
-    public function __construct( protected string $basedir, protected string $level = LogLevel::DEBUG, array $options = array() ) {
-        $this->level   = $level;
-        $this->options = \xwp_parse_args( $options, $this->options );
+    public static function instance( string $app_id, string $context = 'XWP\\App' ): ?self {
+        return self::$instances[ $app_id ][ self::format_context( $context ) ] ?? null;
+    }
 
-        if ( \str_starts_with( $basedir, 'php://' ) ) {
-            $this->log_to_stdout( $basedir );
-            $this->set_handle( 'w+' );
+    /**
+     * Formats the context for logging.
+     *
+     * @param  string $context The context.
+     * @return string
+     */
+    public static function format_context( string $context ): string {
+        if ( ! \class_exists( $context ) ) {
+            return \ucfirst( \strtolower( $context ) );
+        }
+
+        $context = \explode( '/', \str_replace( '\\', '/', $context ) );
+        return \implode( '\\', \array_slice( $context, -3, 3 ) );
+    }
+
+    /**
+     * Constructor
+     *
+     * @param  string              $app_id  Application ID.
+     * @param  string              $basedir File path to the logging directory.
+     * @param  string              $level   Log level threshold.
+     * @param  string              $context The context.
+     * @param  array<string,mixed> $options Extra options to set.
+     */
+    public function __construct(
+        protected string $app_id,
+        protected string $basedir = \WP_CONTENT_DIR . 'xwp-di',
+        protected string $level = LogLevel::INFO,
+        protected string $context = 'XWP\\App',
+        array $options = array(),
+    ) {
+        $this
+            ->set_app( $app_id )
+            ->set_options( $options )
+            ->set_basedir( $basedir )
+            ->set_handle( 'a' )
+            ->set_instance( $this );
+    }
+
+    /**
+     * Class destructor
+     */
+    public function __destruct() {
+        if ( ! $this->get_handle() ) {
             return;
         }
 
-        $this->set_file_path( $basedir );
-        $this->set_handle( 'a' );
+        \fclose( $this->get_handle() );
 
-        if ( ! isset( $this->handle ) ) {
-            throw new \RuntimeException( 'The file could not be opened. Check permissions.' );
-        }
+        self::$handles[ $this->app_id ] = false;
+    }
+
+    /**
+     * Output debug info
+     *
+     * @return array<string,mixed>
+     */
+    public function __debugInfo() {
+        return array(
+            'handles'   => self::$handles,
+            'instances' => self::$instances,
+        );
+    }
+
+    /**
+     * Get the app ID
+     *
+     * @return string
+     */
+    public function get_app_id(): string {
+        return $this->app_id;
+    }
+
+    /**
+     * Get the context
+     *
+     * @return string
+     */
+    public function get_context(): string {
+        return $this->format_context( $this->context );
+    }
+
+    /**
+     * Get the file path that the log is currently writing to
+     *
+     * @return string
+     */
+    public function get_filename(): string {
+        return \sprintf( '%s/%s', $this->basedir, $this->options['filename'] );
+    }
+
+    /**
+     * Get the last line logged to the log file
+     *
+     * @return string
+     */
+    public function get_last_line(): string {
+        return $this->last_line;
     }
 
     /**
@@ -134,64 +212,86 @@ class Logger extends AbstractLogger {
      * @return self
      */
     public function with_context( string $context ): self {
-        return new self(
-            $this->basedir,
-            $this->level,
-            \array_merge( $this->options, array( 'context' => $context ) ),
-        );
+        return $this->get_instance( $context ) ?? $this->create_instance( $context );
     }
 
     /**
-     * Log to stdout
+     * Sets the context for this instance
      *
-     * @param string $stdout_path Path to stdout.
+     * @param  string $context The context.
+     * @return self
      */
-    public function log_to_stdout( string $stdout_path ): void {
-        $this->file_path = $stdout_path;
+    public function set_context( string $context ): self {
+        $this->context = $context;
+
+        return $this;
     }
 
     /**
      * Sets the file path for this instance
      *
-     * @param string $basedir File path to the logging directory.
+     * @param  string|null $basedir File path to the logging directory.
+     * @return self
      *
      * @throws \RuntimeException If the directory can't be created.
      */
-    public function set_file_path( string $basedir ): void {
+    public function set_basedir( ?string $basedir = null ): self {
+        $basedir ??= \WP_CONTENT_DIR . '/logs/xwp-di';
+
         if ( ! \wp_mkdir_p( $basedir ) ) {
             throw new \RuntimeException(
                 'The directory could not be created. Check that appropriate permissions have been set.',
             );
         }
 
-        $filename = $this->options['filename'] ?? \sprintf(
-            '%s-%s.%s',
-            \rtrim( $this->options['prefix'], '_-' ),
-            \gmdate( 'Y-m-d' ),
-            $this->options['extension'],
-        );
+        $this->basedir = $basedir;
 
-        $this->file_path = $basedir . DIRECTORY_SEPARATOR . $filename;
+        self::$handles[ $this->app_id ] ??= null;
+
+        return $this;
     }
 
     /**
      * Sets the file handle for this instance
      *
      * @param string $mode File mode.
+     * @return self
+     *
+     * @throws \RuntimeException If the file could not be opened.
      */
-    public function set_handle( string $mode ): void {
-        $this->handle = \fopen( $this->file_path, $mode );
+    public function set_handle( string $mode ): self {
+        if ( \is_resource( $this->get_handle() ) ) {
+            return $this;
+        }
+
+        self::$handles[ $this->get_app_id() ] = \fopen( $this->get_filename(), $mode );
+
+        if ( false === $this->get_handle() ) {
+            throw new \RuntimeException(
+                'The file could not be opened. Check that appropriate permissions have been set.',
+            );
+        }
+
+        return $this;
     }
 
     /**
-     * Class destructor
+     * Set the options.
+     *
+     * @param  array<string,mixed> $options Options to set.
+     * @return self
      */
-    public function __destruct() {
-        if ( ! isset( $this->handle ) ) {
-            return;
-        }
+    public function set_options( array $options ): self {
+        $defaults = array(
+            'date_format' => 'G:i:s',
+            'filename'    => \sprintf( '%s-%s.log', \rtrim( $this->app_id, '_-' ), \gmdate( 'Y-m-d' ) ),
+            'log_format'  => false,
+            'max_lines'   => false,
+        );
 
-        \fclose( $this->handle );
+        $this->options = \xwp_parse_args( $options, $defaults );
+
+        return $this;
     }
 
     /**
@@ -236,11 +336,11 @@ class Logger extends AbstractLogger {
      * @throws \RuntimeException If the file could not be written to.
      */
     public function write( string|Stringable $message ): void {
-        if ( null === $this->handle ) {
+        if ( ! $this->get_handle() ) {
             return;
         }
 
-        if ( false === \fwrite( $this->handle, $message ) ) {
+        if ( false === \fwrite( $this->get_handle(), $message ) ) {
             throw new \RuntimeException(
                 'The file could not be written to. Check that appropriate permissions have been set.',
             );
@@ -253,25 +353,61 @@ class Logger extends AbstractLogger {
             return;
         }
 
-        \fflush( $this->handle );
+        \fflush( $this->get_handle() );
     }
 
     /**
-     * Get the file path that the log is currently writing to
+     * Get the instance for the given context
      *
-     * @return string
+     * @param  string $context The context.
+     * @return self|null
      */
-    public function get_file_path(): string {
-        return $this->file_path;
+    protected function get_instance( string $context ): ?self {
+        return self::instance( $this->get_app_id(), $context );
     }
 
     /**
-     * Get the last line logged to the log file
+     * Get the handle for the log file
      *
-     * @return string
+     * @return resource|false
      */
-    public function get_last_line(): string {
-        return $this->last_line;
+    protected function get_handle(): mixed {
+        return self::$handles[ $this->app_id ] ?? false;
+    }
+
+    /**
+     * Sets the app ID for this instance
+     *
+     * @param  string $app_id The app ID.
+     * @return self
+     */
+    protected function set_app( string $app_id ): self {
+        self::$instances[ $app_id ] ??= array();
+        $this->app_id                 = $app_id;
+
+        return $this;
+    }
+
+    /**
+     * Sets the instance for the given context
+     *
+     * @param  Logger $ins The instance.
+     * @return Logger
+     */
+    protected function set_instance( Logger $ins ): Logger {
+        return self::$instances[ $ins->get_app_id() ][ $ins->get_context() ] ??= $ins;
+    }
+
+    /**
+     * Creates a new instance with the given context
+     *
+     * @param  string $context The context.
+     * @return Logger
+     */
+    protected function create_instance( string $context ): Logger {
+        $logger = ( clone $this )->set_context( $context );
+
+        return $this->set_instance( $logger );
     }
 
     /**
@@ -289,7 +425,7 @@ class Logger extends AbstractLogger {
                 '[%s] %s [%s] %s',
                 $this->get_timestamp(),
                 \strtoupper( $level ),
-                $this->options['context'],
+                $this->context,
                 $message,
             );
 

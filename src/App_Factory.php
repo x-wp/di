@@ -52,6 +52,13 @@ final class App_Factory {
     private array $files = array();
 
     /**
+     * Array of application IDs which should be debugged.
+     *
+     * @var array<string>
+     */
+    private array $app_debug;
+
+    /**
      * Add a container to the decompile list.
      *
      * @param  string $id  Container ID.
@@ -95,6 +102,9 @@ final class App_Factory {
      * Constructor.
      */
     protected function __construct() {
+        $this->app_debug = \defined( 'XWP_DI_DEBUG_APP' )
+            ? \xwp_str_to_arr( XWP_DI_DEBUG_APP )
+            : array();
         /**
          * Fired when the app factory is initialized.
          *
@@ -277,6 +287,7 @@ final class App_Factory {
             $config,
             array(
                 'app_class'      => 'CompiledContainer' . \strtoupper( $config['app_id'] ),
+                'app_debug'      => $this->can_debug( $config['app_id'] ),
                 'app_file'       => false,
                 'app_preload'    => false,
                 'app_type'       => $this->parse_type( (string) ( $config['app_file'] ?? null ) ),
@@ -311,11 +322,11 @@ final class App_Factory {
         $config['logger'] = \xwp_parse_args(
             $logger,
             array(
+                'app_id'  => $config['app_id'],
                 'basedir' => \WP_CONTENT_DIR . '/logs/xwp-di',
                 'enabled' => true,
                 'handler' => Logger::class,
                 'level'   => $this->is_prod() ? LogLevel::ERROR : LogLevel::DEBUG,
-                'prefix'  => $config['app_id'],
             ),
         );
 
@@ -402,7 +413,7 @@ final class App_Factory {
      * @return bool
      */
     protected function can_debug( ?string $app_id = null ): bool {
-        return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( XWP_DI_DEBUG_APP, $app_id );
+        return ! $this->app_debug || \in_array( $app_id, $this->app_debug, true );
     }
 
     /**

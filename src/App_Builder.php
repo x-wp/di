@@ -11,6 +11,7 @@ namespace XWP\DI;
 use DI\CompiledContainer as Compiled;
 use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use XWP\DI\Hook\Compiler;
 use XWP\DI\Hook\Factory;
@@ -129,7 +130,7 @@ class App_Builder extends ContainerBuilder {
                     'ns'    => $config['app_id'],
                 ),
             ),
-            'app.debug'  => \DI\value( \defined( 'WP_DEBUG' ) && WP_DEBUG ),
+            'app.debug'  => \DI\value( $config['app_debug'] ),
             'app.env'    => \DI\factory( 'wp_get_environment_type' ),
             'app.extend' => \DI\value( $config['extendable'] ),
             'app.id'     => \DI\value( $config['app_id'] ),
@@ -160,23 +161,20 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addLogDefinition( array $config ): App_Builder {
-        $config = $config['logger'];
-        $params = array(
-            'basedir' => $config['basedir'],
-            'level'   => $config['level'],
-            'options' => array(
-                'extension' => 'log',
-                'prefix'    => $config['prefix'] . '-',
-            ),
+        $log_cfg = $config['logger'];
+        $params  = array(
+            'app_id'  => $log_cfg['app_id'],
+            'basedir' => $log_cfg['basedir'],
+            'level'   => $log_cfg['level'],
         );
 
-        if ( ! $config['enabled'] ) {
-            $config['handler'] = NullLogger::class;
-            $params            = array();
+        if ( ! $log_cfg['enabled'] ) {
+            $log_cfg['handler'] = NullLogger::class;
+            $params             = array();
         }
 
         $definition = array(
-            'xwp.logger' => \DI\autowire( $config['handler'] )->constructor( ...$params ),
+            'xwp.logger' => \DI\autowire( $log_cfg['handler'] )->constructor( ...$params ),
             'app.logger' => \DI\factory(
                 static fn( $logger, string $ctx ) => \method_exists( $logger, 'with_context' )
                     ? $logger->with_context( $ctx )

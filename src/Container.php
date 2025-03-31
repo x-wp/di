@@ -12,6 +12,7 @@ use DI\Container as DI_Container;
 use DI\Definition\Source\MutableDefinitionSource;
 use DI\Proxy\ProxyFactory;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
@@ -131,5 +132,15 @@ class Container extends DI_Container {
      */
     public function started(): bool {
         return $this->started;
+    }
+
+    /**
+     * Get a logger instance.
+     *
+     * @param  string $context Logger context.
+     * @return LoggerInterface
+     */
+    public function logger( string $context ): LoggerInterface {
+        return $this->make( 'app.logger', array( 'ctx' => $context ) );
     }
 }

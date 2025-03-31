@@ -32,7 +32,7 @@ class Invoker {
      *
      * @var array<class-string,array<string,string>>>
      */
-    private array $hooks = array();
+    private array $callbacks = array();
 
     /**
      * Uncached handlers.
@@ -99,7 +99,7 @@ class Invoker {
         $this->cache  = $container->get( 'app.cache' );
         $this->env    = $container->get( 'app.env' );
         $this->app_id = $container->get( 'app.id' );
-        $this->logger = $container->make( 'app.logger', array( 'ctx' => 'Invoker' ) );
+        $this->logger = $container->logger( self::class );
 
         if ( ! $this->can_debug() ) {
             return;
@@ -141,7 +141,7 @@ class Invoker {
         }
 
         $this->logger->debug( 'Handlers', $this->handlers );
-        $this->logger->debug( 'Hooks', $this->hooks );
+        $this->logger->debug( 'Hooks', $this->callbacks );
 
         $this->logger->debug( 'Application shutdown complete' );
     }
@@ -162,7 +162,7 @@ class Invoker {
      * @return ($handler is null ? array<class-string,array<string,string>> : array<string,string>)
      */
     public function get_actions( ?string $handler = null ): array {
-        return $handler ? $this->hooks[ $handler ] ?? array() : $this->hooks;
+        return $handler ? $this->callbacks[ $handler ] ?? array() : $this->callbacks;
     }
 
     /**
@@ -221,7 +221,7 @@ class Invoker {
         }
 
         if ( $clear ) {
-            $this->hooks[ $cname ] = array();
+            $this->callbacks[ $cname ] = array();
         }
 
         $this->handlers[ $cname ] = $handler->is_loaded() ? $handler->get_init_hook() : false;
@@ -413,7 +413,7 @@ class Invoker {
         $id = "{$cb->get_method()}:{$cb->get_tag()}";
         $cn = $cb->get_classname();
 
-        $this->hooks[ $cn ][ $id ] = $cb->is_loaded() ? $cb->get_init_hook() : false;
+        $this->callbacks[ $cn ][ $id ] = $cb->is_loaded() ? $cb->get_init_hook() : false;
     }
 
     /**
