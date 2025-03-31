@@ -9,6 +9,7 @@
 namespace XWP\DI;
 
 use DI\Definition\Source\SourceCache;
+use Psr\Log\LogLevel;
 use XWP\DI\Interfaces\Extension_Module;
 use XWP\Helper\Traits\Singleton;
 
@@ -271,28 +272,54 @@ final class App_Factory {
      * @return array<string,mixed>
      */
     private function parse_app_config( array $config ): array {
-        $is_prod = 'production' === \wp_get_environment_type();
-        $apcu_on = SourceCache::isSupported();
-        $config  = $this->parse_legacy_config( $config );
-
-        return \xwp_parse_args(
+            $config = $this->parse_legacy_config( $config );
+        $config     = \xwp_parse_args(
             $config,
             array(
                 'app_class'      => 'CompiledContainer' . \strtoupper( $config['app_id'] ),
                 'app_file'       => false,
+                'app_preload'    => false,
                 'app_type'       => $this->parse_type( (string) ( $config['app_file'] ?? null ) ),
                 'app_version'    => '0.0.0-dev',
-                'cache_app'      => $is_prod,
-                'cache_defs'     => $is_prod && $apcu_on,
+                'cache_app'      => $this->is_prod(),
+                'cache_defs'     => $this->is_prod() && SourceCache::isSupported(),
                 'cache_dir'      => \WP_CONTENT_DIR . '/cache/xwp-di/' . $config['app_id'],
-                'cache_hooks'    => $is_prod,
+                'cache_hooks'    => $this->is_prod(),
                 'extendable'     => true,
+                'logger'         => false,
                 'public'         => true,
                 'use_attributes' => true,
                 'use_autowiring' => true,
                 'use_proxies'    => false,
             ),
         );
+
+        return $this->parse_log_config( $config );
+    }
+
+    /**
+     * Parses the log config
+     *
+     * @param array<string,mixed> $config Configuration options.
+     * @return array<string,mixed>
+     */
+    private function parse_log_config( array $config ): array {
+        $logger = \is_array( $config['logger'] )
+            ? $config['logger']
+            : array( 'enabled' => (bool) $config['logger'] );
+
+        $config['logger'] = \xwp_parse_args(
+            $logger,
+            array(
+                'basedir' => \WP_CONTENT_DIR . '/logs/xwp-di',
+                'enabled' => true,
+                'handler' => Logger::class,
+                'level'   => $this->is_prod() ? LogLevel::ERROR : LogLevel::DEBUG,
+                'prefix'  => $config['app_id'],
+            ),
+        );
+
+        return $config;
     }
 
     /**
@@ -330,7 +357,7 @@ final class App_Factory {
             throw new \InvalidArgumentException( 'Missing app_module' );
         }
 
-        if ( 'production' !== \wp_get_environment_type() && ! \defined( 'XWP_DI_HIDE_ERRORS' ) ) {
+        if ( $this->can_debug( $config['app_id'] ) ) {
             \_doing_it_wrong(
                 'xwp_create_app',
                 \sprintf(
@@ -366,5 +393,24 @@ final class App_Factory {
      */
     protected function is_uninstalling( string|bool $file ): bool {
         return \defined( 'WP_UNINSTALL_PLUGIN' ) && WP_UNINSTALL_PLUGIN === $file;
+    }
+
+    /**
+     * Can we debug this container?
+     *
+     * @param  string|null $app_id Application ID.
+     * @return bool
+     */
+    protected function can_debug( ?string $app_id = null ): bool {
+        return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( XWP_DI_DEBUG_APP, $app_id );
+    }
+
+    /**
+     * Is this a production environment?
+     *
+     * @return bool
+     */
+    protected function is_prod(): bool {
+        return 'production' === \wp_get_environment_type();
     }
 }

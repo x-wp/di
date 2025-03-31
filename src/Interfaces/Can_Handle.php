@@ -123,10 +123,10 @@ interface Can_Handle extends Can_Hook {
     /**
      * Set the handler hook methods
      *
-     * @param  array<int,string|Can_Invoke<THndlr,static>> $hooks Hook methods.
+     * @param  array<int,string|Can_Invoke<THndlr,static>> $callbacks Hook methods.
      * @return static
      */
-    public function with_hooks( array $hooks ): static;
+    public function with_callbacks( array $callbacks ): static;
 
     /**
      * Get the handler instance.
@@ -155,7 +155,7 @@ interface Can_Handle extends Can_Hook {
      *
      * @return ?array<int,string>
      */
-    public function get_hooks(): ?array;
+    public function get_callbacks(): ?array;
 
     /**
      * Get the tag for lazy loading.
@@ -163,6 +163,13 @@ interface Can_Handle extends Can_Hook {
      * @return string
      */
     public function get_lazy_tag();
+
+    /**
+     * Get the deprecated constructor arguments.
+     *
+     * @return array<string>
+     */
+    public function get_compat_args(): array;
 
     /**
      * Is the handler lazy loaded?
@@ -184,11 +191,4 @@ interface Can_Handle extends Can_Hook {
      * @return void
      */
     public function lazy_load(): void;
-
-    /**
-     * Check if the handler is loaded.
-     *
-     * @return bool
-     */
-    public function is_loaded(): bool;
 }

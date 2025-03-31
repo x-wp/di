@@ -8,16 +8,18 @@
 
 namespace XWP\DI;
 
+use Psr\Log\LoggerInterface;
+use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Import;
-use XWP\DI\Traits\Hook_Factory_Methods;
+use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Handles hook registration and invocation.
+ *
+ * @mixin Factory
  */
 class Invoker {
-    use Hook_Factory_Methods;
-
     /**
      * Handlers.
      *
@@ -38,6 +40,13 @@ class Invoker {
      * @var array<string,string> //array<Can_Handle<object>>
      */
     private array $uncached = array();
+
+    /**
+     * List of handlers which use deprecated arguments.
+     *
+     * @var array<class-string,array<string>>
+     */
+    private array $old_handlers = array();
 
     /**
      * Cache configuration.
@@ -66,42 +75,75 @@ class Invoker {
     private bool $debug;
 
     /**
+     * Application ID.
+     *
+     * @var string
+     */
+    private string $app_id;
+
+    /**
+     * Logger instance.
+     *
+     * @var LoggerInterface
+     */
+    private LoggerInterface $logger;
+
+    /**
      * Constructor.
      *
+     * @param  Factory   $factory   Factory instance.
      * @param  Container $container Container instance.
      */
-    public function __construct( private Container $container ) {
-        $this->debug = $container->get( 'app.debug' );
-        $this->cache = $container->get( 'app.cache' );
-        $this->env   = $container->get( 'app.env' );
+    public function __construct( protected Factory $factory, Container $container ) {
+        $this->debug  = $container->get( 'app.debug' );
+        $this->cache  = $container->get( 'app.cache' );
+        $this->env    = $container->get( 'app.env' );
+        $this->app_id = $container->get( 'app.id' );
+        $this->logger = $container->make( 'app.logger', array( 'ctx' => 'Invoker' ) );
 
-        \add_action( "xwp_{$this->app_uuid()}_module_init", array( $this, 'init_module' ), 0, 1 );
-
-        if ( ! $this->debug ) {
+        if ( ! $this->can_debug() ) {
             return;
         }
 
-        \add_action( 'shutdown', array( $this, 'debug' ) );
+        \add_action( 'shutdown', array( $this, 'debug_output' ), \PHP_INT_MAX );
+    }
+
+    /**
+     * Magic method to call factory methods.
+     *
+     * @param  string       $name Method name.
+     * @param  array<mixed> $args Method arguments.
+     * @return mixed
+     */
+    public function __call( string $name, array $args ): mixed {
+        if ( \method_exists( $this->factory, $name ) ) {
+            return $this->factory->$name( ...$args );
+        }
+
+        return null;
     }
 
     /**
      * Debug output.
      */
-    public function debug(): void {
-        // if ( 'woosync' === $this->app_id() ) {
-        // \dump( $this->hooks, );
-        // die;
-        // }
+    public function debug_output(): void {
+        $this->logger->debug( 'Shutting down application' );
 
-        if ( ! $this->uncached ) {
-            return;
+        if ( $this->uncached ) {
+            $this->logger->debug(
+                'Hook definition cache is active. The following handlers were loaded manually',
+                $this->uncached,
+            );
         }
 
-        // phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
-        \error_log( \str_pad( " XWP-DI: {$this->app_id()} ", 62, '*', STR_PAD_BOTH ) );
-        \error_log( 'Hook definition cache is active. The following handlers were loaded manually' );
-        \error_log( \esc_html( \implode( ', ', $this->uncached ) ) );
-        // phpcs:enable WordPress.PHP.DevelopmentFunctions.error_log_error_log
+        if ( $this->old_handlers ) {
+            $this->logger->debug( 'Handlers with deprecated arguments', $this->old_handlers );
+        }
+
+        $this->logger->debug( 'Handlers', $this->handlers );
+        $this->logger->debug( 'Hooks', $this->hooks );
+
+        $this->logger->debug( 'Application shutdown complete' );
     }
 
     /**
@@ -124,34 +166,6 @@ class Invoker {
     }
 
     /**
-     * Run the module.
-     *
-     * @template T of object
-     *
-     * @param  Can_Import<T> $module Module instance.
-     * @return static
-     */
-    public function load_module( Can_Import $module ): static {
-        return $this->register_handler( $module )->load_imports( $module );
-    }
-
-    /**
-     * Initialize the module.
-     *
-     * @hooked xwp_{app_uuid}_module_init Registers handlers for the module.
-     *
-     * @template T of object
-     * @param  Can_Import<T> $m Module to initialize.
-     */
-    public function init_module( Can_Import $m ): void {
-        foreach ( $m->get_handlers() as $handler ) {
-            $handler =
-
-            $this->register_handler( $handler );
-        }
-    }
-
-    /**
      * Register a handler.
      *
      * @template T of object
@@ -169,17 +183,16 @@ class Invoker {
     /**
      * Register a handler.
      *
-     * @template T of object
-     * @param  class-string<T>|T|Can_Handle<T>|array<string,mixed> $h Handler to register.
-     * @return static
+     * @template TObj of object
+     *
+     * @param  class-string<TObj> $classname Handler to register.
+     * @return Can_Handle<TObj>
      */
-    public function register_handler( string|object|array $h ): static {
-        $h = \is_string( $h ) && \class_exists( $h ) && $this->container->has( 'Handler-' . $h )
-            ? $this->container->get( 'Handler-' . $h )
-            : $this->make_handler( $h );
+    public function register_handler( string $classname ): Can_Handle {
+        $h = $this->get_handler( $classname );
 
         //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
-        return match ( $h->get_strategy() ) {
+        match ( $h->get_strategy() ) {
             $h::INIT_LAZY,
             $h::INIT_JIT   => $this->add_handler( $h )->queue_lazy_handler( $h )->queue_methods( $h ),
             $h::INIT_EARLY => $this->add_handler( $h )->init_handler( $h )->queue_methods( $h ),
@@ -188,6 +201,8 @@ class Invoker {
             default        => $this->add_handler( $h )->queue_handler( $h ),
         };
         //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+
+        return $h;
     }
 
     /**
@@ -215,18 +230,19 @@ class Invoker {
     }
 
     /**
-     * Load module imports.
+     * Load a handler.
      *
      * @template T of object
-     * @param  Can_Import<T> $module Module instance.
-     * @return static
+     *
+     * @param  T $instance Instance to load.
+     * @return Can_Handle<T>
      */
-    private function load_imports( Can_Import $module ): static {
-        foreach ( $module->get_imports() as $import ) {
-            $this->load_module( $this->fetch_module( $import ) );
-        }
+    public function load_handler( object $instance ): Can_Handle {
+        $handler = $this->factory->load_handler( $instance );
 
-        return $this;
+        $this->register_handler( $handler->get_classname() );
+
+        return $handler;
     }
 
     /**
@@ -282,8 +298,35 @@ class Invoker {
      * @return static
      */
     private function init_handler( Can_Handle $h ): static {
-        if ( $h->load() ) {
-            $this->handlers[ $h->get_classname() ] = $h->get_init_hook();
+        if ( ! $h->load() ) {
+            return $this;
+        }
+
+        $this->handlers[ $h->get_classname() ] = $h->get_init_hook();
+
+        if ( $this->debug && $h->get_compat_args() ) {
+            $this->old_handlers[ $h->get_classname() ] = \implode( ', ', $h->get_compat_args() );
+        }
+
+        return $h instanceof Can_Import
+            ? $this->init_module( $h )
+            : $this;
+    }
+
+    /**
+     * Load module imports.
+     *
+     * @template T of object
+     * @param  Can_Import<T> $module Module instance.
+     * @return static
+     */
+    private function init_module( Can_Import $module ): static {
+        foreach ( $module->get_handlers() as $handler ) {
+            $this->register_handler( $handler );
+        }
+
+        foreach ( $module->get_imports() as $import ) {
+            $this->register_handler( $import );
         }
 
         return $this;
@@ -297,11 +340,12 @@ class Invoker {
      * @return static
      */
     private function register_methods( Can_Handle $h ): static {
-        if ( null !== $h->get_hooks() ) {
+        if ( null !== $h->get_callbacks() ) {
             return $this;
         }
 
-        $h->with_hooks( $this->get_hooks( $h ) );
+        $cbs = \array_map( static fn( $cb ) => $cb->get_token(), $this->resolve_callbacks( $h ) );
+        $h->with_callbacks( $cbs );
 
         if ( $this->is_cached( 'hooks' ) && ( $this->debug || $this->is_prod() ) ) {
             $this->uncached[ $h->get_token() ] = $h->get_classname();
@@ -342,21 +386,34 @@ class Invoker {
      * @return static
      */
     private function invoke_methods( Can_Handle $h ): static {
-        if ( \is_null( $h->get_hooks() ) ) {
-            \dump( $h );
-            die;
-        }
-        foreach ( $h->get_hooks() as $hook_id ) {
-            $m = $this->fetch_hook( $hook_id );
+        /**
+         * Variable override
+         *
+         * @var class-string<T> $cb_token
+         */
+        foreach ( $h->get_callbacks() as $cb_token ) {
+            $cb = $this->get_hook( $cb_token );
 
-            if ( ! $m->load() ) {
-                continue;
-            }
+            $cb->load();
 
-            $this->hooks[ $m->get_classname() ][ $m->get_token() ] = $m->get_init_hook();
+            $this->add_callback( $cb );
         }
 
         return $this;
+    }
+
+    /**
+     * Add a hook to the registry.
+     *
+     * @template T of object
+     *
+     * @param  Can_Invoke<T,Can_Handle<T>> $cb Callback instance.
+     */
+    private function add_callback( Can_Invoke $cb ): void {
+        $id = "{$cb->get_method()}:{$cb->get_tag()}";
+        $cn = $cb->get_classname();
+
+        $this->hooks[ $cn ][ $id ] = $cb->is_loaded() ? $cb->get_init_hook() : false;
     }
 
     /**
@@ -365,16 +422,7 @@ class Invoker {
      * @return string
      */
     private function app_id(): string {
-        return $this->container->get( 'app.id' );
-    }
-
-    /**
-     * Get the application UUID.
-     *
-     * @return string
-     */
-    private function app_uuid(): string {
-        return $this->container->get( 'app.uuid' );
+        return $this->app_id;
     }
 
     /**
@@ -394,5 +442,18 @@ class Invoker {
      */
     private function is_prod(): bool {
         return 'production' === $this->env;
+    }
+
+    /**
+     * Is debug mode enabled.
+     *
+     * @return bool
+     */
+    private function can_debug(): bool {
+        if ( ! $this->debug ) {
+            return false;
+        }
+
+        return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( XWP_DI_DEBUG_APP, $this->app_id() );
     }
 }

@@ -63,17 +63,15 @@ class Module extends Handler implements Can_Import {
         protected array $services = array(),
         mixed ...$args,
     ) {
-        parent::__construct( tag: $hook, priority: $priority, context: $context, strategy: self::INIT_AUTO );
-
-        if ( \defined( 'XWP_DI_HIDE_ERRORS' ) || ! $args ) {
-            return;
-        }
-
-        \_doing_it_wrong(
-            'Module::__construct',
-            \sprintf( 'Parameters %s are deprecated.', \esc_html( \implode( ', ', \array_keys( $args ) ) ) ),
-            '2.0.0',
+        $params = array(
+            'args'     => $args,
+            'context'  => $context,
+            'priority' => $priority,
+            'strategy' => self::INIT_AUTO,
+            'tag'      => $hook,
         );
+
+        parent::__construct( ...$params );
     }
 
     public function get_imports(): array {
@@ -107,31 +105,5 @@ class Module extends Handler implements Can_Import {
         );
 
         return $data;
-    }
-
-    /**
-     * Initialize the module.
-     *
-     * Register the handlers.
-     *
-     * @return bool
-     */
-    protected function on_initialize(): bool {
-        parent::on_initialize();
-
-        /**
-         * Fires when a module is initialized.
-         *
-         * @param Module<T> $module Module instance.
-         *
-         * @since 2.0.0
-         */
-        \do_action( "xwp_{$this->get_app_uuid()}_module_init", $this );
-
-        return true;
-    }
-
-    protected function get_token_prefix(): string {
-        return 'Module';
     }
 }

@@ -61,15 +61,6 @@ abstract class Hook implements Can_Hook {
     protected string $classname;
 
     /**
-     * Container ID.
-     *
-     * Kept for backward compatibility.
-     *
-     * @var null|string
-     */
-    protected ?string $container_id;
-
-    /**
      * The container instance.
      *
      * @var Container
@@ -98,6 +89,13 @@ abstract class Hook implements Can_Hook {
     protected string $init_hook;
 
     /**
+     * Injection token.
+     *
+     * @var string
+     */
+    private string $token;
+
+    /**
      * Constructor.
      *
      * @param string|null                                             $tag         Hook tag.
@@ -105,6 +103,8 @@ abstract class Hook implements Can_Hook {
      * @param int                                                     $context     Hook context.
      * @param null|Closure|string|array{0:class-string,1: string}     $conditional Conditional callback.
      * @param array<int,string>|string|false                          $modifiers   Values to replace in the tag name.
+     * @param bool                                                    $debug       Debug this hook.
+     * @param bool                                                    $trace       Trace this hook.
      */
     public function __construct(
         ?string $tag,
@@ -112,6 +112,8 @@ abstract class Hook implements Can_Hook {
         protected int $context = self::CTX_GLOBAL,
         protected array|string|Closure|null $conditional = null,
         protected string|array|bool $modifiers = false,
+        protected bool $debug = false,
+        protected bool $trace = false,
     ) {
         $this->prio = $priority;
         $this->tag  = $tag ?? '';
@@ -142,11 +144,9 @@ abstract class Hook implements Can_Hook {
     }
 
     public function with_container( null|string|Container $container ): static {
-        match ( true ) {
-            null === $container             => '',
-            $container instanceof Container => $this->container    = $container,
-            default                         => $this->container_id = $container,
-        };
+        if ( $container instanceof Container ) {
+            $this->container = $container;
+        }
 
         return $this;
     }
@@ -193,14 +193,6 @@ abstract class Hook implements Can_Hook {
         return $this->classname;
     }
 
-    public function get_token(): string {
-        $prefix = \rtrim( $this->get_token_prefix(), '-' );
-        $suffix = \ltrim( $this->get_token_suffix(), '-' );
-        $base   = \trim( $this->get_token_base(), '-' );
-
-        return \trim( "{$prefix}-{$base}::{$suffix}", '-:/' );
-    }
-
     public function get_data(): array {
         return array(
             'args'   => array(
@@ -225,8 +217,16 @@ abstract class Hook implements Can_Hook {
         return $this->init_hook;
     }
 
+    final public function get_token(): string {
+        return $this->token ??= $this->generate_token();
+    }
+
     public function is_cached(): bool {
         return $this->cached;
+    }
+
+    public function is_loaded(): bool {
+        return $this->loaded;
     }
 
     /**
@@ -245,15 +245,6 @@ abstract class Hook implements Can_Hook {
      */
     public function check_context(): bool {
         return XWP_Context::validate( $this->get_context() );
-    }
-
-    /**
-     * Get the token prefix.
-     *
-     * @return string
-     */
-    protected function get_token_prefix(): string {
-        return \basename( \str_replace( '\\', '/', static::class ) );
     }
 
     /**
@@ -287,5 +278,17 @@ abstract class Hook implements Can_Hook {
             $this->container->has( $param )        => $this->container->get( $param ),
             default                                => $param,
         };
+    }
+
+    /**
+     * Generate the injection token.
+     *
+     * @return string
+     */
+    private function generate_token(): string {
+        $suffix = \ltrim( $this->get_token_suffix(), '-' );
+        $base   = \trim( $this->get_token_base(), '-' );
+
+        return \trim( "Hook-{$base}::{$suffix}", '-:/' );
     }
 }

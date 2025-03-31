@@ -11,7 +11,9 @@ namespace XWP\DI;
 use DI\CompiledContainer as Compiled;
 use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
+use Psr\Log\NullLogger;
 use XWP\DI\Hook\Compiler;
+use XWP\DI\Hook\Factory;
 use XWP\DI\Hook\Parser;
 
 /**
@@ -49,6 +51,7 @@ class App_Builder extends ContainerBuilder {
             ->enableHookCache( enableCache: $config['cache_hooks'], cacheDirectory: $config['cache_dir'] )
             ->writeProxiesToFile( writeToFile: $config['use_proxies'], proxyDirectory: $config['cache_dir'] )
             ->addBaseDefinition( $config )
+            ->addLogDefinition( $config )
             ->addModuleDefinition( $config );
     }
 
@@ -116,7 +119,7 @@ class App_Builder extends ContainerBuilder {
      */
     public function addBaseDefinition( array $config ): App_Builder {
         $definition = array(
-            'app'        => \DI\get( 'Module-' . $config['app_module'] ),
+            'app'        => \DI\get( 'Hook-' . $config['app_module'] ),
             'app.cache'  => \DI\value(
                 array(
                     'app'   => $config['cache_app'],
@@ -151,6 +154,42 @@ class App_Builder extends ContainerBuilder {
     }
 
     /**
+     * Add a log definition to the container.
+     *
+     * @param  array<string,mixed> $config Configuration options.
+     * @return App_Builder
+     */
+    public function addLogDefinition( array $config ): App_Builder {
+        $config = $config['logger'];
+        $params = array(
+            'basedir' => $config['basedir'],
+            'level'   => $config['level'],
+            'options' => array(
+                'extension' => 'log',
+                'prefix'    => $config['prefix'] . '-',
+            ),
+        );
+
+        if ( ! $config['enabled'] ) {
+            $config['handler'] = NullLogger::class;
+            $params            = array();
+        }
+
+        $definition = array(
+            'xwp.logger' => \DI\autowire( $config['handler'] )->constructor( ...$params ),
+            'app.logger' => \DI\factory(
+                static fn( $logger, string $ctx ) => \method_exists( $logger, 'with_context' )
+                    ? $logger->with_context( $ctx )
+                    : $logger,
+            )
+                ->parameter( 'logger', \DI\get( 'xwp.logger' ) ),
+
+        );
+
+        return $this->addDefinitions( $definition );
+    }
+
+    /**
      * Add a module definition to the container.
      *
      * @param array<string,mixed> $config Configuration options.
@@ -162,12 +201,7 @@ class App_Builder extends ContainerBuilder {
 
         $defns = $this->isHookCacheEnabled()
             ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )
-            : $parser->make()->get_parsed();
-
-        // if ( 'woosync' === $config['app_id'] ) {
-        // \dump( $defns );
-        // die;
-        // }
+            : $parser->make( $config['app_preload'] )->get_parsed();
 
         return $this->addDefinitions( $defns );
     }

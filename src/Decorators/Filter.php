@@ -110,7 +110,7 @@ class Filter extends Hook implements Can_Invoke {
             throw new \RuntimeException( 'Cannot get handler without a container or classname.' );
         }
 
-        $handler = $this->get_container()->get( 'Handler-' . $this->get_classname() );
+        $handler = $this->get_container()->get( 'Hook-' . $this->get_classname() );
 
         return $this->with_handler( $handler )->get_handler();
     }
@@ -323,10 +323,6 @@ class Filter extends Hook implements Can_Invoke {
         );
 
         return $v;
-    }
-
-    protected function get_token_prefix(): string {
-        return 'Hook';
     }
 
     protected function get_token_base(): string {

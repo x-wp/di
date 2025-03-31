@@ -13,9 +13,6 @@ namespace XWP\DI\Interfaces;
  *
  * @template THndlr of object
  * @extends Can_Handle<THndlr>
- *
- * @property-read array<int,class-string> $imports  Array of submodules to import.
- * @property-read array<int,class-string> $handlers Array of handlers to register.
  */
 interface Can_Import extends Can_Handle {
     /**
@@ -28,14 +25,14 @@ interface Can_Import extends Can_Handle {
     /**
      * Get the module imports.
      *
-     * @return array<int,class-string>
+     * @return array<int,class-string<object>>
      */
     public function get_imports(): array;
 
     /**
      * Get the module handlers.
      *
-     * @return array<int,class-string>
+     * @return array<int,class-string<object>>
      */
     public function get_handlers(): array;
 

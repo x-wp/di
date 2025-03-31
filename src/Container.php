@@ -12,11 +12,26 @@ use DI\Container as DI_Container;
 use DI\Definition\Source\MutableDefinitionSource;
 use DI\Proxy\ProxyFactory;
 use Psr\Container\ContainerInterface;
+use XWP\DI\Hook\Factory;
+use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Custom WordPress container.
+ *
+ * @mixin Invoker
  */
 class Container extends DI_Container {
+    /**
+     * Invoker methods.
+     */
+    private const INV_METHODS = array(
+        'create_handler',
+        'register_handler',
+        'load_handler',
+        'load_callbacks',
+    );
+
     /**
      * Did we start the container.
      *
@@ -43,9 +58,27 @@ class Container extends DI_Container {
     ) {
         parent::__construct( $definitions, $proxyFactory, $wrapperContainer );
 
-        $this->resolvedEntries[ self::class ]   = $this;
-        $this->resolvedEntries[ static::class ] = $this;
-        $this->resolvedEntries['xwp.invoker']   = $this->get( Invoker::class );
+        $this->resolvedEntries[ self::class ]    = $this;
+        $this->resolvedEntries[ static::class ]  = $this;
+        $this->resolvedEntries['xwp.invoker']    = $this->has( 'xwp.invoker' )
+            ? $this->get( 'xwp.invoker' )
+            : $this->get( Invoker::class );
+        $this->resolvedEntries[ Invoker::class ] = $this->resolvedEntries['xwp.invoker'];
+    }
+
+    /**
+     * Magic method to call invoker methods.
+     *
+     * @param  string             $name Method name.
+     * @param  array<mixed,mixed> $args Method arguments.
+     * @return mixed
+     */
+    public function __call( string $name, array $args ): mixed {
+        if ( \in_array( $name, self::INV_METHODS, true ) ) {
+            return $this->resolvedEntries['xwp.invoker']->$name( ...$args );
+        }
+
+        return null;
     }
 
     /**
@@ -60,14 +93,11 @@ class Container extends DI_Container {
             throw new \RuntimeException( 'Container already started.' );
         }
 
-        $this->call(
-            array( 'xwp.invoker', 'load_module' ),
-            array( 'module' => $this->get( 'app' ) ),
-        );
+        $this->started = true;
+
+        $this->get( Invoker::class )->register_handler( $this->get( 'app.module' ) );
 
         \do_action( "xwp_{$this->get('app.uuid')}_app_start" );
-
-        $this->started = true;
 
         return $this;
     }
@@ -78,7 +108,28 @@ class Container extends DI_Container {
      * @template T of object
      * @param T $handler Class instance to register as a handler.
      */
-    public function register( object $handler ): void {
+    public function hookOn( object $handler ): void {
         $this->get( 'xwp.invoker' )->register_handler( $handler );
+    }
+
+    /**
+     * Register a handler or a module.
+     *
+     * @template T of object
+     *
+     * @param T $instance Class instance to register as a handler.
+     * @return Can_Handle<T>
+     */
+    public function register( object $instance ): Can_Handle {
+        return $this->load_handler( $instance );
+    }
+
+    /**
+     * Is the container started.
+     *
+     * @return bool
+     */
+    public function started(): bool {
+        return $this->started;
     }
 }

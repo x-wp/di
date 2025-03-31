@@ -18,8 +18,6 @@ use XWP\DI\Container;
  *
  * @template THndlr of object
  * @template TRflct of Reflector
- *
- * @property-read bool      $loaded    Is the hook loaded?
  */
 interface Can_Hook extends Has_Context {
     /**
@@ -152,4 +150,11 @@ interface Can_Hook extends Has_Context {
      * @return bool
      */
     public function load(): bool;
+
+    /**
+     * Check if the hook is loaded.
+     *
+     * @return bool
+     */
+    public function is_loaded(): bool;
 }

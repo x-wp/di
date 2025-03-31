@@ -34,14 +34,16 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
         array|string|Closure|null $conditional = null,
         mixed ...$args,
     ) {
-        parent::__construct(
-            tag: 'admin_init',
-            priority: $priority,
-            container: $args['container_id'] ?? null,
-            context: self::CTX_AJAX,
-            strategy: self::INIT_LAZY,
-            conditional: $conditional,
+        $params = array(
+            'args'        => $args,
+            'conditional' => $conditional,
+            'context'     => self::CTX_AJAX,
+            'priority'    => $priority,
+            'strategy'    => self::INIT_LAZY,
+            'tag'         => 'admin_init',
         );
+
+        parent::__construct( ...$params );
     }
 
     public function get_prefix(): string {

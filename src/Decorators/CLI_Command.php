@@ -163,7 +163,11 @@ class CLI_Command extends Action implements Can_Execute {
     }
 
     protected function load_hook( ?string $tag = null ): bool {
-        WP_CLI::add_command( $this->get_command(), $this->get_callback(), $this->get_hook_args() );
+        WP_CLI::add_command(
+            $this->get_command(),
+            $this->get_callback(),
+            $this->parse_cmd_args()->get_hook_args(),
+        );
 
         return true;
     }
@@ -268,10 +272,6 @@ class CLI_Command extends Action implements Can_Execute {
         }
 
         return $fmtd;
-    }
-
-    public function with_handler( Can_Handle $handler ): static {
-        return parent::with_handler( $handler )->parse_cmd_args();
     }
 
     /**

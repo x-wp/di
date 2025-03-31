@@ -9,12 +9,9 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use Exception;
-use Psr\Container\ContainerInterface;
 use ReflectionClass;
-use XWP\DI\Container;
+use Reflector;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Utils\Reflection;
 
 /**
@@ -78,36 +75,41 @@ class Handler extends Hook implements Can_Handle {
      *
      * @var ?array<int,string>
      */
-    protected ?array $hooks = null;
+    protected ?array $callbacks = null;
+
+    /**
+     * Deprecated constructor arguments.
+     *
+     * @var array<string>
+     */
+    protected array $compat_args = array();
 
     /**
      * Constructor.
      *
      * @param string                                             $tag         Hook tag.
      * @param Closure|string|int|array{0:class-string,1:string}  $priority    Hook priority.
-     * @param string                                             $container   Container ID.
      * @param int                                                $context     Hook context.
      * @param null|Closure|string|array{0:class-string,1:string} $conditional Conditional callback.
      * @param array<int,string>|string|false                     $modifiers   Values to replace in the tag name.
      * @param string                                             $strategy    Initialization strategy.
      * @param bool                                               $hookable    Is the handler hookable.
+     * @param mixed                                              ...$args     Additional arguments.
      */
     public function __construct(
         ?string $tag = null,
         Closure|string|int|array $priority = 10,
-        ?string $container = null,
         int $context = self::CTX_GLOBAL,
         array|string|Closure|null $conditional = null,
         string|array|false $modifiers = false,
         string $strategy = self::INIT_AUTO,
         ?bool $hookable = null,
+        mixed ...$args,
     ) {
-        $this->strategy     = $strategy;
-        $this->loaded       = self::INIT_USER === $strategy;
-        $this->container_id = $container;
-        $this->hookable     = $hookable;
-
-        // ToooDooo: Add _doing_it_wrong notice if container_id is redefined.
+        $this->strategy    = $strategy;
+        $this->loaded      = self::INIT_USER === $strategy;
+        $this->hookable    = $hookable;
+        $this->compat_args = \array_keys( \array_filter( $args ) );
 
         parent::__construct( $tag, $tag ? $priority : null, $context, $conditional, $modifiers );
     }
@@ -123,12 +125,15 @@ class Handler extends Hook implements Can_Handle {
         $this->classname ??= $instance::class;
         $this->loaded      = true;
         $this->init_hook   = \current_action();
-
-        if ( ! $this->get_container()->has( $this->classname ) ) {
-            $this->get_container()->set( $this->classname, $this->instance );
-        }
+        $this->did_init    = true;
 
         return $this;
+    }
+
+    public function with_reflector( Reflector $r ): static {
+        $this->classname = $r->getName();
+
+        return parent::with_reflector( $r );
     }
 
     public function with_params( array $params ): static {
@@ -139,8 +144,8 @@ class Handler extends Hook implements Can_Handle {
         return $this;
     }
 
-    public function with_hooks( ?array $hooks ): static {
-        $this->hooks = $hooks;
+    public function with_callbacks( ?array $callbacks ): static {
+        $this->callbacks = $callbacks;
 
         return $this;
     }
@@ -193,10 +198,10 @@ class Handler extends Hook implements Can_Handle {
     public function get_data(): array {
         $data = parent::get_data();
 
-        $data['args']['hookable'] = $this->hookable;
-        $data['args']['strategy'] = $this->strategy;
-        $data['params']['hooks']  = $this->get_hooks();
-        $data['params']['params'] = \array_combine(
+        $data['args']['hookable']    = $this->hookable;
+        $data['args']['strategy']    = $this->strategy;
+        $data['params']['callbacks'] = $this->get_callbacks();
+        $data['params']['params']    = \array_combine(
             \array_keys( $this->params ),
             \array_map(
                 fn( string $m ) => $this->get_params( $m )?->get( $this ) ?? array(),
@@ -207,28 +212,16 @@ class Handler extends Hook implements Can_Handle {
         return $data;
     }
 
-    public function get_hooks(): ?array {
-        if ( isset( $this->hooks ) ) {
-            return $this->hooks;
-        }
-
-        if ( ! $this->is_cached() ) {
-            return null;
-        }
-
-        if ( ! $this->get_container() ) {
-            return array();
-        }
-
-        $token = 'Hooks-' . $this->get_classname();
-
-        return $this->hooks ??= $this->get_container()->has( $token )
-            ? $this->get_container()->get( $token )
-            : null;
+    public function get_callbacks(): ?array {
+        return $this->callbacks;
     }
 
     public function get_lazy_tag(): string {
         return \sprintf( '%s_%s_init', $this->get_token(), $this->get_strategy() );
+    }
+
+    public function get_compat_args(): array {
+        return $this->compat_args;
     }
 
     public function is_lazy(): bool {
@@ -348,13 +341,5 @@ class Handler extends Hook implements Can_Handle {
         }
 
         return $this->hookable ?? true;
-    }
-
-    public function is_loaded(): bool {
-        return $this->loaded;
-    }
-
-    protected function get_token_prefix(): string {
-        return 'Handler';
     }
 }

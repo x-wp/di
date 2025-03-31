@@ -28,20 +28,20 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      *
      * @param string $namespace REST namespace.
      * @param string $basename  REST basename.
-     * @param string $container Container ID.
      * @param int    $priority  Handler priority.
+     * @param mixed  ...$args   Additional arguments.
      */
     public function __construct(
         protected string $namespace,
         protected string $basename,
-        string $container,
         int $priority = 10,
+        mixed ...$args,
     ) {
         parent::__construct(
             tag: 'rest_api_init',
             priority: $priority,
-            container: $container,
             context: self::CTX_REST,
+            container: $args['container'] ?? null,
         );
     }
 
