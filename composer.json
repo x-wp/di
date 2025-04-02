@@ -60,6 +60,7 @@
       "src/Core/"
     ],
     "files": [
+      "src/Functions/xwp-di-constants.php",
       "src/Functions/xwp-di-container-fns.php",
       "src/Functions/xwp-di-helper-fns.php"
     ]

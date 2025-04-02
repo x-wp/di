@@ -44,10 +44,14 @@ trait Hook_Token_Methods {
      * @return string
      */
     public function get_token( string|object $hook ): string {
+        static $regex;
+
+        $regex ??= '/^(' . \preg_quote( XWP_DI_TOKEN_PREFIX, '/' ) . ')*/';
+
         $target = \is_object( $hook )
             ? $this->get_target( $hook )
-            : \preg_replace( '/^(Hook-)*/', '', $hook );
+            : \preg_replace( $regex, '', $hook );
 
-        return "Hook-{$target}";
+        return \XWP_DI_TOKEN_PREFIX . $target;
     }
 }

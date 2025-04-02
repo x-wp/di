@@ -21,18 +21,18 @@ use Reflector;
 #[\Attribute( \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE )]
 class Dynamic_Filter extends Filter {
     /**
-     * Variables to fetch.
+     * Raw variables for substitution.
      *
      * @var array<string,string>
      */
-    protected array $vars;
+    protected array $parsed_vars;
 
     /**
      * Raw variables for substitution.
      *
      * @var string|array<string>|Closure():array<string>
      */
-    protected Closure|string|array $raw_vars;
+    protected Closure|string|array $vars;
 
     /**
      * Extra variables to pass to the callback.
@@ -48,8 +48,10 @@ class Dynamic_Filter extends Filter {
      * @param string|array<string>|callable():array<string> $vars     Variables to mix into the tag.
      * @param int                                           $context  Hook context.
      * @param Closure|string|int|array{class-string,string} $priority Hook priority.
-     * @param int|null                                      $args        The number of arguments to pass to the callback.
+     * @param int|null                                      $args     The number of arguments to pass to the callback.
      * @param array<int,string>                             $params   The parameters to pass to the callback.
+     * @param bool                                          $debug    Debug this hook.
+     * @param bool                                          $trace    Trace this hook.
      */
     public function __construct(
         string $tag,
@@ -58,8 +60,10 @@ class Dynamic_Filter extends Filter {
         Closure|array|int|string $priority = 10,
         ?int $args = null,
         array $params = array(),
+        bool $debug = false,
+        bool $trace = false,
     ) {
-        $this->raw_vars = $vars;
+        $this->vars = $vars;
 
         parent::__construct(
             tag: $tag,
@@ -68,22 +72,9 @@ class Dynamic_Filter extends Filter {
             invoke: self::INV_PROXIED,
             args: $args,
             params: $params,
+            debug: $debug,
+            trace: $trace,
         );
-    }
-
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['args'] = array(
-            'args'     => $this->args,
-            'context'  => $this->context,
-            'params'   => $this->params,
-            'priority' => $this->prio,
-            'tag'      => $this->tag,
-            'vars'     => $this->raw_vars,
-        );
-
-        return $data;
     }
 
     /**
@@ -97,8 +88,8 @@ class Dynamic_Filter extends Filter {
             return $vars();
         }
 
-        if ( \is_string( $vars ) && $this->container->has( $vars ) ) {
-            return $this->container->get( $vars );
+        if ( \is_string( $vars ) && $this->get_container()->has( $vars ) ) {
+            return $this->get_container()->get( $vars );
         }
 
         return $vars;
@@ -131,7 +122,7 @@ class Dynamic_Filter extends Filter {
     public function load_hook( ?string $tag = null ): bool {
         $res = true;
 
-        foreach ( $this->parse_vars( $this->raw_vars ) as $var => $param ) {
+        foreach ( $this->parse_vars( $this->vars ) as $var => $param ) {
             $tag = $this->resolve_tag( $this->tag, array( $var ) );
 
             $this->extra[ $tag ] = $param;
@@ -148,5 +139,9 @@ class Dynamic_Filter extends Filter {
         $args[] = $this->extra[ $this->current() ];
 
         return $args;
+    }
+
+    protected function get_constructor_args(): array {
+        return array( 'args', 'context', 'params', 'priority', 'tag', 'vars' );
     }
 }

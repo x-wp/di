@@ -290,6 +290,7 @@ final class App_Factory {
                 'app_debug'      => $this->can_debug( $config['app_id'] ),
                 'app_file'       => false,
                 'app_preload'    => false,
+                'app_trace'      => array(),
                 'app_type'       => $this->parse_type( (string) ( $config['app_file'] ?? null ) ),
                 'app_version'    => '0.0.0-dev',
                 'cache_app'      => $this->is_prod(),

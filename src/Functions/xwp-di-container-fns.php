@@ -6,6 +6,7 @@
  * @subpackage Dependency Injection
  */
 
+use Psr\Log\LoggerInterface;
 use XWP\DI\Container;
 use XWP\DI\Interfaces\Extension_Module;
 
@@ -33,12 +34,15 @@ function xwp_app( string $container_id ): Container {
  * Create a new app container.
  *
  * @template TCtr of Container
+ * @template TLgr of LoggerInterface
+ *
  * @param  array{
  *   app_class?: class-string<TCtr>,
  *   app_debug?: bool,
  *   app_id?: string|false,
  *   app_module?: class-string,
  *   app_file?: string,
+ *   app_trace?: bool|array<string>,
  *   app_type?: 'plugin'|'theme',
  *   app_preload?: bool,
  *   app_version?: string,
@@ -49,7 +53,7 @@ function xwp_app( string $container_id ): Container {
  *   logger?: bool|array{
  *     basedir?: string,
  *     enabled?: bool,
- *     handler?: class-string,
+ *     handler?: class-string<TLgr>,
  *     level?: string,
  *   },
  *   public?: bool,
@@ -81,10 +85,12 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  * Create a new app container.
  *
  * @template TCtr of Container
+ * @template TLgr of LoggerInterface
  *
  * @param  array{
  *   app_class?: class-string<TCtr>,
  *   app_debug?: bool,
+ *   app_trace?: bool|array<string>,
  *   app_id?: string|false,
  *   app_module?: class-string,
  *   app_file?: string,
@@ -97,7 +103,7 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  *    logger?: bool|array{
  *     basedir?: string,
  *     enabled?: bool,
- *     handler?: class-string,
+ *     handler?: class-string<TLgr>,
  *     level?: string,
  *   },
  *   public?: bool,

@@ -9,6 +9,7 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
+use Psr\Log\LoggerInterface;
 use ReflectionMethod;
 use Reflector;
 use XWP\DI\Container;
@@ -56,26 +57,41 @@ class Filter extends Hook implements Can_Invoke {
     /**
      * Constructor.
      *
-     * @param string                                               $tag         Hook tag.
-     * @param Closure|string|int|array{0: class-string,1: string}  $priority    Hook priority.
-     * @param int                                                  $context     Hook context.
-     * @param null|Closure|string|array{0: class-string,1: string} $conditional Conditional callback.
-     * @param array<int,string>|string|false                       $modifiers   Values to replace in the tag name.
-     * @param int                                                  $invoke      The invocation strategy.
-     * @param int|null                                             $args        The number of arguments to pass to the callback.
-     * @param array<string>                                        $params      The parameters to pass to the callback.
+     * @param string                                              $tag         Hook tag.
+     * @param Closure|string|int|array{0: class-string,1: string} $priority    Hook priority.
+     * @param int                                                 $context     Hook context.
+     * @param array<int,string>|string|false                      $modifiers   Values to replace in the tag name.
+     * @param int                                                 $invoke      The invocation strategy.
+     * @param int|null                                            $args        The number of arguments to pass to the callback.
+     * @param array<string>                                       $params      The parameters to pass to the callback.
+     * @param bool                                                $debug       Debug this hook.
+     * @param bool                                                $trace       Trace this hook.
+     * @param mixed                                               ...$depr     Compatibility arguments.
      */
     public function __construct(
         string $tag,
         Closure|array|int|string $priority = 10,
         int $context = self::CTX_GLOBAL,
-        array|string|\Closure|null $conditional = null,
         string|array|bool $modifiers = false,
         protected int $invoke = self::INV_STANDARD,
         protected ?int $args = null,
         protected array $params = array(),
+        bool $debug = false,
+        bool $trace = false,
+        mixed ...$depr,
     ) {
-        parent::__construct( $tag, $priority, $context, $conditional, $modifiers );
+        $depr = $depr[0] ?? $depr;
+
+        parent::__construct(
+            tag:$tag,
+            priority:$priority,
+            context:$context,
+            modifiers: $modifiers,
+            debug: $debug,
+            trace: $trace,
+        );
+
+        $this->compat_args = \array_keys( \array_filter( $depr ) );
     }
 
     /**
@@ -102,17 +118,7 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     public function get_handler(): Can_Handle {
-        if ( isset( $this->handler ) ) {
-            return $this->handler;
-        }
-
-        if ( ! isset( $this->container ) || ! isset( $this->classname ) ) {
-            throw new \RuntimeException( 'Cannot get handler without a container or classname.' );
-        }
-
-        $handler = $this->get_container()->get( 'Hook-' . $this->get_classname() );
-
-        return $this->with_handler( $handler )->get_handler();
+        return $this->handler;
     }
 
     public function get_method(): string {
@@ -136,16 +142,18 @@ class Filter extends Hook implements Can_Invoke {
     public function get_data(): array {
         $data = parent::get_data();
 
-        $data['args']['args']     = $this->args;
-        $data['args']['invoke']   = $this->invoke;
-        $data['args']['params']   = $this->params;
-        $data['params']['method'] = $this->method;
+        $data['params']['method']  = $this->method;
+        $data['params']['handler'] = $this->get_handler()->get_token();
 
-        return $data;
+        return $this->merge_compat_args( $data, 'depr' );
     }
 
     public function get_container(): Container {
         return $this->container ??= $this->get_handler()->get_container();
+    }
+
+    public function get_logger(): LoggerInterface {
+        return $this->logger ??= $this->get_handler()->get_logger();
     }
 
     /**
@@ -209,7 +217,7 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     public function load(): bool {
-        if ( $this->loaded ) {
+        if ( $this->is_loaded() ) {
             return true;
         }
 
@@ -311,14 +319,12 @@ class Filter extends Hook implements Can_Invoke {
             throw $e;
         }
 
-        //phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-        \error_log(
-            \sprintf(
-                'Error during %s %s for handler %s. %s',
-                \esc_html( $this->get_type() ),
-                \esc_html( $this->get_tag() ),
-                \esc_html( $this->get_classname() ),
-                \esc_html( $e->getMessage() ),
+        $this->get_logger()->error(
+            \sprintf( 'Error executing %s "%s": %s', $this->get_type(), $this->get_tag(), $e->getMessage() ),
+            array(
+                'handler' => $this->get_classname(),
+                'method'  => $this->get_method(),
+                'tag'     => $this->get_tag(),
             ),
         );
 
@@ -326,10 +332,17 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     protected function get_token_base(): string {
-        return $this->get_classname();
+        return 'Callback\\' . $this->get_classname();
     }
 
     protected function get_token_suffix(): string {
-        return "{$this->get_method()}[{$this->tag}]";
+        return "{$this->get_method()}[{$this->tag}:{$this->get_priority()}]";
+    }
+
+    protected function get_constructor_args(): array {
+        return \array_merge(
+            parent::get_constructor_args(),
+            array( 'invoke', 'args', 'params' ),
+        );
     }
 }

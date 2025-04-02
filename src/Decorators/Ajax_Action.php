@@ -95,7 +95,9 @@ class Ajax_Action extends Action {
      * @param array<string,mixed>                                $vars        Variables to fetch.
      * @param array<int,mixed>                                   $params      Parameters to pass to the callback. Will be resolved by the container.
      * @param int                                                $priority    Hook priority.
-     * @param null|Closure|string|array{0:class-string,1:string} $conditional Conditional callback.
+     * @param bool                                               $debug       Debug this hook.
+     * @param bool                                               $trace       Trace this hook.
+     * @param mixed                                              ...$depr     Deprecated arguments.
      */
     public function __construct(
         string $action,
@@ -107,7 +109,9 @@ class Ajax_Action extends Action {
         array $vars = array(),
         array $params = array(),
         int $priority = 10,
-        null|Closure|string|array $conditional = null,
+        bool $debug = false,
+        bool $trace = false,
+        mixed ...$depr,
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
@@ -122,11 +126,13 @@ class Ajax_Action extends Action {
             tag: '%s_%s_%s',
             priority:$priority,
             context: self::CTX_AJAX,
-            conditional: $conditional,
             modifiers: false,
             invoke: self::INV_PROXIED,
             args: 0,
             params: $params,
+            debug: $debug,
+            trace: $trace,
+            depr: $depr[0] ?? $depr,
         );
     }
 
@@ -149,15 +155,14 @@ class Ajax_Action extends Action {
             parent::get_data(),
             array(
                 'args' => array(
-                    'action'      => $this->action,
-                    'cap'         => $this->cap,
-                    'conditional' => $this->conditional,
-                    'method'      => $this->verb,
-                    'nonce'       => $this->nonce,
-                    'prefix'      => $this->prefix,
-                    'priority'    => $this->prio,
-                    'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
-                    'vars'        => $this->vars,
+                    'action'   => $this->action,
+                    'cap'      => $this->cap,
+                    'method'   => $this->verb,
+                    'nonce'    => $this->nonce,
+                    'prefix'   => $this->prefix,
+                    'priority' => $this->priority,
+                    'public'   => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+                    'vars'     => $this->vars,
                 ),
             ),
         );
@@ -169,7 +174,7 @@ class Ajax_Action extends Action {
      * @return bool
      */
     public function can_load(): bool {
-        return parent::can_load() && $this->handler->loaded;
+        return parent::can_load() && $this->handler->is_loaded();
     }
 
     protected function get_prefix(): string {

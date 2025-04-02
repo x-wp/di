@@ -180,21 +180,9 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         Closure|string|int|array $priority = 10,
         mixed ...$args,
     ) {
-        $ctr = $args['container'] ?? null;
-        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
-    }
+        $ctr = $args['args']['container'] ?? $args['container'] ?? null;
 
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'description' => $this->description,
-                    'namespace'   => $this->namespace,
-                    'priority'    => $this->get_priority(),
-                ),
-            ),
-        );
+        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
     }
 
     public function get_namespace(): string {
@@ -205,9 +193,13 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         return WP_CLI::add_command( $this->namespace, NSC::class, array( 'shortdesc' => $this->description ) );
     }
 
-    public function load(): bool {
+    public function load( array $args = array() ): bool {
         static::$roots[ $this->namespace ] ??= $this->add_command();
 
         return parent::load();
+    }
+
+    protected function get_constructor_args(): array {
+        return array( 'namespace', 'description', 'priority' );
     }
 }

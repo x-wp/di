@@ -120,7 +120,7 @@ class App_Builder extends ContainerBuilder {
      */
     public function addBaseDefinition( array $config ): App_Builder {
         $definition = array(
-            'app'        => \DI\get( 'Hook-' . $config['app_module'] ),
+            'app'        => \DI\get( \XWP_DI_TOKEN_PREFIX . "{$config['app_module']}" ),
             'app.cache'  => \DI\value(
                 array(
                     'app'   => $config['cache_app'],
@@ -135,6 +135,7 @@ class App_Builder extends ContainerBuilder {
             'app.extend' => \DI\value( $config['extendable'] ),
             'app.id'     => \DI\value( $config['app_id'] ),
             'app.module' => \DI\value( $config['app_module'] ),
+            'app.trace'  => \DI\value( $config['app_trace'] ),
             'app.type'   => \DI\value( $config['app_type'] ),
             'app.uuid'   => \DI\factory( 'wp_generate_uuid4' ),
             'app.ver'    => \DI\value( $config['app_version'] ),

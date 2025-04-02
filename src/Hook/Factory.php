@@ -9,6 +9,7 @@
 namespace XWP\DI\Hook;
 
 use DI\Definition\Exception\InvalidDefinition;
+use DI\Factory\RequestedEntry;
 use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
@@ -53,7 +54,7 @@ class Factory {
      */
     public function make( array $hook ): Can_Hook {
         return ( new $hook['type']( ...$hook['args'] ) )
-            ->with_data( $hook['params'] )->with_container( $this->ctr() );
+            ->with_container( $this->ctr() )->with_data( $hook['params'] );
     }
 
     /**

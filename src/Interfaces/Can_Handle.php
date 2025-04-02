@@ -23,6 +23,34 @@ use XWP\DI\Decorators\Infuse;
  */
 interface Can_Handle extends Can_Hook {
     /**
+     * Do not proxy hook arguments.
+     *
+     * @var int
+     */
+    public const DELEGATE_NEVER = 0;
+
+    /**
+     * Are we proxying hook arguments to the constructor?
+     *
+     * @var int
+     */
+    public const DELEGATE_ON_LOAD = 1;
+
+    /**
+     * Are we proxying hook arguments for the `can_initialize` method?
+     *
+     * @var int
+     */
+    public const DELEGATE_ON_CREATE = 2;
+
+    /**
+     * Never initialize the handler.
+     *
+     * @var string
+     */
+    public const INIT_NEVER = 'never';
+
+    /**
      * Initialize the handler early.
      *
      * @var string
@@ -151,6 +179,13 @@ interface Can_Handle extends Can_Hook {
     public function get_strategy(): string;
 
     /**
+     * Get the handler load strategy.
+     *
+     * @return string
+     */
+    public function get_init_strategy(): string;
+
+    /**
      * Get the handler hooks.
      *
      * @return ?array<int,string>
@@ -163,6 +198,20 @@ interface Can_Handle extends Can_Hook {
      * @return string
      */
     public function get_lazy_tag();
+
+    /**
+     * Get the arguments for the action.
+     *
+     * @return array<int,null|string>
+     */
+    public function get_hook_args(): array;
+
+    /**
+     * Get the number of arguments for the action.
+     *
+     * @return int
+     */
+    public function get_hook_args_count(): int;
 
     /**
      * Get the deprecated constructor arguments.
@@ -186,9 +235,26 @@ interface Can_Handle extends Can_Hook {
     public function is_hookable(): bool;
 
     /**
+     * Can the handler be loaded?
+     *
+     * @param  array<int|string,mixed> $args Arguments to pass to the handler.
+     * @return bool
+     */
+    public function can_load( array $args = array() ): bool;
+
+    /**
+     * Load the handler.
+     *
+     * @param  array<int|string,mixed> $args Arguments to pass to the handler.
+     * @return bool
+     */
+    public function load( array $args = array() ): bool;
+
+    /**
      * Lazy load the handler.
      *
-     * @return void
+     * @param  array<int|string,mixed> $args Arguments to pass to the handler.
+     * @return bool
      */
-    public function lazy_load(): void;
+    public function lazy_load( array $args = array() ): bool;
 }

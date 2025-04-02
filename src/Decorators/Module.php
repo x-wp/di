@@ -29,15 +29,24 @@ class Module extends Handler implements Can_Import {
     protected static array $imported = array();
 
     /**
+     * Compatibility with the old hookable attribute.
+     *
+     * @var string
+     */
+    protected string $hook;
+
+    /**
      * Constructor.
      *
-     * @param string                  $hook       Hook name.
-     * @param int                     $priority   Hook priority.
-     * @param int                     $context    Module context.
-     * @param array<int,class-string> $imports    Array of submodules to import.
-     * @param array<int,class-string> $handlers   Array of handlers to register.
-     * @param array<int,class-string> $services   Array of autowired services.
-     * @param mixed                   ...$args    Deprecated arguments.
+     * @param string                  $hook     Hook name.
+     * @param int                     $priority Hook priority.
+     * @param int                     $context  Module context.
+     * @param array<int,class-string> $imports  Array of submodules to import.
+     * @param array<int,class-string> $handlers Array of handlers to register.
+     * @param array<int,class-string> $services Array of autowired services.
+     * @param bool                    $debug    Debug this hook.
+     * @param bool                    $trace    Trace this hook.
+     * @param mixed                   ...$args  Deprecated arguments.
      */
     public function __construct(
         string $hook,
@@ -61,17 +70,23 @@ class Module extends Handler implements Can_Import {
          * @var array<int,class-string>
          */
         protected array $services = array(),
+        bool $debug = false,
+        bool $trace = false,
         mixed ...$args,
     ) {
-        $params = array(
-            'args'     => $args,
-            'context'  => $context,
-            'priority' => $priority,
-            'strategy' => self::INIT_AUTO,
-            'tag'      => $hook,
-        );
+        $args = $args[0] ?? $args;
 
-        parent::__construct( ...$params );
+        $this->hook = $hook;
+
+        parent::__construct(
+            tag: $hook,
+            priority: $priority,
+            context: $context,
+            strategy: self::INIT_AUTO,
+            debug: $debug,
+            trace: $trace,
+            container: $args['container'] ?? null,
+        );
     }
 
     public function get_imports(): array {
@@ -92,18 +107,7 @@ class Module extends Handler implements Can_Import {
             : array();
     }
 
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['args'] = \array_merge(
-            \xwp_array_diff_assoc( $data['args'], 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' ),
-            array(
-                'handlers' => $this->handlers,
-                'hook'     => $this->tag,
-                'imports'  => $this->imports,
-            ),
-        );
-
-        return $data;
+    protected function get_constructor_args(): array {
+        return array( 'hook', 'priority', 'context', 'imports', 'handlers', 'services', 'debug', 'trace' );
     }
 }

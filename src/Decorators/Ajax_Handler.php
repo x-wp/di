@@ -23,27 +23,25 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
     /**
      * Constructor
      *
-     * @param null|string                                    $prefix      Prefix for the action name.
-     * @param int                                            $priority    Handler priority.
-     * @param null|Closure|string|array{class-string,string} $conditional Conditional callback.
-     * @param mixed                                          ...$args     Additional arguments.
+     * @param null|string $prefix   Prefix for the action name.
+     * @param int         $priority Handler priority.
+     * @param mixed       ...$args  Additional arguments.
      */
     public function __construct(
         protected ?string $prefix = null,
         int $priority = 10,
-        array|string|Closure|null $conditional = null,
         mixed ...$args,
     ) {
-        $params = array(
-            'args'        => $args,
-            'conditional' => $conditional,
-            'context'     => self::CTX_AJAX,
-            'priority'    => $priority,
-            'strategy'    => self::INIT_LAZY,
-            'tag'         => 'admin_init',
-        );
+        $args = $args[0] ?? $args;
 
-        parent::__construct( ...$params );
+        parent::__construct(
+            tag: 'admin_init',
+            priority: $priority,
+            context: self::CTX_AJAX,
+            strategy: self::INIT_LAZY,
+            container: $args['container'] ?? null,
+            conditional: $args['conditional'] ?? null,
+        );
     }
 
     public function get_prefix(): string {
@@ -53,15 +51,10 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
     }
 
     public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'conditional' => $this->conditional,
-                    'prefix'      => $this->prefix,
-                    'priority'    => $this->prio,
-                ),
-            ),
-        );
+        return $this->merge_compat_args( parent::get_data() );
+    }
+
+    protected function get_constructor_args(): array {
+        return array( 'prefix', 'priority' );
     }
 }

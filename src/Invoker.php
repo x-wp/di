@@ -89,6 +89,13 @@ class Invoker {
     private LoggerInterface $logger;
 
     /**
+     * Traced hooks and handlers.
+     *
+     * @var array<int,class-string>|bool
+     */
+    private array|bool $traced;
+
+    /**
      * Constructor.
      *
      * @param  Factory   $factory   Factory instance.
@@ -99,6 +106,7 @@ class Invoker {
         $this->cache  = $container->get( 'app.cache' );
         $this->env    = $container->get( 'app.env' );
         $this->app_id = $container->get( 'app.id' );
+        $this->traced = $container->get( 'app.trace' );
         $this->logger = $container->logger( self::class );
 
         if ( ! $this->can_debug() ) {
@@ -121,6 +129,20 @@ class Invoker {
         }
 
         return null;
+    }
+
+    public function can_trace( string $classname, bool $trace ): bool {
+        if ( false === $this->traced ) {
+            return false;
+        }
+
+        if ( true === $this->traced ) {
+            return true;
+        }
+
+        return 0 < \count( $this->traced )
+            ? \in_array( $classname, $this->traced, true ) || $trace
+            : $this->can_debug();
     }
 
     /**
@@ -191,18 +213,14 @@ class Invoker {
     public function register_handler( string $classname ): Can_Handle {
         $h = $this->get_handler( $classname );
 
-        //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
-        match ( $h->get_strategy() ) {
-            $h::INIT_LAZY,
-            $h::INIT_JIT   => $this->add_handler( $h )->queue_lazy_handler( $h )->queue_methods( $h ),
-            $h::INIT_EARLY => $this->add_handler( $h )->init_handler( $h )->queue_methods( $h ),
-            $h::INIT_NOW   => $this->add_handler( $h )->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
-            $h::INIT_USER  => $this->add_handler( $h )->register_methods( $h )->invoke_methods( $h ),
-            default        => $this->add_handler( $h )->queue_handler( $h ),
-        };
-        //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+        if ( 'woosync' === $this->app_id() ) {
+            \dump( $h );
+            die;
+        }
 
-        return $h;
+        return $this->add_handler( $h )
+            ->process_handler( $h )
+            ->return_handler( $h );
     }
 
     /**
@@ -246,6 +264,28 @@ class Invoker {
     }
 
     /**
+     * Prepare a handler for invocation.
+     *
+     * @template TObj of object
+     *
+     * @param  Can_Handle<TObj> $h Handler instance or classname.
+     * @return static
+     */
+    private function process_handler( Can_Handle $h ): static {
+        //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+        return match ( $h->get_init_strategy() ) {
+            $h::INIT_LAZY,
+            $h::INIT_JIT   => $this->queue_lazy_handler( $h )->queue_methods( $h ),
+            $h::INIT_EARLY => $this->init_handler( $h )->queue_methods( $h ),
+            $h::INIT_NOW   => $this->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
+            $h::INIT_USER  => $this->register_methods( $h )->invoke_methods( $h ),
+            $h::INIT_NEVER => $this->disable_handler( $h, 'Invalid context' )->trace_handler( $h ),
+            default        => $this->queue_handler( $h ),
+        };
+        //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+    }
+
+    /**
      * Queue a handler.
      *
      * @template T of object
@@ -255,14 +295,14 @@ class Invoker {
     private function queue_handler( Can_Handle $h ): static {
         \add_action(
             $h->get_tag(),
-            function () use ( $h ) {
+            function ( mixed ...$args ) use ( $h ) {
                 $this
-                    ->init_handler( $h )
+                    ->init_handler( $h, $args )
                     ->register_methods( $h )
                     ->invoke_methods( $h );
             },
             $h->get_priority(),
-            0,
+            $h->get_hook_args_count(),
         );
 
         return $this;
@@ -279,11 +319,11 @@ class Invoker {
         if ( $h->is_lazy() ) {
             \add_action(
                 $h->get_lazy_tag(),
-                function () use ( $h ) {
-                    $this->init_handler( $h );
+                function ( $handler ) {
+                    $this->init_handler( $handler );
                 },
                 $h->get_priority(),
-                0,
+                1,
             );
         }
 
@@ -294,23 +334,31 @@ class Invoker {
      * Initialize a handler.
      *
      * @template T of object
-     * @param  Can_Handle<T> $h Handler to initialize.
+     * @param  Can_Handle<T>           $h Handler to initialize.
+     * @param  array<int|string,mixed> $args Handler arguments.
      * @return static
      */
-    private function init_handler( Can_Handle $h ): static {
-        if ( ! $h->load() ) {
+    private function init_handler( Can_Handle $h, array $args = array() ): static {
+        if ( $h->is_loaded() ) {
+            \dump( 'Handler already loaded', array( 'handler' => $h->get_classname() ) );
+            die;
+            // $this->logger->debug( 'Handler already loaded', array( 'handler' => $h->get_classname() ) );
             return $this;
         }
 
-        $this->handlers[ $h->get_classname() ] = $h->get_init_hook();
+        if ( ! $h->can_load( $args ) ) {
+            return $this->disable_handler( $h, 'Conditions not met' );
+        }
 
-        if ( $this->debug && $h->get_compat_args() ) {
-            $this->old_handlers[ $h->get_classname() ] = \implode( ', ', $h->get_compat_args() );
+        $method = $h->is_lazy() ? 'lazy_load' : 'load';
+
+        if ( ! $h->$method( $args ) ) {
+            return $this;
         }
 
         return $h instanceof Can_Import
-            ? $this->init_module( $h )
-            : $this;
+            ? $this->trace_handler( $h )->init_module( $h )
+            : $this->trace_handler( $h );
     }
 
     /**
@@ -340,7 +388,7 @@ class Invoker {
      * @return static
      */
     private function register_methods( Can_Handle $h ): static {
-        if ( null !== $h->get_callbacks() ) {
+        if ( ! $h->is_hookable() || null !== $h->get_callbacks() ) {
             return $this;
         }
 
@@ -450,10 +498,56 @@ class Invoker {
      * @return bool
      */
     private function can_debug(): bool {
+        return $this->debug;
         if ( ! $this->debug ) {
             return false;
         }
 
         return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( XWP_DI_DEBUG_APP, $this->app_id() );
+    }
+
+    /**
+     * Invalidate a handler.
+     *
+     * @template T of object
+     *
+     * @param  Can_Handle<T> $h Handler instance.
+     * @param  string        $reason Reason for invalidation.
+     * @return static
+     */
+    private function disable_handler( Can_Handle $h, string $reason = '' ): static {
+        $h->disable( $reason );
+
+        return $this;
+    }
+
+    /**
+     * Trace a handler.
+     *
+     * @template T of object
+     *
+     * @param  Can_Handle<T> $h Handler instance.
+     * @return static
+     */
+    private function trace_handler( Can_Handle $h ): static {
+        $this->handlers[ $h->get_classname() ] = $h->is_loaded() ? $h->get_init_hook() : false;
+
+        if ( $this->debug && $h->get_compat_args() ) {
+            $this->old_handlers[ $h->get_classname() ] = \implode( ', ', $h->get_compat_args() );
+        }
+
+        return $this;
+    }
+
+    /**
+     * Trace a handler.
+     *
+     * @template T of object
+     *
+     * @param  Can_Handle<T> $h Handler instance.
+     * @return Can_Handle<T>
+     */
+    private function return_handler( Can_Handle $h ): Can_Handle {
+        return $h;
     }
 }

@@ -29,31 +29,27 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      * @param string $namespace REST namespace.
      * @param string $basename  REST basename.
      * @param int    $priority  Handler priority.
+     * @param bool   $debug     Debug this hook.
+     * @param bool   $trace     Trace this hook.
      * @param mixed  ...$args   Additional arguments.
      */
     public function __construct(
         protected string $namespace,
         protected string $basename,
         int $priority = 10,
+        bool $debug = false,
+        bool $trace = false,
         mixed ...$args,
     ) {
+        $args = $args[0] ?? $args;
+
         parent::__construct(
             tag: 'rest_api_init',
             priority: $priority,
             context: self::CTX_REST,
+            debug: $debug,
+            trace: $trace,
             container: $args['container'] ?? null,
-        );
-    }
-
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'basename'  => $this->basename,
-                    'namespace' => $this->namespace,
-                ),
-            ),
         );
     }
 
@@ -74,9 +70,10 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      *
      * Checks if the REST namespace matches the requested route.
      *
+     * @param  array<int|string,mixed> $args Arguments to pass to the handler.
      * @return bool
      */
-    public function can_load(): bool {
+    public function can_load( array $args = array() ): bool {
         return parent::can_load() && \xwp_can_load_rest_ns( $this->namespace );
     }
 
@@ -85,11 +82,16 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      *
      * Sets the namespace and basename.
      *
+     * @param  array<string,mixed> $args Arguments to pass to the handler.
      * @return T
      */
-    protected function instantiate(): object {
+    protected function instantiate( array $args = array() ): object {
         return parent::instantiate()
             ->with_namespace( $this->namespace )
             ->with_basename( $this->basename );
+    }
+
+    protected function get_constructor_args(): array {
+        return array( 'basename', 'namespace' );
     }
 }

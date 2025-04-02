@@ -31,11 +31,23 @@ trait Hook_Invoke_Methods {
     /**
      * Calls a method if it exists and is callable.
      *
-     * @param  null|Closure|string|array{0: class-string,1: string} $method Method to call.
+     * @param  null|Closure|string|array{0: class-string,1: string}        $method Method to call.
+     * @param  array<int|string,mixed>|callable(): array<int|string,mixed> $args   Arguments to pass to the method.
      * @return bool
      */
-    protected function check_method( null|Closure|string|array $method ): bool {
-        return ! $this->can_call( $method ) || $this->get_container()->call( $method );
+    protected function check_method( null|Closure|string|array $method, array|callable $args = array() ): bool {
+        return ! $this->can_call( $method ) || (bool) $this->call_method( $method, $args );
+    }
+
+    /**
+     * Calls a method
+     *
+     * @param  null|Closure|string|array{0: class-string,1: string}        $method Method to call.
+     * @param  array<int|string,mixed>|callable(): array<int|string,mixed> $args   Arguments to pass to the method.
+     * @return mixed
+     */
+    protected function call_method( null|Closure|string|array $method, callable|array $args = array() ): mixed {
+        return $this->get_container()->call( $method, \is_callable( $args ) ? $args() : $args );
     }
 
     /**

@@ -10,6 +10,7 @@ namespace XWP\DI\Decorators;
 
 use Automattic\Jetpack\Constants;
 use Closure;
+use Psr\Log\LoggerInterface;
 use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
@@ -25,6 +26,27 @@ use XWP_Context;
  * @implements Can_Hook<THndlr,TRflct>
  */
 abstract class Hook implements Can_Hook {
+    /**
+     * Is the hook enabled?
+     *
+     * @var bool
+     */
+    protected bool $enabled = true;
+
+    /**
+     * Is the hook loaded?
+     *
+     * @var bool
+     */
+    protected bool $loaded = false;
+
+    /**
+     * Is the hook ready.
+     *
+     * @var bool
+     */
+    protected bool $ready = false;
+
     /**
      * Is the hook definition cached?
      *
@@ -51,7 +73,7 @@ abstract class Hook implements Can_Hook {
      *
      * @var null|Closure|string|int|array{0: class-string,1: string}
      */
-    protected null|Closure|string|int|array $prio;
+    protected null|Closure|string|int|array $priority;
 
     /**
      * The classname of the handler.
@@ -68,11 +90,18 @@ abstract class Hook implements Can_Hook {
     protected Container $container;
 
     /**
-     * Is the handler initialized?
+     * Is the handler unloaded
      *
      * @var bool
      */
-    protected bool $loaded = false;
+    protected bool $unloaded = false;
+
+    /**
+     * The reason the handler was unloaded.
+     *
+     * @var string
+     */
+    protected string $reason = '';
 
     /**
      * Reflector instance.
@@ -89,6 +118,13 @@ abstract class Hook implements Can_Hook {
     protected string $init_hook;
 
     /**
+     * Logger instance.
+     *
+     * @var LoggerInterface
+     */
+    protected LoggerInterface $logger;
+
+    /**
      * Injection token.
      *
      * @var string
@@ -96,12 +132,18 @@ abstract class Hook implements Can_Hook {
     private string $token;
 
     /**
+     * Deprecated constructor arguments.
+     *
+     * @var array<string>
+     */
+    protected array $compat_args = array();
+
+    /**
      * Constructor.
      *
      * @param string|null                                             $tag         Hook tag.
      * @param null|Closure|string|int|array{0:class-string,1: string} $priority    Hook priority.
      * @param int                                                     $context     Hook context.
-     * @param null|Closure|string|array{0:class-string,1: string}     $conditional Conditional callback.
      * @param array<int,string>|string|false                          $modifiers   Values to replace in the tag name.
      * @param bool                                                    $debug       Debug this hook.
      * @param bool                                                    $trace       Trace this hook.
@@ -110,13 +152,12 @@ abstract class Hook implements Can_Hook {
         ?string $tag,
         array|int|string|Closure|null $priority = null,
         protected int $context = self::CTX_GLOBAL,
-        protected array|string|Closure|null $conditional = null,
         protected string|array|bool $modifiers = false,
         protected bool $debug = false,
         protected bool $trace = false,
     ) {
-        $this->prio = $priority;
-        $this->tag  = $tag ?? '';
+        $this->priority = $priority;
+        $this->tag      = $tag ?? '';
     }
 
     /**
@@ -171,6 +212,12 @@ abstract class Hook implements Can_Hook {
         return $this;
     }
 
+    public function with_trace( bool $trace ): static {
+        $this->trace = $trace;
+
+        return $this;
+    }
+
     public function get_tag(): string {
         return $this->resolve_tag( $this->tag, $this->get_modifiers() );
     }
@@ -182,7 +229,7 @@ abstract class Hook implements Can_Hook {
     }
 
     public function get_priority(): int {
-        return $this->resolve_priority( $this->prio );
+        return $this->resolve_priority( $this->priority );
     }
 
     public function get_container(): ?Container {
@@ -193,14 +240,20 @@ abstract class Hook implements Can_Hook {
         return $this->classname;
     }
 
+    public function get_shortname(): string {
+        $name = \explode( '\\', $this->get_classname() );
+
+        return \end( $name );
+    }
+
     public function get_data(): array {
         return array(
-            'args'   => array(
-                'conditional' => $this->conditional,
-                'context'     => $this->context,
-                'modifiers'   => $this->modifiers,
-                'priority'    => $this->prio,
-                'tag'         => $this->tag,
+            'args'   => \array_combine(
+                $this->get_constructor_args(),
+                \array_map(
+                    fn( string $arg ) => $this->$arg,
+                    $this->get_constructor_args(),
+                ),
             ),
             'params' => array(
                 'classname' => $this->classname,
@@ -217,6 +270,10 @@ abstract class Hook implements Can_Hook {
         return $this->init_hook;
     }
 
+    public function get_logger(): LoggerInterface {
+        return $this->logger ??= $this->get_container()->logger( $this->get_classname() );
+    }
+
     final public function get_token(): string {
         return $this->token ??= $this->generate_token();
     }
@@ -229,13 +286,43 @@ abstract class Hook implements Can_Hook {
         return $this->loaded;
     }
 
+    public function is_enabled(): bool {
+        return $this->enabled;
+    }
+
+    public function is_ready(): bool {
+        return $this->ready;
+    }
+
+    public function debug(): bool {
+        return $this->debug;
+    }
+
+    public function trace(): bool {
+        return $this->trace;
+    }
+
     /**
      * Check if the hook can be fired.
      *
      * @return bool
      */
     public function can_load(): bool {
-        return $this->check_context() && $this->check_method( $this->conditional );
+        return $this->is_enabled();
+    }
+
+    public function disable( string $reason = '' ): static {
+        if ( ! $this->is_enabled() ) {
+            return $this;
+        }
+
+        $this->enabled = false;
+
+        if ( $this->trace() ) {
+            $this->get_logger()->info( \sprintf( 'Hook disabled. Reason: %s', $reason ) );
+        }
+
+        return $this;
     }
 
     /**
@@ -281,14 +368,52 @@ abstract class Hook implements Can_Hook {
     }
 
     /**
+     * Merge the compatibility arguments.
+     *
+     * @param  array<string,mixed> $data Data to merge.
+     * @param  string              $key  Key to merge.
+     * @return array<string,mixed>
+     */
+    protected function merge_compat_args( array $data, string $key = 'args' ): array {
+        $data['args'][ $key ] ??= $this->get_compat_args();
+
+        return $data;
+    }
+
+    /**
+     * Get the compatibility arguments.
+     *
+     * @return array<string,string>
+     */
+    public function get_compat_args(): array {
+        return \array_combine( $this->compat_args, $this->compat_args );
+    }
+
+    /**
+     * Get the constructor keys.
+     *
+     * @return array<string>
+     */
+    protected function get_constructor_args(): array {
+        return array(
+            'context',
+            'modifiers',
+            'priority',
+            'tag',
+            'debug',
+            'trace',
+        );
+    }
+
+    /**
      * Generate the injection token.
      *
      * @return string
      */
     private function generate_token(): string {
-        $suffix = \ltrim( $this->get_token_suffix(), '-' );
-        $base   = \trim( $this->get_token_base(), '-' );
+        $suffix = \ltrim( $this->get_token_suffix(), '-\\' );
+        $base   = \trim( $this->get_token_base(), '-\\' );
 
-        return \trim( "Hook-{$base}::{$suffix}", '-:/' );
+        return \trim( \XWP_DI_TOKEN_PREFIX . "{$base}::{$suffix}", '-:/' );
     }
 }

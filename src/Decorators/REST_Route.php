@@ -99,7 +99,7 @@ class REST_Route extends Action implements Can_Route {
     }
 
     public function with_priority( int $priority ): static {
-        $this->prio = $priority;
+        $this->priority = $priority;
 
         return $this;
     }

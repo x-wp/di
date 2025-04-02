@@ -112,11 +112,8 @@ class Logger extends AbstractLogger {
      * @return string
      */
     public static function format_context( string $context ): string {
-        if ( ! \class_exists( $context ) ) {
-            return \ucfirst( \strtolower( $context ) );
-        }
-
         $context = \explode( '/', \str_replace( '\\', '/', $context ) );
+
         return \implode( '\\', \array_slice( $context, -3, 3 ) );
     }
 
@@ -138,8 +135,8 @@ class Logger extends AbstractLogger {
     ) {
         $this
             ->set_app( $app_id )
-            ->set_options( $options )
             ->set_basedir( $basedir )
+            ->set_options( $options )
             ->set_handle( 'a' )
             ->set_instance( $this );
     }
@@ -421,13 +418,7 @@ class Logger extends AbstractLogger {
     protected function format_message( string $level, string|Stringable $message, array $context ): string {
         $message = $this->options['log_format']
             ? $this->custom_format( $level, $message, $context )
-            : \sprintf(
-                '[%s] %s [%s] %s',
-                $this->get_timestamp(),
-                \strtoupper( $level ),
-                $this->context,
-                $message,
-            );
+            : $this->standard_format( $level, $message );
 
         if ( $context ) {
             $message .= PHP_EOL . $this->indent( $this->ctx_to_string( $context ) );
@@ -461,6 +452,23 @@ class Logger extends AbstractLogger {
         }
 
         return $message;
+    }
+
+    /**
+     * Formats the log message.
+     *
+     * @param  string            $level   The Log Level of the message.
+     * @param  string|Stringable $message The message to log.
+     * @return string
+     */
+    private function standard_format( string $level, string|Stringable $message ): string {
+        return \sprintf(
+            '[%s] %s [%s] %s',
+            $this->get_timestamp(),
+            \strtoupper( $level ),
+            $this->get_context(),
+            $message,
+        );
     }
 
     /**

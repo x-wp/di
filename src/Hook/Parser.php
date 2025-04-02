@@ -155,20 +155,35 @@ class Parser {
     /**
      * Get the parsed hook definitions.
      *
-     * @return array<string,mixed>
+     * @return array<string,DefinitionHelper>
      */
     public function get_parsed(): array {
+        // if ( 'tisb2b' === $this->app_id ) {
+        // \dump( $this->data );
+        // die;
+        // }
         //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
         return \array_merge(
-            array( Factory::class => \DI\autowire()->constructor( container: \DI\get( Container::class ) ) ),
+            $this->get_core_definition(),
             \array_map( '\DI\get', $this->data['aliases'] ),
-            \array_map( array( $this, 'define' ), $this->data['hooks'] ),
+            \array_map( array( $this, 'define_hook' ), $this->data['hooks'] ),
             \array_map( '\DI\value', $this->data['values'] ),
-            \array_map( static fn() => \DI\autowire(), $this->data['services'] ),
+            \array_map( '\DI\autowire', $this->data['services'] ),
             \array_reduce( $this->data['extensions'], array( $this, 'merge_definition' ), $this->get_definition( $this->module ) ),
             ...\array_map( array( $this, 'get_configuration' ), $this->data['definitions'] ),
         );
         //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
+    }
+
+    /**
+     * Get the core definition.
+     *
+     * @return array<string,DefinitionHelper>
+     */
+    private function get_core_definition(): array {
+        return array(
+            Factory::class => \DI\autowire()->constructor( container: \DI\get( Container::class ) ),
+        );
     }
 
     /**
@@ -203,13 +218,32 @@ class Parser {
     }
 
     /**
-     * Get the hook definition.
+     * Define the hook.
      *
-     * @param  string $token Hook parameter token.
+     * @param  array{type: class-string<Can_Hook<object,Reflector>>, args: array<string,mixed>, params: array<string,mixed> } $args Hook arguments.
      * @return DefinitionHelper
      */
-    private function define( string $token ): DefinitionHelper {
-        return \DI\factory( array( Factory::class, 'make' ) )->parameter( 'hook', \DI\get( $token ) );
+    private function define_hook( array $args ): DefinitionHelper {
+        if ( isset( $args['params']['handler'] ) ) {
+            $args['params']['handler'] = \DI\get( $args['params']['handler'] );
+        }
+
+        if ( isset( $args['args']['trace'] ) ) {
+            $args['args']['trace'] = \DI\factory( array( Invoker::class, 'can_trace' ) )
+                ->parameter( 'classname', $args['params']['classname'] )
+                ->parameter( 'trace', $args['args']['trace'] );
+        }
+
+        if (isset($args['args']['debug'])) {
+            $args['args']['debug'] = \DI\factory( function )
+                ->parameter( 'classname', $args['params']['classname'] )
+                ->parameter( 'debug', $args['args']['debug'] );
+        }
+
+        return \DI\create( $args['type'] )
+            ->constructor( ...$args['args'] )
+            ->method( 'with_container', \DI\get( Container::class ) )
+            ->method( 'with_data', data: $args['params'] );
     }
 
     /**
@@ -236,7 +270,7 @@ class Parser {
      * @return static
      */
     private function parse_extension( array $addon ): static {
-        $this->data['values'][ "Hook-{$this->module}[params]" ]['args']['imports'][] = $addon['module'];
+        $this->data['hooks'][ \XWP_DI_TOKEN_PREFIX . "{$this->module}" ]['args']['imports'][] = $addon['module'];
 
         if ( $this->cached && $addon['file'] ) {
             \xwp_log( "Registering uninstall hook for {$addon['file']}" );
@@ -327,12 +361,12 @@ class Parser {
      * @return Can_Hook<TObj,TRfl>
      */
     private function add_hook( Can_Hook $hook ): Can_Hook {
-        $token = $hook->with_cache( $this->cached || $this->preload )->get_token();
-        $param = $token . '[params]';
-
         return $this
-            ->append( 'hooks', $param, $token )
-            ->append( 'values', $hook->get_data(), $param )
+            ->append(
+                'hooks',
+                $hook->with_cache( $this->cached || $this->preload )->get_data(),
+                $hook->get_token(),
+            )
             ->set_id( $hook );
     }
 
@@ -445,7 +479,8 @@ class Parser {
      */
     private function check_id( Can_Hook $hook ): static {
         if ( isset( $this->ids[ $hook->get_token() ] ) ) {
-            throw new \DI\DependencyException( 'Circular dependency detected.' );
+            //phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
+            throw new \DI\DependencyException( 'Circular dependency detected.' . $hook->get_token() );
         }
 
         return $this;
