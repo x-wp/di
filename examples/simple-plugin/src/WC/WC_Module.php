@@ -20,8 +20,8 @@ use XWP\DI\Interfaces\Can_Initialize;
     tag:'plugins_loaded',
     priority: 10,
     handlers: array(
-		Handlers\Account_EP_Handler::class,
-		Handlers\Product_Page_Handler::class,
+        Handlers\Account_EP_Handler::class,
+        Handlers\Product_Page_Handler::class,
     ),
 )]
 class WC_Module implements Can_Initialize {
@@ -59,6 +59,6 @@ class WC_Module implements Can_Initialize {
                 ),
             ),
             'cfg.wc.filter' => \DI\value( 'all' ),
-		);
+        );
     }
 }

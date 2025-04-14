@@ -14,10 +14,10 @@ use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
 use XWP\DI\Decorators\Handler;
-use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Hook;
-use XWP\DI\Interfaces\Can_Import;
-use XWP\DI\Interfaces\Can_Invoke;
+use XWP\DI\Interfaces\Decorates_Callback;
+use XWP\DI\Interfaces\Decorates_Handler;
+use XWP\DI\Interfaces\Decorates_Hook;
+use XWP\DI\Interfaces\Decorates_Module;
 use XWP\DI\Traits\Hook_Token_Methods;
 use XWP\DI\Utils\Reflection;
 
@@ -43,29 +43,14 @@ class Factory {
     }
 
     /**
-     * General hook creation method.
-     *
-     * Creates parsed and resolved hooks.
-     *
-     * @template TTgt of Can_Hook
-     *
-     * @param  array{type: class-string<TTgt>, args: array<string,mixed>, params: array<string,mixed>} $hook Hook data.
-     * @return TTgt<object,\Reflector>
-     */
-    public function make( array $hook ): Can_Hook {
-        return ( new $hook['type']( ...$hook['args'] ) )
-            ->with_container( $this->ctr() )->with_data( $hook['params'] );
-    }
-
-    /**
      * Get a module by classname
      *
      * @template TObj of object
      *
      * @param  class-string<TObj> $module Module classname.
-     * @return Can_Import<TObj>
+     * @return Decorates_Module<TObj>
      */
-    public function get_module( string $module ): Can_Import {
+    public function get_module( string $module ): Decorates_Module {
         return $this->get_handler( $module );
     }
 
@@ -75,10 +60,10 @@ class Factory {
      * @template TObj of object
      *
      * @param  class-string<TObj> $module Module classname.
-     * @return Can_Import<TObj>
+     * @return Decorates_Module<TObj>
      */
-    public function resolve_module( string $module ): Can_Import {
-        return $this->resolve_handler( $module, Can_Import::class );
+    public function resolve_module( string $module ): Decorates_Module {
+        return $this->resolve_handler( $module, Decorates_Module::class );
     }
 
     /**
@@ -87,11 +72,11 @@ class Factory {
      * @template TObj of object
      *
      * @param  class-string<TObj> $target Handler classname.
-     * @return Can_Handle<TObj>
+     * @return Decorates_Handler<TObj>
      *
      * @throws InvalidDefinition If the handler is not found.
      */
-    public function get_handler( string $target ): Can_Handle {
+    public function get_handler( string $target ): Decorates_Handler {
         $handler = $this->get( $target )
             ?? $this->resolve_handler( $target )
             ?? throw new InvalidDefinition( "Handler not found: {$target}" );
@@ -102,14 +87,14 @@ class Factory {
     /**
      * Resolve the handler for a hook.
      *
-     * @template THnd of Can_Import|Can_Handle
+     * @template THnd of Decorates_Module|Decorates_Handler
      * @template TObj of object
      *
      * @param  class-string<TObj> $hook Hook classname or instance.
      * @param  class-string<THnd> $type Handler classname.
      * @return null|THnd
      */
-    public function resolve_handler( string $hook, string $type = Can_Handle::class ): ?Can_Handle {
+    public function resolve_handler( string $hook, string $type = Decorates_Handler::class ): ?Decorates_Handler {
         /**
          * Reflection class for the hook.
          *
@@ -126,9 +111,9 @@ class Factory {
      * @template TObj of object
      *
      * @param  class-string<TObj> $hook Hook classname.
-     * @return Can_Invoke<TObj,Can_Handle<TObj>>
+     * @return Decorates_Callback<TObj,Decorates_Handler<TObj>>
      */
-    public function get_hook( string $hook ): Can_Invoke {
+    public function get_hook( string $hook ): Decorates_Callback {
         return $this->get( $hook );
     }
 
@@ -137,12 +122,12 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @param  Decorates_Handler<TObj> $handler Handler instance.
+     * @return array<int,Decorates_Callback<TObj,Decorates_Handler<TObj>>>
      *
      * @throws InvalidDefinition If the container is not set.
      */
-    public function get_callbacks( Can_Handle $handler ): array {
+    public function get_callbacks( Decorates_Handler $handler ): array {
         if ( null === $handler->get_callbacks() ) {
             return $this->resolve_callbacks( $handler );
         }
@@ -159,10 +144,10 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @param  Decorates_Handler<TObj> $handler Handler instance.
+     * @return array<int,Decorates_Callback<TObj,Decorates_Handler<TObj>>>
      */
-    public function resolve_callbacks( Can_Handle $handler ): array {
+    public function resolve_callbacks( Decorates_Handler $handler ): array {
         $callbacks = array();
 
         foreach ( $this->resolve_methods( $handler ) as $reflector ) {
@@ -178,13 +163,13 @@ class Factory {
      * @template TObj of object
      *
      * @param  TObj $instance Instance to load the handler for.
-     * @return Can_Handle<TObj>
+     * @return Decorates_Handler<TObj>
      */
-    public function load_handler( object $instance ): Can_Handle {
+    public function load_handler( object $instance ): Decorates_Handler {
         /**
          * Handler instance.
          *
-         * @var Can_Handle<TObj> $handler
+         * @var Decorates_Handler<TObj> $handler
          */
         $handler = $this->get( $instance::class )
             ?? $this->resolve_handler( $instance::class )?->with_target( $instance )
@@ -199,9 +184,9 @@ class Factory {
      * @template TObj of object
      *
      * @param  TObj $instance Instance to load the handler for.
-     * @return Can_Handle<TObj>
+     * @return Decorates_Handler<TObj>
      */
-    public function create_handler( object $instance ): Can_Handle {
+    public function create_handler( object $instance ): Decorates_Handler {
         return $this->save_handler( $this->new_handler( $instance ) );
     }
 
@@ -211,15 +196,15 @@ class Factory {
      * @template TObj of object
      *
      * @param TObj $instance Handler instance.
-     * @return Can_Handle<TObj>
+     * @return Decorates_Handler<TObj>
      */
-    protected function new_handler( object $instance ): Can_Handle {
+    protected function new_handler( object $instance ): Decorates_Handler {
         $handler = new Handler( strategy: Handler::INIT_USER, hookable: true );
 
         /**
          * Handler instance.
          *
-         * @var Can_Handle<TObj> $handler
+         * @var Decorates_Handler<TObj> $handler
          */
         return $handler
             ->with_reflector( Reflection::get_reflector( $instance ) )
@@ -232,10 +217,10 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj>|ReflectionClass<TObj> $hook Hook instance or reflection.
+     * @param  Decorates_Handler<TObj>|ReflectionClass<TObj> $hook Hook instance or reflection.
      * @return array<string,ReflectionMethod>
      */
-    protected function resolve_methods( Can_Handle|ReflectionClass $hook ): array {
+    protected function resolve_methods( Decorates_Handler|ReflectionClass $hook ): array {
         $refl = $hook instanceof ReflectionClass ? $hook : $hook->get_reflector();
 
         return Reflection::get_hookable_methods( $refl );
@@ -246,15 +231,15 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @param  ReflectionMethod $reflector Method reflection.
+     * @param  Decorates_Handler<TObj> $handler Handler instance.
+     * @param  ReflectionMethod        $reflector Method reflection.
      *
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @return array<int,Decorates_Callback<TObj,Decorates_Handler<TObj>>>
      */
-    protected function resolve_method_callbacks( Can_Handle $handler, ReflectionMethod $reflector ): array {
+    protected function resolve_method_callbacks( Decorates_Handler $handler, ReflectionMethod $reflector ): array {
         $callbacks = array();
 
-        foreach ( Reflection::get_decorators( $reflector, Can_Invoke::class ) as $cb ) {
+        foreach ( Reflection::get_decorators( $reflector, Decorates_Callback::class ) as $cb ) {
             $callbacks[] = $this->save_hook( $cb->with_handler( $handler )->with_reflector( $reflector ) );
         }
 
@@ -266,11 +251,11 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj>                             $handler Handler instance.
-     * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
-     * @return Can_Handle<TObj>
+     * @param  Decorates_Handler<TObj>                                     $handler Handler instance.
+     * @param  array<int,Decorates_Callback<TObj,Decorates_Handler<TObj>>> $callbacks Callbacks to load.
+     * @return Decorates_Handler<TObj>
      */
-    public function load_callbacks( Can_Handle $handler, array $callbacks ): Can_Handle {
+    public function load_callbacks( Decorates_Handler $handler, array $callbacks ): Decorates_Handler {
         $tokens = array();
 
         foreach ( $callbacks as $cb ) {
@@ -299,10 +284,10 @@ class Factory {
 
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return Can_Handle<TObj>
+     * @param  Decorates_Handler<TObj> $handler Handler instance.
+     * @return Decorates_Handler<TObj>
      */
-    protected function save_handler( Can_Handle $handler ): Can_Handle {
+    protected function save_handler( Decorates_Handler $handler ): Decorates_Handler {
         if ( $this->started() && $handler->get_target() && ! $this->ctr()->has( $handler->get_classname() ) ) {
             $this->ctr()->set( $handler->get_classname(), $handler->get_target() );
         }
@@ -315,18 +300,18 @@ class Factory {
      *
      * If the handler is not in the container, it will be saved.
 
-     * @template TObj of Can_Hook
+     * @template TObj of Decorates_Hook
      * @phpstan-pure
      *
      * @param  TObj $hook Handler instance.
      * @return TObj
      */
-    protected function save_hook( Can_Hook $hook ): Can_Hook {
+    protected function save_hook( Decorates_Hook $hook ): Decorates_Hook {
         if ( ! $this->started() ) {
             return $hook;
         }
 
-        $hook = $hook->with_container( $this->ctr() );
+        // $hook = $hook->with_container( $this->ctr() );
 
         $token = $hook->get_token();
 
@@ -343,9 +328,9 @@ class Factory {
      * @template TObj of object
      *
      * @param  TObj|class-string<TObj> $hook Hook classname.
-     * @return null|Can_Handle<TObj>|Can_Import<TObj>|Can_Invoke<TObj,Can_Handle<TObj>>
+     * @return null|Decorates_Handler<TObj>|Decorates_Module<TObj>|Decorates_Callback<TObj,Decorates_Handler<TObj>>
      */
-    private function get( string|object $hook ): ?Can_Hook {
+    private function get( string|object $hook ): ?Decorates_Hook {
         return $this->started() && $this->ctr()->has( $this->get_token( $hook ) )
             ? $this->ctr()->get( $this->get_token( $hook ) )
             : null;

@@ -11,8 +11,10 @@ namespace XWP\DI;
 use DI\CompiledContainer as Compiled;
 use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
+use DI\Definition\Source\ReflectionBasedAutowiring;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use XWP\DI\Definition\Source\Definition_App;
 use XWP\DI\Hook\Compiler;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Hook\Parser;
@@ -38,6 +40,8 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public static function configure( array $config = array() ): App_Builder {
+        // \dump( $config );
+        // die;
         return ( new App_Builder( Container::class ) )
             ->useAttributes( $config['use_attributes'] )
             ->useAutowiring( $config['use_autowiring'] )
@@ -134,7 +138,7 @@ class App_Builder extends ContainerBuilder {
             'app.env'    => \DI\factory( 'wp_get_environment_type' ),
             'app.extend' => \DI\value( $config['extendable'] ),
             'app.id'     => \DI\value( $config['app_id'] ),
-            'app.module' => \DI\value( $config['app_module'] ),
+            // 'app.module' => \DI\value( $config['app_module'] ),
             'app.trace'  => \DI\value( $config['app_trace'] ),
             'app.type'   => \DI\value( $config['app_type'] ),
             'app.uuid'   => \DI\factory( 'wp_generate_uuid4' ),
@@ -195,12 +199,19 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addModuleDefinition( array $config ): App_Builder {
-        $parser = ( new Parser( $config['app_module'], $config['app_id'] ) )
-            ->set_extendable( $config['extendable'] );
+        $defns = new Definition_App( $config['app_module'], new ReflectionBasedAutowiring() );
 
-        $defns = $this->isHookCacheEnabled()
-            ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )
-            : $parser->make( $config['app_preload'] )->get_parsed();
+        // // $parser = ( new Parser( $config['app_module'], $config['app_id'] ) )
+        // // ->set_extendable( $config['extendable'] );
+
+        // // $defns = $this->isHookCacheEnabled()
+        // // ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )
+        // // : $parser->make()->get_parsed();
+
+        // $defns['xwp.invoker'] ??= \DI\autowire( Invoker::class )->constructor(
+        // factory: \DI\get( Factory::class ),
+        // container: \DI\get( Container::class ),
+        // );
 
         return $this->addDefinitions( $defns );
     }

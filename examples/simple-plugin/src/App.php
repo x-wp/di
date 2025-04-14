@@ -25,8 +25,8 @@ use XWP\DI\Interfaces\On_Initialize;
     hook: 'plugins_loaded',
     priority: 1,
     imports: array(
-		Admin\Admin_Module::class,
-		WC\WC_Module::class,
+        Admin\Admin_Module::class,
+        WC\WC_Module::class,
     ),
     handlers: array(),
     extendable: true,

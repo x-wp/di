@@ -8,4 +8,8 @@ parameters:
     - stubs/const.php
     - vendor/wp-cli/wp-cli/php/utils.php
   ignoreErrors:
+    -
+      paths:
+        - src/Decorators/*
+      identifier: constructor.unusedParameter
 

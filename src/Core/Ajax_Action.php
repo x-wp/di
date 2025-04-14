@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Decorators;
+namespace XWP\DI\Core;
 
 use Closure;
 
@@ -154,16 +154,15 @@ class Ajax_Action extends Action {
         return \array_merge(
             parent::get_data(),
             array(
-                'construct' => array(
-                    'action'    => $this->action,
-                    'cap'       => $this->cap,
-                    'classname' => $this->classname,
-                    'method'    => $this->verb,
-                    'nonce'     => $this->nonce,
-                    'prefix'    => $this->prefix,
-                    'priority'  => $this->priority,
-                    'public'    => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
-                    'vars'      => $this->vars,
+                'args' => array(
+                    'action'   => $this->action,
+                    'cap'      => $this->cap,
+                    'method'   => $this->verb,
+                    'nonce'    => $this->nonce,
+                    'prefix'   => $this->prefix,
+                    'priority' => $this->priority,
+                    'public'   => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+                    'vars'     => $this->vars,
                 ),
             ),
         );

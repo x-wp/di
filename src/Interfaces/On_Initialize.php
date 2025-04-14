@@ -22,7 +22,7 @@ interface On_Initialize {
      *
      * Example:
      * ```php
-     * use DI\Attribute\Inject;
+     * use DI\Decorators\Inject;
      *
      * class My_Handler implements On_Initialize {
      *   #[Infuse( My_Dependency::class, 'definition.id' )]

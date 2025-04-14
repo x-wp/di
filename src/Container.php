@@ -9,10 +9,12 @@
 namespace XWP\DI;
 
 use DI\Container as DI_Container;
+use DI\Definition\Resolver\DefinitionResolver;
 use DI\Definition\Source\MutableDefinitionSource;
 use DI\Proxy\ProxyFactory;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
+use XWP\DI\Definition\Resolver\Resolver_Dispatcher;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
@@ -59,12 +61,8 @@ class Container extends DI_Container {
     ) {
         parent::__construct( $definitions, $proxyFactory, $wrapperContainer );
 
-        $this->resolvedEntries[ self::class ]    = $this;
-        $this->resolvedEntries[ static::class ]  = $this;
-        $this->resolvedEntries['xwp.invoker']    = $this->has( 'xwp.invoker' )
-            ? $this->get( 'xwp.invoker' )
-            : $this->get( Invoker::class );
-        $this->resolvedEntries[ Invoker::class ] = $this->resolvedEntries['xwp.invoker'];
+        $this->resolvedEntries[ self::class ]   = $this;
+        $this->resolvedEntries[ static::class ] = $this;
     }
 
     /**
@@ -96,7 +94,7 @@ class Container extends DI_Container {
 
         $this->started = true;
 
-        $this->get( Invoker::class )->register_handler( $this->get( 'app.module' ) );
+        $this->get( Invoker::class )->register( $this->get( 'app.module' ) );
 
         \do_action( "xwp_{$this->get('app.uuid')}_app_start" );
 

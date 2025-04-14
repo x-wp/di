@@ -8,25 +8,41 @@
 
 namespace XWP\DI\Decorators;
 
-use XWP\DI\Interfaces\Can_Import;
+use Closure;
+use XWP\DI\Interfaces\Decorates_Handler;
+use XWP\DI\Interfaces\Decorates_Module;
 
 /**
  * Module decorator.
  *
  * @template T of object
  * @extends Handler<T>
- * @implements Can_Import<T>
+ * @implements Decorates_Module((<T>
  *
  * @since 1.0.0
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Module extends Handler implements Can_Import {
+class Module extends Handler implements Decorates_Module {
     /**
      * Did the module import submodules?
      *
      * @var array<class-string,bool>
      */
     protected static array $imported = array();
+
+    /**
+     * Array of submodules to import.
+     *
+     * @var array<int,Decorates_Module<object>>
+     */
+    protected array $imports;
+
+    /**
+     * Array of handlers to register.
+     *
+     * @var array<int,Decorates_Handler<object>>
+     */
+    protected array $handlers;
 
     /**
      * Compatibility with the old hookable attribute.
@@ -38,32 +54,22 @@ class Module extends Handler implements Can_Import {
     /**
      * Constructor.
      *
-     * @param string                  $hook     Hook name.
-     * @param int                     $priority Hook priority.
-     * @param int                     $context  Module context.
-     * @param array<int,class-string> $imports  Array of submodules to import.
-     * @param array<int,class-string> $handlers Array of handlers to register.
-     * @param array<int,class-string> $services Array of autowired services.
-     * @param bool                    $debug    Debug this hook.
-     * @param bool                    $trace    Trace this hook.
-     * @param mixed                   ...$args  Deprecated arguments.
+     * @param string                                              $hook     Hook name.
+     * @param Closure|string|int|array{0: class-string,1: string} $priority    Hook priority.
+     * @param int                                                 $context  Module context.
+     * @param array<int,class-string>                             $imports  Array of submodules to import.
+     * @param array<int,class-string>                             $handlers Array of handlers to register.
+     * @param array<int,class-string>                             $services Array of autowired services.
+     * @param bool                                                $debug    Debug this hook.
+     * @param bool                                                $trace    Trace this hook.
+     * @param mixed                                               ...$args  Deprecated arguments.
      */
     public function __construct(
         string $hook,
-        int $priority = 10,
+        Closure|array|int|string $priority = 10,
         int $context = self::CTX_GLOBAL,
-        /**
-         * Array of submodules to import.
-         *
-         * @var array<int,class-string>
-         */
-        protected array $imports = array(),
-        /**
-         * Array of handlers to register.
-         *
-         * @var array<int,class-string>
-         */
-        protected array $handlers = array(),
+        array $imports = array(),
+        array $handlers = array(),
         /**
          * Array of autowired services.
          *
@@ -76,7 +82,9 @@ class Module extends Handler implements Can_Import {
     ) {
         $args = $args[0] ?? $args;
 
-        $this->hook = $hook;
+        $this->hook     = $hook;
+        $this->imports  = \array_map( static fn( $i ) => self::from_classname( $i ), $imports );
+        $this->handlers = \array_map( static fn( $i ) => Handler::from_classname( $i ), $handlers );
 
         parent::__construct(
             tag: $hook,
@@ -85,7 +93,6 @@ class Module extends Handler implements Can_Import {
             strategy: self::INIT_AUTO,
             debug: $debug,
             trace: $trace,
-            container: $args['container'] ?? null,
         );
     }
 
@@ -107,7 +114,29 @@ class Module extends Handler implements Can_Import {
             : array();
     }
 
+    public function get_data(): array {
+        $data = parent::get_data();
+
+        $data['construct']['imports']  = \array_map( static fn( $i ) => $i->get_token(), $this->imports );
+        $data['construct']['handlers'] = \array_map( static fn( $h ) => $h->get_token(), $this->handlers );
+
+        return $data;
+    }
+
+    protected function get_token_prefix(): string {
+        return 'm:';
+    }
+
     protected function get_constructor_args(): array {
-        return array( 'hook', 'priority', 'context', 'imports', 'handlers', 'services', 'debug', 'trace' );
+        return array(
+            'hook',
+            'priority',
+            'context',
+            'imports',
+            'handlers',
+            'classname',
+            'debug',
+            'trace',
+        );
     }
 }

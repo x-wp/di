@@ -60,18 +60,4 @@ interface Has_Context {
      * @var int
      */
     public const CTX_GLOBAL = 63; // 0111111
-
-    /**
-     * Check if the context is valid.
-     *
-     * @return bool
-     */
-    public function check_context(): bool;
-
-    /**
-     * Get the hook context.
-     *
-     * @return int
-     */
-    public function get_context(): int;
 }

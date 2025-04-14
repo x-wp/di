@@ -57,7 +57,7 @@ class Compiler {
      * @return static
      */
     private function write_file( string $filename ): static {
-        $data = $this->parser->make( true )->get_raw();
+        $data = $this->parser->make()->get_raw();
 
         $string = \sprintf(
             <<<'PHP'

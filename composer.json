@@ -57,11 +57,12 @@
       "XWP\\DI\\": "src/"
     },
     "classmap": [
-      "src/Core/"
+      "src/Utils/"
     ],
     "files": [
       "src/Functions/xwp-di-constants.php",
       "src/Functions/xwp-di-container-fns.php",
+      "src/Functions/xwp-di-definition-fns.php",
       "src/Functions/xwp-di-helper-fns.php"
     ]
   },

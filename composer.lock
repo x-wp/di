@@ -778,16 +778,16 @@
         },
         {
             "name": "php-stubs/woocommerce-stubs",
-            "version": "v9.7.0",
+            "version": "v9.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-stubs/woocommerce-stubs.git",
-                "reference": "3d5ee501872282058abbd0d6d6b08c511de039de"
+                "reference": "2c412566f94bdd8ed1bc1a50c05bd2dd1cff0df5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-stubs/woocommerce-stubs/zipball/3d5ee501872282058abbd0d6d6b08c511de039de",
-                "reference": "3d5ee501872282058abbd0d6d6b08c511de039de",
+                "url": "https://api.github.com/repos/php-stubs/woocommerce-stubs/zipball/2c412566f94bdd8ed1bc1a50c05bd2dd1cff0df5",
+                "reference": "2c412566f94bdd8ed1bc1a50c05bd2dd1cff0df5",
                 "shasum": ""
             },
             "require": {
@@ -816,9 +816,9 @@
             ],
             "support": {
                 "issues": "https://github.com/php-stubs/woocommerce-stubs/issues",
-                "source": "https://github.com/php-stubs/woocommerce-stubs/tree/v9.7.0"
+                "source": "https://github.com/php-stubs/woocommerce-stubs/tree/v9.8.1"
             },
-            "time": "2025-02-25T12:21:28+00:00"
+            "time": "2025-04-11T18:56:54+00:00"
         },
         {
             "name": "php-stubs/wordpress-stubs",
@@ -1440,23 +1440,23 @@
         },
         {
             "name": "slevomat/coding-standard",
-            "version": "8.16.2",
+            "version": "8.17.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/slevomat/coding-standard.git",
-                "reference": "8bf0408a9cf30687d87957d364de9a3d5d00d948"
+                "reference": "ace04a4e2e20c9bc26ad14d6c4c737cde6056ec0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/slevomat/coding-standard/zipball/8bf0408a9cf30687d87957d364de9a3d5d00d948",
-                "reference": "8bf0408a9cf30687d87957d364de9a3d5d00d948",
+                "url": "https://api.github.com/repos/slevomat/coding-standard/zipball/ace04a4e2e20c9bc26ad14d6c4c737cde6056ec0",
+                "reference": "ace04a4e2e20c9bc26ad14d6c4c737cde6056ec0",
                 "shasum": ""
             },
             "require": {
                 "dealerdirect/phpcodesniffer-composer-installer": "^0.6.2 || ^0.7 || ^1.0",
                 "php": "^7.4 || ^8.0",
                 "phpstan/phpdoc-parser": "^2.1.0",
-                "squizlabs/php_codesniffer": "^3.11.3"
+                "squizlabs/php_codesniffer": "^3.12.1"
             },
             "require-dev": {
                 "phing/phing": "3.0.1",
@@ -1465,7 +1465,7 @@
                 "phpstan/phpstan-deprecation-rules": "2.0.1",
                 "phpstan/phpstan-phpunit": "2.0.6",
                 "phpstan/phpstan-strict-rules": "2.0.4",
-                "phpunit/phpunit": "9.6.8|10.5.45|11.4.4|11.5.15|12.0.10"
+                "phpunit/phpunit": "9.6.8|10.5.45|11.4.4|11.5.17|12.1.2"
             },
             "type": "phpcodesniffer-standard",
             "extra": {
@@ -1489,7 +1489,7 @@
             ],
             "support": {
                 "issues": "https://github.com/slevomat/coding-standard/issues",
-                "source": "https://github.com/slevomat/coding-standard/tree/8.16.2"
+                "source": "https://github.com/slevomat/coding-standard/tree/8.17.0"
             },
             "funding": [
                 {
@@ -1501,20 +1501,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-03-27T19:37:58+00:00"
+            "time": "2025-04-10T06:06:16+00:00"
         },
         {
             "name": "squizlabs/php_codesniffer",
-            "version": "3.12.0",
+            "version": "3.12.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHPCSStandards/PHP_CodeSniffer.git",
-                "reference": "2d1b63db139c3c6ea0c927698e5160f8b3b8d630"
+                "reference": "ea16a1f3719783345febd3aab41beb55c8c84bfd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHPCSStandards/PHP_CodeSniffer/zipball/2d1b63db139c3c6ea0c927698e5160f8b3b8d630",
-                "reference": "2d1b63db139c3c6ea0c927698e5160f8b3b8d630",
+                "url": "https://api.github.com/repos/PHPCSStandards/PHP_CodeSniffer/zipball/ea16a1f3719783345febd3aab41beb55c8c84bfd",
+                "reference": "ea16a1f3719783345febd3aab41beb55c8c84bfd",
                 "shasum": ""
             },
             "require": {
@@ -1585,7 +1585,7 @@
                     "type": "thanks_dev"
                 }
             ],
-            "time": "2025-03-18T05:04:51+00:00"
+            "time": "2025-04-04T12:57:55+00:00"
         },
         {
             "name": "swissspidy/phpstan-no-private",

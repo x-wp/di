@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Decorators;
+namespace XWP\DI\Core;
 
 use Closure;
 use XWP\DI\Interfaces\Can_Handle_Ajax;
@@ -39,6 +39,8 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
             priority: $priority,
             context: self::CTX_AJAX,
             strategy: self::INIT_LAZY,
+            container: $args['container'] ?? null,
+            conditional: $args['conditional'] ?? null,
         );
     }
 
@@ -48,10 +50,11 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
             : '';
     }
 
+    // public function get_data(): array {
+    // return $this->merge_compat_args( parent::get_data() );
+    // }
+
     protected function get_constructor_args(): array {
-        return \array_merge(
-            parent::get_constructor_args(),
-            array( 'prefix', 'priority' ),
-        );
+        return array( 'prefix', 'priority' );
     }
 }

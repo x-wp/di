@@ -101,7 +101,7 @@ class Invoker {
      * @param  Factory   $factory   Factory instance.
      * @param  Container $container Container instance.
      */
-    public function __construct( protected Factory $factory, Container $container ) {
+    public function __construct( protected Factory $factory, protected Container $container ) {
         $this->debug  = $container->get( 'app.debug' );
         $this->cache  = $container->get( 'app.cache' );
         $this->env    = $container->get( 'app.env' );
@@ -149,6 +149,8 @@ class Invoker {
      * Debug output.
      */
     public function debug_output(): void {
+        // \dump( $this->handlers, $this->callbacks );
+        // die;
         $this->logger->debug( 'Shutting down application' );
 
         if ( $this->uncached ) {
@@ -202,6 +204,10 @@ class Invoker {
         return $this;
     }
 
+    public function register( $something ): mixed {
+        return $this->add_handler( $something )->process_handler( $something )->return_handler( $something );
+    }
+
     /**
      * Register a handler.
      *
@@ -211,12 +217,7 @@ class Invoker {
      * @return Can_Handle<TObj>
      */
     public function register_handler( string $classname ): Can_Handle {
-        $h = $this->get_handler( $classname );
-
-        if ( 'woosync' === $this->app_id() ) {
-            \dump( $h );
-            die;
-        }
+        $h = $this->container->get( $this->get_token( $classname ) );
 
         return $this->add_handler( $h )
             ->process_handler( $h )
@@ -370,11 +371,11 @@ class Invoker {
      */
     private function init_module( Can_Import $module ): static {
         foreach ( $module->get_handlers() as $handler ) {
-            $this->register_handler( $handler );
+            $this->register( $handler );
         }
 
         foreach ( $module->get_imports() as $import ) {
-            $this->register_handler( $import );
+            $this->register( $import );
         }
 
         return $this;
@@ -388,16 +389,16 @@ class Invoker {
      * @return static
      */
     private function register_methods( Can_Handle $h ): static {
-        if ( ! $h->is_hookable() || null !== $h->get_callbacks() ) {
-            return $this;
-        }
+        // if ( ! $h->is_hookable() || null !== $h->get_callbacks() ) {
+        // return $this;
+        // }
 
-        $cbs = \array_map( static fn( $cb ) => $cb->get_token(), $this->resolve_callbacks( $h ) );
-        $h->with_callbacks( $cbs );
+        // $cbs = \array_map( static fn( $cb ) => $cb->get_token(), $this->resolve_callbacks( $h ) );
+        // $h->with_callbacks( $cbs );
 
-        if ( $this->is_cached( 'hooks' ) && ( $this->debug || $this->is_prod() ) ) {
-            $this->uncached[ $h->get_token() ] = $h->get_classname();
-        }
+        // if ( $this->is_cached( 'hooks' ) && ( $this->debug || $this->is_prod() ) ) {
+        // $this->uncached[ $h->get_token() ] = $h->get_classname();
+        // }
 
         return $this;
     }
@@ -440,7 +441,7 @@ class Invoker {
          * @var class-string<T> $cb_token
          */
         foreach ( $h->get_callbacks() as $cb_token ) {
-            $cb = $this->get_hook( $cb_token );
+            $cb = $this->container->get( $cb_token );
 
             $cb->load();
 

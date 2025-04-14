@@ -18,7 +18,7 @@ use XWP\DI\Decorators\Module;
     hook: 'init',
     priority: 10,
     handlers: array(
-		Handlers\Admin_Ajax_Handler::class,
+        Handlers\Admin_Ajax_Handler::class,
     ),
 )]
 class Admin_Module {

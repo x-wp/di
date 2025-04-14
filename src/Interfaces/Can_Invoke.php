@@ -48,14 +48,6 @@ interface Can_Invoke extends Can_Hook {
     public const INV_SAFELY = 16; // 10000
 
     /**
-     * Set the handler instance.
-     *
-     * @param  THndl $handler Handler instance.
-     * @return static
-     */
-    public function with_handler( Can_Handle $handler ): static;
-
-    /**
      * Set the target method.
      *
      * @param  string $method Method name.

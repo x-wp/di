@@ -18,11 +18,11 @@ use XWP\DI\Decorators\Handler;
  * Handler will be initialized just before the first registered hook is fired.
  */
 #[Handler(
-	tag: 'init',
-	priority: 10,
-	context: Handler::CTX_FRONTEND,
-	strategy: Handler::INIT_JUST_IN_TIME,
-	container: 'example',
+    tag: 'init',
+    priority: 10,
+    context: Handler::CTX_FRONTEND,
+    strategy: Handler::INIT_JUST_IN_TIME,
+    container: 'example',
 )]
 class Product_Page_Handler {
     /**

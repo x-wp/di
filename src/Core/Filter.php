@@ -6,33 +6,32 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Decorators;
+namespace XWP\DI\Core;
 
 use Closure;
 use Psr\Log\LoggerInterface;
 use ReflectionMethod;
 use Reflector;
 use XWP\DI\Container;
+use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
-use XWP\DI\Interfaces\Decorates_Callback;
-use XWP\DI\Interfaces\Decorates_Handler;
 
 /**
  * Filter hook decorator.
  *
  * @template T of object
- * @template H of Decorates_Handler<T>
+ * @template H of Can_Handle<T>
  * @extends Hook<T,ReflectionMethod>
  * @implements Can_Invoke<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
-class Filter extends Hook implements Can_Invoke, Decorates_Callback {
+class Filter extends Hook implements Can_Invoke {
     /**
      * The handler.
      *
      * @var H
      */
-    protected Decorates_Handler $handler;
+    protected Can_Handle $handler;
 
     /**
      * Class method to call.
@@ -58,20 +57,28 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
     /**
      * Constructor.
      *
-     * @param string                                              $tag         Hook tag.
-     * @param Closure|string|int|array{0: class-string,1: string} $priority    Hook priority.
-     * @param int                                                 $context     Hook context.
-     * @param array<int,string>|string|false                      $modifiers   Values to replace in the tag name.
-     * @param int                                                 $invoke      The invocation strategy.
-     * @param int|null                                            $args        The number of arguments to pass to the callback.
-     * @param array<string>                                       $params      The parameters to pass to the callback.
-     * @param bool                                                $debug       Debug this hook.
-     * @param bool                                                $trace       Trace this hook.
-     * @param mixed                                               ...$depr     Compatibility arguments.
+     * @param string                         $tag         Hook tag.
+     * @param int                            $priority    Hook priority.
+     * @param Container                      $container   The container.
+     * @param Can_Handle<T>                  $handler     The handler.
+     * @param class-string<T>                $classname   The class name.
+     * @param string                         $method      The method to call.
+     * @param int                            $context     Hook context.
+     * @param array<int,string>|string|false $modifiers   Values to replace in the tag name.
+     * @param int                            $invoke      The invocation strategy.
+     * @param int|null                       $args        The number of arguments to pass to the callback.
+     * @param array<string>                  $params      The parameters to pass to the callback.
+     * @param bool                           $debug       Debug this hook.
+     * @param bool                           $trace       Trace this hook.
+     * @param mixed                          ...$depr     Compatibility arguments.
      */
     public function __construct(
         string $tag,
-        Closure|array|int|string $priority = 10,
+        int $priority,
+        Container $container,
+        Can_Handle $handler,
+        string $classname,
+        string $method,
         int $context = self::CTX_GLOBAL,
         string|array|bool $modifiers = false,
         protected int $invoke = self::INV_STANDARD,
@@ -79,20 +86,20 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         protected array $params = array(),
         bool $debug = false,
         bool $trace = false,
-        mixed ...$depr,
     ) {
-        $depr = $depr[0] ?? $depr;
-
         parent::__construct(
             tag:$tag,
             priority:$priority,
+            container: $container,
+            classname: $classname,
             context:$context,
             modifiers: $modifiers,
             debug: $debug,
             trace: $trace,
         );
 
-        $this->compat_args = \array_keys( \array_filter( $depr ) );
+        $this->handler = $handler;
+        $this->method  = $method;
     }
 
     /**
@@ -101,13 +108,13 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
      * @param  H $handler The handler.
      * @return static
      */
-    public function with_handler( Decorates_Handler $handler ): static {
+    public function with_handler( Can_Handle $handler ): static {
         $this->handler   = $handler;
         $this->classname = $handler->get_classname();
 
-        // if ( $handler->is_lazy() ) {
-        // $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
-        // }
+        if ( $handler->is_lazy() ) {
+            $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
+        }
 
         return $this;
     }
@@ -118,7 +125,7 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         return $this;
     }
 
-    public function get_handler(): Decorates_Handler {
+    public function get_handler(): Can_Handle {
         return $this->handler;
     }
 
@@ -143,9 +150,10 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
     public function get_data(): array {
         $data = parent::get_data();
 
-        $data['construct']['handler'] = $this->get_handler()->get_token();
+        $data['params']['method']  = $this->method;
+        $data['params']['handler'] = $this->get_handler()->get_token();
 
-        return $data;
+        return $this->merge_compat_args( $data, 'depr' );
     }
 
     public function get_container(): Container {
@@ -163,10 +171,6 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
      */
     protected function get_type(): string {
         return 'filter';
-    }
-
-    protected function get_token_prefix(): string {
-        return 'cb:';
     }
 
     /**
@@ -225,7 +229,7 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
             return true;
         }
 
-        if ( ! $this->init_handler( Decorates_Handler::INIT_LAZY ) ) {
+        if ( ! $this->init_handler( Can_Handle::INIT_LAZY ) ) {
             return false;
         }
 
@@ -252,7 +256,7 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
 
     public function invoke( mixed ...$args ): mixed {
         if (
-            ! $this->init_handler( Decorates_Handler::INIT_JIT ) ||
+            ! $this->init_handler( Can_Handle::INIT_JIT ) ||
             ! parent::can_load() ||
             ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
             ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
@@ -335,20 +339,18 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         return $v;
     }
 
-    protected function get_token_base(): string {
+    protected function get_id_base(): string {
         return 'Callback\\' . $this->get_classname();
     }
 
-    protected function get_token_suffix(): string {
-        $index = \implode( '', (array) $this->priority );
-
-        return "{$this->get_method()}[{$this->tag}:{$index}]";
+    protected function get_id_suffix(): string {
+        return "{$this->get_method()}[{$this->tag}:{$this->get_priority()}]";
     }
 
     protected function get_constructor_args(): array {
         return \array_merge(
             parent::get_constructor_args(),
-            array( 'invoke', 'args', 'method', 'handler', 'params' ),
+            array( 'invoke', 'args', 'params' ),
         );
     }
 }

@@ -20,10 +20,10 @@ use XWP\DI\Decorators\Handler;
  * Even though it does not implement the `Can_Initialize` interface, check will still be performed.
  */
 #[Handler(
-	tag: 'init',
-	priority: 10,
-	context: Handler::CTX_FRONTEND | Handler::CTX_AJAX,
-	container: 'example',
+    tag: 'init',
+    priority: 10,
+    context: Handler::CTX_FRONTEND | Handler::CTX_AJAX,
+    container: 'example',
 )]
 class Account_EP_Handler {
     /**
