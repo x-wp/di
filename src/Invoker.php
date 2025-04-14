@@ -399,6 +399,8 @@ class Invoker {
             $this->add_callback( $cb );
         }
 
+        do_action( "xwp_di_hooks_loaded_{$h->get_classname()}" );
+
         return $this;
     }
 
