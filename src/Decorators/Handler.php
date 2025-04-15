@@ -15,6 +15,7 @@ use Reflector;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Decorates_Callback;
 use XWP\DI\Interfaces\Decorates_Handler;
+use XWP\DI\Interfaces\On_Initialize;
 use XWP\DI\Utils\Reflection;
 
 /**
@@ -76,26 +77,28 @@ class Handler extends Hook implements Decorates_Handler {
     /**
      * Constructor.
      *
-     * @param ?string                                                $tag         Hook tag.
-     * @param null|Closure|string|int|array{0:class-string,1:string} $priority    Hook priority.
-     * @param int                                                    $context     Hook context.
-     * @param array<int,string>|string|false                         $modifiers   Values to replace in the tag name.
-     * @param string                                                 $strategy    Initialization strategy.
-     * @param int<0,2>                                               $delegate    Pass arguments to the action.
+     * @param ?string                                                $tag       Hook tag.
+     * @param null|Closure|string|int|array{0:class-string,1:string} $priority  Hook priority.
+     * @param int                                                    $context   Hook context.
+     * @param string                                                 $strategy  Initialization strategy.
+     * @param array<int,string>|string|false                         $modifiers Values to replace in the tag name.
+     * @param int<0,2>                                               $delegate  Pass arguments to the action.
      * @param array<int,string>|int                                  $hook_args Number of arguments to pass to the action.
-     * @param bool                                                   $debug       Debug this hook.
-     * @param bool                                                   $trace       Trace this hook.
+     * @param ?bool                                                  $debug     Debug this hook.
+     * @param ?bool                                                  $trace     Trace this hook.
+     * @param mixed                                                  ...$compat Compatibility arguments.
      */
     public function __construct(
         ?string $tag = null,
         null|Closure|string|int|array $priority = 10,
         int $context = self::CTX_GLOBAL,
-        string|array|false $modifiers = false,
         string $strategy = self::INIT_AUTO,
+        string|array|false $modifiers = false,
         int $delegate = self::DELEGATE_NEVER,
         int|array $hook_args = array(),
-        bool $debug = false,
-        bool $trace = false,
+        ?bool $debug = null,
+        ?bool $trace = null,
+        mixed ...$compat,
     ) {
         parent::__construct(
             tag: $tag,
@@ -125,18 +128,6 @@ class Handler extends Hook implements Decorates_Handler {
         return $this->callbacks ??= \array_merge( ...$callbacks );
     }
 
-    public function get_target(): ?object {
-        return $this->instance ?? null;
-    }
-
-    public function get_hook_args_count(): int {
-        if ( ! $this->hook_args ) {
-            return 0;
-        }
-
-        return \max( \count( $this->hook_args ), ...\array_keys( $this->hook_args ) );
-    }
-
     /**
      * Get the reflector instance.
      *
@@ -153,6 +144,9 @@ class Handler extends Hook implements Decorates_Handler {
             static fn( $cb ) => $cb->get_token(),
             $this->get_callbacks(),
         );
+        $data['construct']['on_init']   = $this->has_initializer()
+            ? $this->get_infusion( 'on_initialize' )?->resolve( $this ) ?? array()
+            : false;
 
         return $data;
     }
@@ -166,7 +160,7 @@ class Handler extends Hook implements Decorates_Handler {
     protected function get_constructor_args(): array {
         return \array_merge(
             parent::get_constructor_args(),
-            array( 'hookable', 'strategy' ),
+            array( 'strategy', 'on_init' ),
         );
     }
 
@@ -197,5 +191,13 @@ class Handler extends Hook implements Decorates_Handler {
         }
 
         return $callbacks;
+    }
+
+    private function has_initializer(): bool {
+        return $this->get_reflector()->implementsInterface( On_Initialize::class );
+    }
+
+    private function get_infusion( string $method ): ?Infuse {
+        return Reflection::get_decorator( $this->get_reflector()->getMethod( $method ), Infuse::class );
     }
 }

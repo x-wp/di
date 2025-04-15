@@ -50,8 +50,11 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
 
     protected function get_constructor_args(): array {
         return \array_merge(
+            // \array_diff(
             parent::get_constructor_args(),
-            array( 'prefix', 'priority' ),
+            // array( 'tag', 'context', 'strategy', 'modifiers' ),
+            // ),
+            array( 'prefix' ),
         );
     }
 }

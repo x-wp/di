@@ -1,8 +1,13 @@
 <?php
+/**
+ * Invokes_Handler interface file.
+ *
+ * @package eXtended WordPress
+ * @subpackage Dependency Injection
+ */
 
 namespace XWP\DI\Interfaces;
 
-use ReflectionClass;
 use XWP\DI\Decorators\Infuse;
 
 /**
@@ -10,7 +15,7 @@ use XWP\DI\Decorators\Infuse;
  *
  * @template THndlr of object
  *
- * @extends Invokes_Hook<THndlr,ReflectionClass<THndlr>>
+ * @extends Invokes_Hook<THndlr>
  *
  * @since 1.0.0
  */
@@ -45,14 +50,6 @@ interface Invokes_Handler extends Invokes_Hook, Can_Handle {
      * @return static
      */
     public function with_callbacks( array $callbacks ): static;
-
-    /**
-     * Get the magic function parameters.
-     *
-     * @param  string $method Method name.
-     * @return ?Infuse
-     */
-    public function get_params( string $method ): ?Infuse;
 
     /**
      * Get the handler initialization strategy.

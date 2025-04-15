@@ -6,7 +6,6 @@ use DI\Definition\Definition;
 use DI\Definition\Source\Autowiring;
 use DI\Definition\Source\DefinitionArray;
 use XWP\DI\Container;
-use XWP\DI\Decorators\Handler;
 use XWP\DI\Decorators\Module;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Decorates_Handler;
@@ -27,15 +26,26 @@ class Definition_App extends DefinitionArray {
     private bool $initialized = false;
 
     /**
+     * Dependency graph.
+     *
+     * @var array<string,mixed>
+     */
+    private array $graph = array();
+
+    /**
+     * Contexts for the definitions.
+     *
+     * @var array<string,int>
+     */
+    private array $contexts = array();
+
+    /**
      * Constructor.
      *
      * @param  class-string<TApp> $module     Module class name.
      * @param  ?Autowiring        $autowiring Autowiring.
      */
-    public function __construct(
-        private string $module,
-        ?Autowiring $autowiring = null,
-    ) {
+    public function __construct( private string $module, ?Autowiring $autowiring = null ) {
         parent::__construct( array(), $autowiring );
     }
 
@@ -60,7 +70,8 @@ class Definition_App extends DefinitionArray {
         }
 
         $root = Module::from_classname( $this->module );
-        $defs = $this->process_module( $root );
+
+        $defs = $this->process_module( $root, $this->graph );
 
         $defs['app.module']    = \DI\get( $root->get_token() );
         $defs['xwp.invoker'] ??= \DI\autowire( Invoker::class )->constructor(
@@ -71,9 +82,6 @@ class Definition_App extends DefinitionArray {
         $this->addDefinitions( $defs );
 
         $this->initialized = true;
-
-        \dump( $this->getDefinitions() );
-        die;
     }
 
     /**
@@ -81,20 +89,31 @@ class Definition_App extends DefinitionArray {
      *
      * @template TMod of object
      * @param  Decorates_Module<TMod> $module Module class name.
+     * @param  array<string,mixed>    $node   Node to process.
      * @return array<string,mixed>
      */
-    private function process_module( Decorates_Module $module ): array {
+    private function process_module( Decorates_Module $module, array &$node ): array {
+        $t          = $module->get_token();
+        $node[ $t ] = array();
+
         $defs = \array_merge(
             $module->get_configuration(),
-            $this->process_handler( $module ),
+            $this->process_handler( $module, $node[ $t ] ),
         );
 
-        foreach ( $module->get_handlers() as $handler ) {
-            $defs = \array_merge( $defs, $this->process_handler( $handler ) );
+        foreach ( $module->get_imports() as $import ) {
+            $defs = \array_merge( $defs, $this->process_module( $import, $node[ $t ] ) );
         }
 
-        foreach ( $module->get_imports() as $import ) {
-            $defs = \array_merge( $defs, $this->process_module( $import ) );
+        foreach ( $module->get_handlers() as $handler ) {
+            $ht                = $handler->get_token();
+            $node[ $t ][ $ht ] = array();
+
+            $defs = \array_merge( $defs, $this->process_handler( $handler, $node[ $t ][ $ht ] ) );
+        }
+
+        foreach ( $module->get_services() as $service_token => $def ) {
+            $defs[ $service_token ] = \DI\autowire( $def );
         }
 
         return $defs;
@@ -105,13 +124,20 @@ class Definition_App extends DefinitionArray {
      *
      * @template THndlr of object
      * @param  Decorates_Handler<THndlr> $handler Handler class name.
+     * @param  array<string,mixed>       $node   Node to process.
      * @return array<string,mixed>
      */
-    private function process_handler( Decorates_Handler $handler ): array {
+    private function process_handler( Decorates_Handler $handler, array &$node ): array {
         $defs = array();
 
+        $this->contexts[ $handler->get_token() ] = $handler->get_context();
+
         foreach ( $handler->get_callbacks() as $cb ) {
-            $defs[ $cb->get_token() ] = \XWP\DI\hook( ...$cb->get_data() );
+            $token          = $cb->get_token();
+            $defs[ $token ] = \XWP\DI\hook( ...$cb->get_data() );
+            $node[]         = $token;
+
+            $this->contexts[ $token ] = $handler->get_context();
         }
 
         $defs[ $handler->get_token() ] = \XWP\DI\hook( ...$handler->get_data() );

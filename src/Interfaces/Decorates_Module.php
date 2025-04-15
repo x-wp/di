@@ -37,7 +37,7 @@ interface Decorates_Module extends Decorates_Handler, Can_Import {
     /**
      * Get the auto-wired services.
      *
-     * @return array<int,class-string>
+     * @return array<string,class-string|null>
      */
     public function get_services(): array;
 }

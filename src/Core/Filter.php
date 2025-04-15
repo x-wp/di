@@ -15,12 +15,13 @@ use Reflector;
 use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
+use XWP\DI\Interfaces\Invokes_Handler;
 
 /**
  * Filter hook decorator.
  *
  * @template T of object
- * @template H of Can_Handle<T>
+ * @template H of Invokes_Handler<T>
  * @extends Hook<T,ReflectionMethod>
  * @implements Can_Invoke<T,H>
  */
@@ -29,9 +30,9 @@ class Filter extends Hook implements Can_Invoke {
     /**
      * The handler.
      *
-     * @var H
+     * @var H|class-string<H>
      */
-    protected Can_Handle $handler;
+    protected Invokes_Handler|string $handler;
 
     /**
      * Class method to call.
@@ -54,53 +55,7 @@ class Filter extends Hook implements Can_Invoke {
      */
     protected bool $firing = false;
 
-    /**
-     * Constructor.
-     *
-     * @param string                         $tag         Hook tag.
-     * @param int                            $priority    Hook priority.
-     * @param Container                      $container   The container.
-     * @param Can_Handle<T>                  $handler     The handler.
-     * @param class-string<T>                $classname   The class name.
-     * @param string                         $method      The method to call.
-     * @param int                            $context     Hook context.
-     * @param array<int,string>|string|false $modifiers   Values to replace in the tag name.
-     * @param int                            $invoke      The invocation strategy.
-     * @param int|null                       $args        The number of arguments to pass to the callback.
-     * @param array<string>                  $params      The parameters to pass to the callback.
-     * @param bool                           $debug       Debug this hook.
-     * @param bool                           $trace       Trace this hook.
-     * @param mixed                          ...$depr     Compatibility arguments.
-     */
-    public function __construct(
-        string $tag,
-        int $priority,
-        Container $container,
-        Can_Handle $handler,
-        string $classname,
-        string $method,
-        int $context = self::CTX_GLOBAL,
-        string|array|bool $modifiers = false,
-        protected int $invoke = self::INV_STANDARD,
-        protected ?int $args = null,
-        protected array $params = array(),
-        bool $debug = false,
-        bool $trace = false,
-    ) {
-        parent::__construct(
-            tag:$tag,
-            priority:$priority,
-            container: $container,
-            classname: $classname,
-            context:$context,
-            modifiers: $modifiers,
-            debug: $debug,
-            trace: $trace,
-        );
-
-        $this->handler = $handler;
-        $this->method  = $method;
-    }
+    protected array $invoke;
 
     /**
      * Set the handler.
@@ -108,13 +63,13 @@ class Filter extends Hook implements Can_Invoke {
      * @param  H $handler The handler.
      * @return static
      */
-    public function with_handler( Can_Handle $handler ): static {
+    public function with_handler( Invokes_Handler $handler ): static {
         $this->handler   = $handler;
         $this->classname = $handler->get_classname();
 
-        if ( $handler->is_lazy() ) {
-            $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
-        }
+        // if ( $handler->is_lazy() ) {
+        // $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
+        // }
 
         return $this;
     }
@@ -125,35 +80,20 @@ class Filter extends Hook implements Can_Invoke {
         return $this;
     }
 
-    public function get_handler(): Can_Handle {
-        return $this->handler;
+    public function get_handler(): Invokes_Handler {
+        if ( $this->handler instanceof Invokes_Handler ) {
+            return $this->handler;
+        }
+
+        return $this->handler = $this->get_container()->get( $this->handler );
     }
 
     public function get_method(): string {
         return $this->method;
     }
 
-    public function get_reflector(): Reflector {
-        if ( isset( $this->reflector ) ) {
-            return $this->reflector;
-        }
-
-        return $this
-            ->with_reflector( $this->get_handler()->get_reflector()->getMethod( $this->get_method() ) )
-            ->get_reflector();
-    }
-
     public function get_num_args(): int {
-        return $this->args ??= $this->get_reflector()->getNumberOfParameters();
-    }
-
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['params']['method']  = $this->method;
-        $data['params']['handler'] = $this->get_handler()->get_token();
-
-        return $this->merge_compat_args( $data, 'depr' );
+        return $this->invoke['args'];
     }
 
     public function get_container(): Container {
@@ -184,13 +124,6 @@ class Filter extends Hook implements Can_Invoke {
         return $cb();
     }
 
-    public function with_reflector( Reflector $r ): static {
-        $this->args   ??= $r->getNumberOfParameters();
-        $this->method ??= $r->getName();
-
-        return parent::with_reflector( $r );
-    }
-
     public function can_load(): bool {
         return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
     }
@@ -209,8 +142,15 @@ class Filter extends Hook implements Can_Invoke {
         return $this->get_handler()->is_loaded();
     }
 
-    protected function cb_valid( int $current ): bool {
-        return 0 !== ( $this->invoke & $current );
+    protected function cb_valid( string $current ): bool {
+        if ( 'standard' === $current ) {
+            return ! $this->invoke['catch'] &&
+                ! $this->invoke['limit'] &&
+                ! $this->invoke['proxy'] &&
+                ! $this->invoke['recursive'];
+        }
+
+        return (bool) $this->invoke[ $current ];
     }
 
     /**
@@ -219,7 +159,7 @@ class Filter extends Hook implements Can_Invoke {
      * @return array{0:object,1:string}
      */
     protected function get_target(): array {
-        return $this->cb_valid( self::INV_STANDARD )
+        return $this->cb_valid( 'standard' )
             ? array( $this->get_handler()->get_target(), $this->get_method() )
             : array( $this, 'invoke' );
     }
@@ -256,10 +196,10 @@ class Filter extends Hook implements Can_Invoke {
 
     public function invoke( mixed ...$args ): mixed {
         if (
-            ! $this->init_handler( Can_Handle::INIT_JIT ) ||
+            ! $this->init_handler( Invokes_Handler::INIT_JIT ) ||
             ! parent::can_load() ||
-            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
-            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
+            ( $this->cb_valid( 'limit' ) && $this->fired ) ||
+            ( $this->cb_valid( 'recursive' ) && $this->firing )
         ) {
             return $args[0] ?? null;
         }
@@ -323,7 +263,7 @@ class Filter extends Hook implements Can_Invoke {
      * @throws TExc If the handler is not set to safely invoke.
      */
     protected function handle_exception( \Throwable $e, mixed $v ): mixed {
-        if ( ! $this->cb_valid( self::INV_SAFELY ) ) {
+        if ( ! $this->cb_valid( 'catch' ) ) {
             throw $e;
         }
 
@@ -345,12 +285,5 @@ class Filter extends Hook implements Can_Invoke {
 
     protected function get_id_suffix(): string {
         return "{$this->get_method()}[{$this->tag}:{$this->get_priority()}]";
-    }
-
-    protected function get_constructor_args(): array {
-        return \array_merge(
-            parent::get_constructor_args(),
-            array( 'invoke', 'args', 'params' ),
-        );
     }
 }

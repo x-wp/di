@@ -9,6 +9,7 @@
 namespace XWP\DI\Core;
 
 use Closure;
+use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Handle_Ajax;
 
 /**
@@ -18,31 +19,36 @@ use XWP\DI\Interfaces\Can_Handle_Ajax;
  * @extends Handler<T>
  * @implements Can_Handle_Ajax<T>
  */
-#[\Attribute( \Attribute::TARGET_CLASS )]
 class Ajax_Handler extends Handler implements Can_Handle_Ajax {
-    /**
-     * Constructor
-     *
-     * @param null|string $prefix   Prefix for the action name.
-     * @param int         $priority Handler priority.
-     * @param mixed       ...$args  Additional arguments.
-     */
-    public function __construct(
-        protected ?string $prefix = null,
-        int $priority = 10,
-        mixed ...$args,
-    ) {
-        $args = $args[0] ?? $args;
-
-        parent::__construct(
-            tag: 'admin_init',
-            priority: $priority,
-            context: self::CTX_AJAX,
-            strategy: self::INIT_LAZY,
-            container: $args['container'] ?? null,
-            conditional: $args['conditional'] ?? null,
-        );
-    }
+    // /**
+    // * Constructor
+    // *
+    // * @param null|string $prefix   Prefix for the action name.
+    // * @param int         $priority Handler priority.
+    // * @param mixed       ...$args  Additional arguments.
+    // */
+    // public function __construct(
+    // string $classname,
+    // Container $container,
+    // array $callbacks,
+    // bool $debug,
+    // bool $trace,
+    // protected ?string $prefix = null,
+    // int $priority = 10,
+    // ) {
+    // parent::__construct(
+    // tag: 'admin_init',
+    // priority: $priority,
+    // classname: $classname,
+    // context: self::CTX_AJAX,
+    // strategy: self::INIT_LAZY,
+    // container: $container,
+    // callbacks: $callbacks,
+    // hydrated: false,
+    // debug: $debug,
+    // trace: $trace,
+    // );
+    // }
 
     public function get_prefix(): string {
         return null !== $this->prefix

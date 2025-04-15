@@ -57,6 +57,6 @@ class Infuse {
      * @return array<mixed>
      */
     public function resolve( Can_Handle $h ) {
-        return \array_map( '\DI\get', $this->get( $h ) );
+        return $this->get( $h );
     }
 }

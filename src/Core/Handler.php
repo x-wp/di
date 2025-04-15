@@ -8,12 +8,8 @@
 
 namespace XWP\DI\Core;
 
-use Closure;
-use ReflectionClass;
-use Reflector;
-use XWP\DI\Container;
 use XWP\DI\Decorators\Infuse;
-use XWP\DI\Interfaces\Can_Handle;
+use XWP\DI\Interfaces\Invokes_Handler;
 use XWP\DI\Utils\Reflection;
 
 /**
@@ -21,11 +17,11 @@ use XWP\DI\Utils\Reflection;
  *
  * @template T of object
  *
- * @extends Hook<T,ReflectionClass<T>>
- * @implements Can_Handle<T>
+ * @extends Hook<T>
+ * @implements Invokes_Handler<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Handler extends Hook implements Can_Handle {
+class Handler extends Hook implements Invokes_Handler {
     /**
      * Did we fire the on_initialize method.
      *
@@ -45,7 +41,7 @@ class Handler extends Hook implements Can_Handle {
      *
      * @var string
      */
-    protected string $strategy;
+    protected string $strategy = self::INIT_AUTO;
 
     /**
      * Are we passing arguments to the action.
@@ -73,7 +69,7 @@ class Handler extends Hook implements Can_Handle {
      *
      * @var array<int,null|string>
      */
-    protected array $hook_args;
+    protected array $hook_args = array();
 
     /**
      * Resolved action arguments.
@@ -83,15 +79,20 @@ class Handler extends Hook implements Can_Handle {
     protected array $resolved_action_args;
 
     /**
+     * Hydrated state.
+     *
+     * @var array<string,object>
+     */
+    protected array $hydrate = array();
+
+    /**
      * Resolved params.
      *
      * @var array{
      *   on_initialize: null|Infuse
      * }
      */
-    protected array $params = array(
-        'on_initialize' => null,
-    );
+    protected array|false $on_init = false;
 
     /**
      * Array of hooked methods
@@ -99,57 +100,6 @@ class Handler extends Hook implements Can_Handle {
      * @var ?array<int,string>
      */
     protected ?array $callbacks = null;
-
-    /**
-     * Constructor.
-     *
-     * @param ?string                        $tag         Hook tag.
-     * @param ?int                           $priority    Hook priority.
-     * @param Container                      $container   Container instance.
-     * @param class-string<T>                $classname   Class name of the handler.
-     * @param array<int,string>              $callbacks   Array of hooked methods.
-     * @param int                            $context     Hook context.
-     * @param array<int,string>|string|false $modifiers   Values to replace in the tag name.
-     * @param string                         $strategy    Initialization strategy.
-     * @param int<0,2>                       $delegate    Pass arguments to the action.
-     * @param bool                           $hookable    Is the handler hookable.
-     * @param array<int,string>|int          $hook_args Number of arguments to pass to the action.
-     * @param bool                           $debug       Debug this hook.
-     * @param bool                           $trace       Trace this hook.
-     */
-    public function __construct(
-        ?string $tag,
-        ?int $priority,
-        Container $container,
-        string $classname,
-        array $callbacks,
-        int $context = self::CTX_GLOBAL,
-        string|array|false $modifiers = false,
-        string $strategy = self::INIT_AUTO,
-        int $delegate = self::DELEGATE_NEVER,
-        ?bool $hookable = null,
-        int|array $hook_args = array(),
-        bool $debug = false,
-        bool $trace = false,
-    ) {
-        parent::__construct(
-            tag: $tag,
-            priority: $priority,
-            container: $container,
-            classname: $classname,
-            context: $context,
-            modifiers: $modifiers,
-            debug: $debug,
-            trace: $trace,
-        );
-
-        $this->callbacks = $callbacks;
-        $this->delegate  = $delegate;
-        $this->hook_args = ! \is_array( $hook_args ) ? \array_fill( 0, $hook_args, null ) : $hook_args;
-        $this->strategy  = $strategy;
-        $this->loaded    = false;
-        $this->hookable  = $hookable;
-    }
 
     /**
      * Get the hook tag.
@@ -163,24 +113,12 @@ class Handler extends Hook implements Can_Handle {
         return parent::get_tag() ?: \current_action();
     }
 
-    public function get_priority(): int {
-        if ( '' === $this->tag && null === $this->priority ) {
-            $action         = \end( $GLOBALS['wp_current_filter'] );
-            $filter         = $GLOBALS['wp_filter'][ $action ];
-            $this->priority = $filter->current_priority() + 1;
-        }
-
-        return parent::get_priority();
+    public function get_priority(): ?int {
+        return parent::get_priority() ?? $this->current_priority();
     }
 
     public function get_target(): ?object {
         return $this->instance ?? null;
-    }
-
-    public function get_params( string $method ): ?Infuse {
-        return $this->params[ $method ] ??= \method_exists( $this->get_classname(), $method )
-            ? Reflection::get_decorator( $this->get_reflector()->getMethod( $method ), Infuse::class )
-            : null;
     }
 
     public function get_strategy(): string {
@@ -207,31 +145,19 @@ class Handler extends Hook implements Can_Handle {
         return \max( \count( $this->hook_args ), ...\array_keys( $this->hook_args ) );
     }
 
-    /**
-     * Get the reflector instance.
-     *
-     * @return ReflectionClass<T>
-     */
-    public function get_reflector(): ReflectionClass {
-        return $this->reflector ??= new ReflectionClass( $this->classname );
-    }
+    public function get_callbacks(): ?array {
+        if ( $this->hydrated ) {
+            return $this->callbacks;
+        }
 
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['params']['callbacks'] = $this->callbacks;
-        $data['params']['params']    = \array_combine(
-            \array_keys( $this->params ),
+        $this->callbacks = \array_combine(
+            $this->callbacks,
             \array_map(
-                fn( string $m ) => $this->get_params( $m )?->get( $this ) ?? array(),
-                \array_keys( $this->params ),
+                fn( $token ) => $this->get_container()->get( $token )->with_handler( $this ),
+                $this->callbacks,
             ),
         );
 
-        return $this->merge_compat_args( $data );
-    }
-
-    public function get_callbacks(): ?array {
         return $this->callbacks;
     }
 
@@ -253,12 +179,6 @@ class Handler extends Hook implements Can_Handle {
         $this->did_init    = true;
 
         return $this;
-    }
-
-    public function with_reflector( Reflector $r ): static {
-        $this->classname = $r->getName();
-
-        return parent::with_reflector( $r );
     }
 
     public function with_params( array $params ): static {
@@ -363,10 +283,11 @@ class Handler extends Hook implements Can_Handle {
             return true;
         }
 
-        $method = $this->method_exists( __FUNCTION__ );
-
-        if ( $method ) {
-            $this->call_method( $method, $this->resolve_params( __FUNCTION__ ) );
+        if ( false !== $this->on_init ) {
+            $this->call_method(
+                $this->method_exists( __FUNCTION__ ),
+                $this->get_params(),
+            );
         }
 
         $this->ready = true;
@@ -386,29 +307,12 @@ class Handler extends Hook implements Can_Handle {
             : false;
     }
 
-    /**
-     * Resolve the parameters for a method.
-     *
-     * @param  string $method     Method name.
-     * @return array<mixed>
-     */
-    protected function resolve_params( string $method ): array {
-        return $this->get_params( $method )?->resolve( $this ) ?? array();
-    }
-
     public function is_hookable(): bool {
         if ( ! $this->check_context() ) {
             return false;
         }
 
         return $this->hookable ?? true;
-    }
-
-    protected function get_constructor_args(): array {
-        return \array_merge(
-            parent::get_constructor_args(),
-            array( 'hookable', 'strategy' ),
-        );
     }
 
     /**
@@ -446,5 +350,20 @@ class Handler extends Hook implements Can_Handle {
         return $this->check_context()
             ? $strategy
             : self::INIT_NEVER;
+    }
+
+    protected function hydrate( string $what ): array {
+        return $this->hydrate[ $what ] ??= $this->resolve( ...$this->$what );
+    }
+
+    protected function current_priority(): int {
+        $action = \end( $GLOBALS['wp_current_filter'] );
+        $filter = $GLOBALS['wp_filter'][ $action ];
+
+        return $this->priority ??= $filter->current_priority() + 1;
+    }
+
+    protected function get_params(): array {
+        return \array_map( '\DI\get', $this->on_init );
     }
 }

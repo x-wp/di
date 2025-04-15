@@ -13,14 +13,7 @@ namespace XWP\DI\Interfaces;
  *
  * @template TInst of object
  * @template THndl of Can_Handle<TInst>
- * @extends Can_Hook<TInst,\ReflectionMethod>
- *
- * @property-read string $tag    The hook tag.
- * @property-read bool   $firing Is the hook firing?
- * @property-read int    $fired  Number of times the hook has fired.
- * @property-read string $method The method name.
- *
- * @property-read array{0:TInst,1:string} $target  The target method.
+ * @extends Can_Hook<TInst>
  */
 interface Can_Invoke extends Can_Hook {
     /**
@@ -68,11 +61,4 @@ interface Can_Invoke extends Can_Hook {
      * @return string
      */
     public function get_method(): string;
-
-    /**
-     * Get the number of arguments for the method.
-     *
-     * @return int
-     */
-    public function get_num_args(): int;
 }

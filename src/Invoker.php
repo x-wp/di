@@ -440,8 +440,12 @@ class Invoker {
          *
          * @var class-string<T> $cb_token
          */
-        foreach ( $h->get_callbacks() as $cb_token ) {
-            $cb = $this->container->get( $cb_token );
+        foreach ( $h->get_callbacks() as $cb ) {
+            if ( \is_string( $cb ) ) {
+                \dump( $h );
+                die;
+            }
+            // $cb = $this->container->get( $cb_token );
 
             $cb->load();
 
@@ -532,10 +536,6 @@ class Invoker {
      */
     private function trace_handler( Can_Handle $h ): static {
         $this->handlers[ $h->get_classname() ] = $h->is_loaded() ? $h->get_init_hook() : false;
-
-        if ( $this->debug && $h->get_compat_args() ) {
-            $this->old_handlers[ $h->get_classname() ] = \implode( ', ', $h->get_compat_args() );
-        }
 
         return $this;
     }

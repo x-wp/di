@@ -76,6 +76,8 @@ class Ajax_Action extends Action {
      */
     protected string $verb;
 
+    protected bool $public;
+
     /**
      * Variable fetch callback.
      *
@@ -109,8 +111,8 @@ class Ajax_Action extends Action {
         array $vars = array(),
         array $params = array(),
         int $priority = 10,
-        bool $debug = false,
-        bool $trace = false,
+        ?bool $debug = null,
+        ?bool $trace = null,
         mixed ...$depr,
     ) {
         $this->action = $action;
@@ -118,9 +120,9 @@ class Ajax_Action extends Action {
         $this->nonce  = $nonce;
         $this->cap    = $cap;
         $this->vars   = $vars;
-        $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
-        $this->verb   = $method;
-        $this->getter = $this->getter_cb( $method );
+        $this->public = $public;
+        // $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
+        $this->verb = $method;
 
         parent::__construct(
             tag: '%s_%s_%s',
@@ -132,7 +134,6 @@ class Ajax_Action extends Action {
             params: $params,
             debug: $debug,
             trace: $trace,
-            depr: $depr[0] ?? $depr,
         );
     }
 
@@ -158,12 +159,17 @@ class Ajax_Action extends Action {
                     'action'    => $this->action,
                     'cap'       => $this->cap,
                     'classname' => $this->classname,
-                    'method'    => $this->verb,
+                    'debug'     => $this->debug,
+                    'handler'   => $this->get_handler()->get_token(),
+                    'method'    => $this->method,
                     'nonce'     => $this->nonce,
+                    'params'    => $this->params,
                     'prefix'    => $this->prefix,
                     'priority'  => $this->priority,
-                    'public'    => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+                    'public'    => $this->public,
+                    'trace'     => $this->trace,
                     'vars'      => $this->vars,
+                    'verb'      => $this->verb,
                 ),
             ),
         );

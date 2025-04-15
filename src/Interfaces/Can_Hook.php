@@ -8,13 +8,10 @@
 
 namespace XWP\DI\Interfaces;
 
-use Reflector;
-
 /**
  * Describes decorators that can be hooked into WordPress.
  *
  * @template THndlr of object
- * @template TRflct of Reflector
  */
 interface Can_Hook extends Has_Context {
     /**

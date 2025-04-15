@@ -3,6 +3,7 @@
 namespace XWP\DI\Definition\Helper;
 
 use Closure;
+use DI\Definition\Definition;
 use DI\Definition\Helper\AutowireDefinitionHelper;
 use DI\Definition\Helper\DefinitionHelper;
 use XWP\DI\Container;
@@ -12,7 +13,13 @@ use XWP\DI\Core\Wrapper;
  * Helper to create a hook definition.
  */
 class Hook_Definition_Helper extends AutowireDefinitionHelper {
-    private static array $hydrate = array( 'imports', 'callbacks', 'handlers', 'handler' );
+    /**
+     * Properties to hydrate.
+     *
+     * @var array<string>
+     */
+    private static array $hydrate = array( 'imports', 'callbacks', 'handlers' );
+
     /**
      * Hook data.
      *
@@ -36,53 +43,75 @@ class Hook_Definition_Helper extends AutowireDefinitionHelper {
     /**
      * Fix the constructor arguments.
      *
-     * @param  array<string,mixed> $args   Arguments to pass to the method.
+     * @param  array<string,mixed> $construct   Arguments to pass to the method.
      * @param  bool                $hydrate Whether to hydrate the object.
      * @return array<string,mixed>
      */
-    protected function fix_constructor_args( array $args, bool $hydrate ): array {
-        $args['container'] = \DI\get( Container::class );
+    protected function fix_constructor_args( array $construct, bool $hydrate ): array {
+        $construct['container'] = \DI\get( Container::class );
 
         if ( $hydrate ) {
-            foreach ( self::$hydrate as $key ) {
-                if ( ! isset( $args[ $key ] ) ) {
-                    continue;
-                }
-
-                $args[ $key ] = $this->hydrate( $args[ $key ] );
-            }
-
-            $args['hydrated'] = true;
+            $construct = $this->resolve_hydration( $construct );
         }
 
-        if ( \array_key_exists( 'priority', $args ) ) {
-            $args['priority'] = $this->resolve_priority( $args['priority'], $args['classname'] );
+        if ( \array_key_exists( 'priority', $construct ) ) {
+            $construct['priority'] = $this->resolve_priority( $construct['priority'], $construct['classname'] );
         }
 
-        unset( $args['id'] );
+        unset( $construct['id'] );
+        $construct['debug'] ??= false;
+        $construct['trace'] ??= false;
 
-        return $args;
+        return array( 'args' => $construct );
     }
 
     /**
      * Resolve the priority.
      *
-     * @param  null|Closure|string|int|array{0:class-string,1: string} $prio Priority.
-     * @param  class-string                                            $classname Hook class name.
-     * @return int|DefinitionHelper
+     * @param  null|callable-string|numeric-string|string|int|array{0:class-string,1: string} $prio Priority.
+     * @param  class-string                                                                   $classname Hook class name.
+     * @return null|int|DefinitionHelper
      */
-    protected function resolve_priority( null|Closure|string|int|array $prio, string $classname ): int|DefinitionHelper {
+    protected function resolve_priority( null|callable|string|int|array $prio, string $classname ): null|int|DefinitionHelper {
+        if ( \is_int( $prio ) ) {
+            return $prio;
+        }
+
         return match ( true ) {
-            \is_callable( $prio ),
-            \is_array( $prio )   => \DI\factory( $prio )->parameter( '0', 10 )->parameter( '1', $classname ),
-            \defined( $prio )    => \constant( $prio ),
-            \is_numeric( $prio ) => (int) $prio,
-            \is_string( $prio )  => \XWP\DI\filter( $prio, 10, $classname )->cast( 'intval' ),
-            default              => 10,
+            \is_null( $prio )     => \DI\value( null ),
+            \is_callable( $prio ) => \DI\factory( $prio )->parameter( '0', 10 )->parameter( '1', $classname ),
+            \defined( $prio )     => \DI\factory( 'constant' )->parameter( 'name', $prio ),
+            \is_string( $prio )   => \XWP\DI\filter( $prio, 10, $classname )->cast( 'intval' ),
+            default               => 10,
         };
     }
 
-    protected function hydrate( array|string $value ): array|string {
+    /**
+     * Resolve the arguments to hydrate.
+     *
+     * @param  array<string,mixed> $args Arguments to pass to the method.
+     * @return array<string,mixed>
+     */
+    protected function resolve_hydration( array $args ): array {
+        foreach ( self::$hydrate as $key ) {
+            if ( ! isset( $args[ $key ] ) ) {
+                continue;
+            }
+
+            $args[ $key ]       = $this->hydrate( $args[ $key ] );
+            $args['hydrated'] ??= true;
+        }
+
+        return $args;
+    }
+
+    /**
+     * Hydrate the arguments.
+     *
+     * @param  string|array<string,string> $value Arguments to pass to the method.
+     * @return Definition|array<string,Definition>
+     */
+    protected function hydrate( array|string $value ): array|Definition {
         return \is_array( $value )
             ? \array_map( '\DI\get', $value )
             : \DI\get( $value );

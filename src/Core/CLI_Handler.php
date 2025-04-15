@@ -5,6 +5,7 @@ namespace XWP\DI\Core;
 use cli\progress\Bar;
 use Closure;
 use WP_CLI;
+use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Handle_CLI;
 use XWP_CLI_Namespace as NSC;
 
@@ -166,24 +167,35 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         static::$current  = 0;
     }
 
-    /**
-     * Constructor.
-     *
-     * @param string                                        $namespace   Command namespace.
-     * @param string                                        $description Command description.
-     * @param Closure|string|int|array{class-string,string} $priority    Hook priority.
-     * @param mixed                                         ...$args     Additional arguments.
-     */
-    public function __construct(
-        protected string $namespace,
-        protected string $description = '',
-        Closure|string|int|array $priority = 10,
-        mixed ...$args,
-    ) {
-        $ctr = $args['args']['container'] ?? $args['container'] ?? null;
-
-        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
-    }
+    // /**
+    // * Constructor.
+    // *
+    // * @param string                                        $namespace   Command namespace.
+    // * @param string                                        $description Command description.
+    // * @param Closure|string|int|array{class-string,string} $priority    Hook priority.
+    // * @param mixed                                         ...$args     Additional arguments.
+    // */
+    // public function __construct(
+    // string $classname,
+    // Container $container,
+    // array $callbacks,
+    // bool $debug,
+    // bool $trace,
+    // protected string $namespace,
+    // protected string $description = '',
+    // Closure|string|int|array $priority = 10,
+    // ) {
+    // parent::__construct(
+    // tag: 'cli_init',
+    // priority: $priority,
+    // context: static::CTX_CLI,
+    // classname: $classname,
+    // container: $container,
+    // callbacks: $callbacks,
+    // debug: $debug,
+    // trace: $trace,
+    // );
+    // }
 
     public function get_namespace(): string {
         return $this->namespace;

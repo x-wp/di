@@ -10,9 +10,16 @@ use Reflector;
  * @template THndlr of object
  * @template TRflct of Reflector
  *
- * @extends Can_Hook<THndlr,TRflct>
+ * @extends Can_Hook<THndlr>
  */
 interface Decorates_Hook extends Can_Hook {
+    /**
+     * Get the hook context.
+     *
+     * @return int
+     */
+    public function get_context(): int;
+
     /**
      * Get the hook definition.
      *
@@ -23,13 +30,6 @@ interface Decorates_Hook extends Can_Hook {
      * }
      */
     public function get_data(): array;
-
-    /**
-     * Get the reflector.
-     *
-     * @return TRflct
-     */
-    public function get_reflector(): Reflector;
 
     /**
      * Set the reflector

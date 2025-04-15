@@ -1,18 +1,22 @@
 <?php
+/**
+ * Invokes_Hook interface file.
+ *
+ * @package eXtended WordPress
+ * @subpackage Dependency Injection
+ */
 
 namespace XWP\DI\Interfaces;
 
 use Psr\Log\LoggerInterface;
-use Reflector;
 use XWP\DI\Container;
 
 /**
  * Describes decorators that can be hooked into WordPress.
  *
  * @template THndlr of object
- * @template TRflct of Reflector
  *
- * @extends Can_Hook<THndlr,TRflct>
+ * @extends Can_Hook<THndlr>
  */
 interface Invokes_Hook extends Can_Hook {
     /**
@@ -25,9 +29,9 @@ interface Invokes_Hook extends Can_Hook {
     /**
      * Get the hook priority.
      *
-     * @return int
+     * @return ?int
      */
-    public function get_priority(): int;
+    public function get_priority(): ?int;
 
     /**
      * Get the tag modifiers.

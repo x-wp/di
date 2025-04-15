@@ -11,6 +11,7 @@ namespace XWP\DI;
 use DI\CompiledContainer as Compiled;
 use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
+use DI\Definition\Source\NoAutowiring;
 use DI\Definition\Source\ReflectionBasedAutowiring;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -199,21 +200,10 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addModuleDefinition( array $config ): App_Builder {
-        $defns = new Definition_App( $config['app_module'], new ReflectionBasedAutowiring() );
+        $autowiring = $config['use_autowiring'] ? new ReflectionBasedAutowiring() : new NoAutowiring();
+        $definition = new Definition_App( $config['app_module'], $autowiring );
 
-        // // $parser = ( new Parser( $config['app_module'], $config['app_id'] ) )
-        // // ->set_extendable( $config['extendable'] );
-
-        // // $defns = $this->isHookCacheEnabled()
-        // // ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )
-        // // : $parser->make()->get_parsed();
-
-        // $defns['xwp.invoker'] ??= \DI\autowire( Invoker::class )->constructor(
-        // factory: \DI\get( Factory::class ),
-        // container: \DI\get( Container::class ),
-        // );
-
-        return $this->addDefinitions( $defns );
+        return $this->addDefinitions( $definition );
     }
 
     /**

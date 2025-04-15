@@ -49,7 +49,6 @@ class REST_Handler extends Handler implements Can_Handle_REST {
             context: self::CTX_REST,
             debug: $debug,
             trace: $trace,
-            container: $args['container'] ?? null,
         );
     }
 
@@ -92,6 +91,6 @@ class REST_Handler extends Handler implements Can_Handle_REST {
     }
 
     protected function get_constructor_args(): array {
-        return array( 'basename', 'namespace' );
+        return array( 'basename', 'namespace', 'classname' );
     }
 }

@@ -55,15 +55,15 @@ abstract class Hook implements Decorates_Hook {
      * @param string|null                                             $token       Unique ID for the hook.
      */
     public function __construct(
-        protected ?string $tag,
+        protected ?string $tag = null,
         protected array|int|string|Closure|null $priority = null,
         protected int $context = self::CTX_GLOBAL,
         protected string|array|bool $modifiers = false,
-        protected bool $debug = false,
-        protected bool $trace = false,
+        protected ?bool $debug = null,
+        protected ?bool $trace = null,
         protected ?string $token = null,
     ) {
-        $this->tag = $tag ?? '';
+        $this->tag ??= '';
     }
 
     /**
@@ -100,6 +100,10 @@ abstract class Hook implements Decorates_Hook {
         return $this->classname;
     }
 
+    public function get_context(): int {
+        return $this->context;
+    }
+
     public function get_data(): array {
         return array(
             'construct' => \array_combine(
@@ -115,7 +119,7 @@ abstract class Hook implements Decorates_Hook {
     }
 
     final public function get_token(): string {
-        return $this->token ??= \uniqid( $this->get_token_prefix() ); // $this->generate_token();
+        return $this->token ??= $this->get_name(); // \uniqid( $this->get_token_prefix() );
     }
 
     final public function get_name(): string {
@@ -140,17 +144,6 @@ abstract class Hook implements Decorates_Hook {
      */
     protected function get_token_suffix(): string {
         return '';
-    }
-
-    /**
-     * Merge the compatibility arguments.
-     *
-     * @param  array<string,mixed> $data Data to merge.
-     * @param  string              $key  Key to merge.
-     * @return array<string,mixed>
-     */
-    protected function merge_compat_args( array $data, string $key = 'args' ): array {
-        return $data;
     }
 
     /**

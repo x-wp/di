@@ -8,6 +8,7 @@
 
 namespace XWP\DI\Core;
 
+use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Handle_REST;
 
 /**
@@ -23,34 +24,11 @@ use XWP\DI\Interfaces\Can_Handle_REST;
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
 class REST_Handler extends Handler implements Can_Handle_REST {
-    /**
-     * Constructor
-     *
-     * @param string $namespace REST namespace.
-     * @param string $basename  REST basename.
-     * @param int    $priority  Handler priority.
-     * @param bool   $debug     Debug this hook.
-     * @param bool   $trace     Trace this hook.
-     * @param mixed  ...$args   Additional arguments.
-     */
-    public function __construct(
-        protected string $namespace,
-        protected string $basename,
-        int $priority = 10,
-        bool $debug = false,
-        bool $trace = false,
-        mixed ...$args,
-    ) {
-        $args = $args[0] ?? $args;
-
-        parent::__construct(
-            tag: 'rest_api_init',
-            priority: $priority,
-            context: self::CTX_REST,
-            debug: $debug,
-            trace: $trace,
-            container: $args['container'] ?? null,
-        );
+    public function __construct( array $args ) {
+        $args['tag']         = 'rest_api_init';
+        $args['context']     = self::CTX_REST;
+        $args['namespace'] ??= '';
+        parent::__construct( $args );
     }
 
     public function get_namespace(): string {

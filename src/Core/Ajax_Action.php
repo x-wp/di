@@ -9,6 +9,7 @@
 namespace XWP\DI\Core;
 
 use Closure;
+use XWP\DI\Container;
 
 /**
  * Ajax action decorator.
@@ -101,17 +102,20 @@ class Ajax_Action extends Action {
      */
     public function __construct(
         string $action,
-        ?string $prefix = null,
-        bool $public = true,
-        string $method = self::AJAX_REQ,
-        bool|string|array $nonce = false,
+        ?string $prefix,
+        bool $public,
+        string $verb,
+        bool|string|array $nonce,
         null|string|array $cap = null,
-        array $vars = array(),
-        array $params = array(),
-        int $priority = 10,
-        bool $debug = false,
-        bool $trace = false,
-        mixed ...$depr,
+        array $vars,
+        array $params,
+        int $priority,
+        bool $debug,
+        bool $trace,
+        Container $container,
+        string $handler,
+        string $classname,
+        string $method,
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
@@ -119,8 +123,7 @@ class Ajax_Action extends Action {
         $this->cap    = $cap;
         $this->vars   = $vars;
         $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
-        $this->verb   = $method;
-        $this->getter = $this->getter_cb( $method );
+        $this->getter = $this->getter_cb( $verb );
 
         parent::__construct(
             tag: '%s_%s_%s',
@@ -132,7 +135,10 @@ class Ajax_Action extends Action {
             params: $params,
             debug: $debug,
             trace: $trace,
-            depr: $depr[0] ?? $depr,
+            container: $container,
+            handler: $handler,
+            classname: $classname,
+            method: $method,
         );
     }
 

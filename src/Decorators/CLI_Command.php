@@ -75,10 +75,11 @@ class CLI_Command extends Action implements Can_Execute {
         return \array_merge(
             parent::get_data(),
             array(
-                'args' => array(
+                'construct' => array(
                     'after'       => $this->after,
                     'args'        => $this->cmd_args,
                     'before'      => $this->before,
+                    'classname'   => $this->classname,
                     'command'     => $this->subcommand,
                     'deferred'    => $this->deferred,
                     'description' => $this->description,

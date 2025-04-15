@@ -24,8 +24,7 @@ use XWP_Context;
  * Base hook from which the action and filter decorators inherit.
  *
  * @template THndlr of object
- * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
- * @implements Invokes_Hook<THndlr,TRflct>
+ * @implements Invokes_Hook<THndlr>
  */
 abstract class Hook implements Invokes_Hook {
     /**
@@ -91,6 +90,31 @@ abstract class Hook implements Invokes_Hook {
      */
     protected Container $container;
 
+
+    protected int $context = Can_Hook::CTX_GLOBAL;
+
+    /**
+     * The modifiers to replace in the tag name.
+     *
+     * @var array<int,string>|string|false
+     */
+    protected array|string|bool $modifiers = false;
+
+    /**
+     * Is the hook debug enabled?
+     *
+     * @var bool
+     */
+    protected bool $debug = false;
+
+    /**
+     * Is the hook trace enabled?
+     *
+     * @var bool
+     */
+    protected bool $trace = false;
+
+
     /**
      * Is the handler unloaded
      *
@@ -104,13 +128,6 @@ abstract class Hook implements Invokes_Hook {
      * @var string
      */
     protected string $reason = '';
-
-    /**
-     * Reflector instance.
-     *
-     * @var TRflct
-     */
-    protected ReflectionClass|ReflectionMethod $reflector;
 
     /**
      * Initialization hook.
@@ -127,6 +144,13 @@ abstract class Hook implements Invokes_Hook {
     protected LoggerInterface $logger;
 
     /**
+     * Is hook hydrated?
+     *
+     * @var bool
+     */
+    protected bool $hydrated = false;
+
+    /**
      * Injection token.
      *
      * @var string
@@ -134,38 +158,21 @@ abstract class Hook implements Invokes_Hook {
     private string $token;
 
     /**
-     * Deprecated constructor arguments.
-     *
-     * @var array<string>
-     */
-    protected array $compat_args = array();
-
-    /**
      * Constructor.
      *
-     * @param ?string                        $tag         Hook tag.
-     * @param ?int                           $priority    Hook priority.
-     * @param Container                      $container   Container instance.
-     * @param class-string<THndlr>           $classname   Class name of the handler.
-     * @param int                            $context     Hook context.
-     * @param array<int,string>|string|false $modifiers   Values to replace in the tag name.
-     * @param bool                           $debug       Debug this hook.
-     * @param bool                           $trace       Trace this hook.
+     * @param array{classname: class-string<THndlr>} $args Hook arguments.
      */
-    public function __construct(
-        ?string $tag,
-        ?int $priority,
-        Container $container,
-        string $classname,
-        protected int $context = self::CTX_GLOBAL,
-        protected string|array|bool $modifiers = false,
-        protected bool $debug = false,
-        protected bool $trace = false,
-    ) {
-        $this->classname = $classname;
-        $this->container = $container;
-        $this->priority  = $tag ? $priority : null;
-        $this->tag       = $tag ?? '';
+    public function __construct( array $args ) {
+        try {
+            foreach ( $args as $arg => $value ) {
+                \method_exists( $this, "set_{$arg}" )
+                    ? $this->{"set_{$arg}"}( $value, $args )
+                    : $this->$arg = $value;
+            }
+        } catch ( \Throwable ) {
+            \dump( $args );
+            die;
+        }
     }
 
     /**
@@ -180,26 +187,8 @@ abstract class Hook implements Invokes_Hook {
             : $this->$name ?? null;
     }
 
-    public function with_cache( bool $cached ): static {
-        $this->cached = $cached;
-
-        return $this;
-    }
-
     public function with_classname( string $classname ): static {
         $this->classname = $classname;
-
-        return $this;
-    }
-
-    /**
-     * Set the reflector instance.
-     *
-     * @param  TRflct $r Reflector instance.
-     * @return static
-     */
-    public function with_reflector( \Reflector $r ): static {
-        $this->reflector ??= $r;
 
         return $this;
     }
@@ -228,8 +217,8 @@ abstract class Hook implements Invokes_Hook {
             : $this->modifiers;
     }
 
-    public function get_priority(): int {
-        return $this->resolve_priority( $this->priority );
+    public function get_priority(): ?int {
+        return $this->priority ?? null;
     }
 
     public function get_container(): Container {
@@ -284,6 +273,21 @@ abstract class Hook implements Invokes_Hook {
 
     public function trace(): bool {
         return $this->trace;
+    }
+
+    /**
+     * Set priority.
+     *
+     * @param ?int                $priority Priority.
+     * @param array<string,mixed> $args    Arguments.
+     * @return static
+     */
+    public function set_priority( ?int $priority, array $args = array() ): static {
+        $priority ??= '' !== ( $args['tag'] ?? '' ) ? 10 : null;
+
+        $this->priority = $priority;
+
+        return $this;
     }
 
     /**
@@ -349,44 +353,6 @@ abstract class Hook implements Invokes_Hook {
             $this->container->has( $param )        => $this->container->get( $param ),
             default                                => $param,
         };
-    }
-
-    /**
-     * Merge the compatibility arguments.
-     *
-     * @param  array<string,mixed> $data Data to merge.
-     * @param  string              $key  Key to merge.
-     * @return array<string,mixed>
-     */
-    protected function merge_compat_args( array $data, string $key = 'args' ): array {
-        $data['args'][ $key ] ??= $this->get_compat_args();
-
-        return $data;
-    }
-
-    /**
-     * Get the compatibility arguments.
-     *
-     * @return array<string,string>
-     */
-    public function get_compat_args(): array {
-        return \array_combine( $this->compat_args, $this->compat_args );
-    }
-
-    /**
-     * Get the constructor keys.
-     *
-     * @return array<string>
-     */
-    protected function get_constructor_args(): array {
-        return array(
-            'context',
-            'modifiers',
-            'priority',
-            'tag',
-            'debug',
-            'trace',
-        );
     }
 
     /**

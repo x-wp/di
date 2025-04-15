@@ -17,7 +17,7 @@ use XWP\DI\Interfaces\Decorates_Module;
  *
  * @template T of object
  * @extends Handler<T>
- * @implements Decorates_Module((<T>
+ * @implements Decorates_Module<T>
  *
  * @since 1.0.0
  */
@@ -45,13 +45,6 @@ class Module extends Handler implements Decorates_Module {
     protected array $handlers;
 
     /**
-     * Compatibility with the old hookable attribute.
-     *
-     * @var string
-     */
-    protected string $hook;
-
-    /**
      * Constructor.
      *
      * @param string                                              $hook     Hook name.
@@ -60,9 +53,7 @@ class Module extends Handler implements Decorates_Module {
      * @param array<int,class-string>                             $imports  Array of submodules to import.
      * @param array<int,class-string>                             $handlers Array of handlers to register.
      * @param array<int,class-string>                             $services Array of autowired services.
-     * @param bool                                                $debug    Debug this hook.
-     * @param bool                                                $trace    Trace this hook.
-     * @param mixed                                               ...$args  Deprecated arguments.
+     * @param mixed                                               ...$options Additional options.
      */
     public function __construct(
         string $hook,
@@ -73,27 +64,22 @@ class Module extends Handler implements Decorates_Module {
         /**
          * Array of autowired services.
          *
-         * @var array<int,class-string>
+         * @var array<string,class-string|null>
          */
         protected array $services = array(),
-        bool $debug = false,
-        bool $trace = false,
-        mixed ...$args,
+        mixed ...$options,
     ) {
-        $args = $args[0] ?? $args;
-
-        $this->hook     = $hook;
-        $this->imports  = \array_map( static fn( $i ) => self::from_classname( $i ), $imports );
-        $this->handlers = \array_map( static fn( $i ) => Handler::from_classname( $i ), $handlers );
-
-        parent::__construct(
-            tag: $hook,
-            priority: $priority,
-            context: $context,
-            strategy: self::INIT_AUTO,
-            debug: $debug,
-            trace: $trace,
+        $this->imports  = \array_map(
+            static fn( $i ) => self::from_classname( $i ),
+            $imports,
         );
+        $this->handlers = \array_map(
+            static fn( $i ) => Handler::from_classname( $i ),
+            $handlers,
+        );
+        $this->services = $this->remap_services( $services );
+
+        parent::__construct( tag: $hook, priority: $priority, context: $context );
     }
 
     public function get_imports(): array {
@@ -129,7 +115,7 @@ class Module extends Handler implements Decorates_Module {
 
     protected function get_constructor_args(): array {
         return array(
-            'hook',
+            'tag',
             'priority',
             'context',
             'imports',
@@ -138,5 +124,27 @@ class Module extends Handler implements Decorates_Module {
             'debug',
             'trace',
         );
+    }
+
+    /**
+     * Remap the services array to a token => service array.
+     *
+     * @param  array<string|int,class-string> $services Array of services.
+     * @return array<string,class-string|null>
+     */
+    protected function remap_services( array $services ): array {
+        $remapped = array();
+        foreach ( $services as $index => $svc ) {
+            [ $token, $service ] = match ( true ) {
+                \is_int( $index ) => array( $svc, null ),
+                $index !== $svc  => array( $index, $svc ),
+                default          => array( $svc, null ),
+
+            };
+
+            $remapped[ $token ] = $service;
+        }
+
+        return $remapped;
     }
 }

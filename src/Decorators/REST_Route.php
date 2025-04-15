@@ -94,8 +94,7 @@ class REST_Route extends Action implements Can_Route {
      */
     public function with_handler( Can_Handle $handler ): static {
         return parent::with_handler( $handler )
-            ->with_tag( $handler->get_rest_hook() )
-            ->with_priority( $handler->get_priority() + 1 );
+            ->with_tag( $handler->get_rest_hook() );
     }
 
     public function with_priority( int $priority ): static {
@@ -110,18 +109,28 @@ class REST_Route extends Action implements Can_Route {
         return $this;
     }
 
-    public function get_data(): array {
+    // public function get_data(): array {
+    // return \array_merge(
+    // parent::get_data(),
+    // array(
+    // 'construct' => array(
+    // 'classname' => $this->classname,
+    // 'guard'     => $this->route_guard,
+    // 'handler'   => $this->get_handler()->get_token(),
+    // 'method'    => $this->method,
+    // 'methods'   => $this->methods,
+    // 'params'    => $this->params,
+    // 'route'     => $this->endpoint,
+    // 'vars'      => $this->route_args,
+    // ),
+    // ),
+    // );
+    // }
+
+    protected function get_constructor_args(): array {
         return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'guard'   => $this->route_guard,
-                    'methods' => $this->methods,
-                    'params'  => $this->params,
-                    'route'   => $this->endpoint,
-                    'vars'    => $this->route_args,
-                ),
-            ),
+            parent::get_constructor_args(),
+            array( 'endpoint', 'methods', 'route_args', 'route_guard' ),
         );
     }
 

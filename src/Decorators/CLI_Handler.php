@@ -180,9 +180,7 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         Closure|string|int|array $priority = 10,
         mixed ...$args,
     ) {
-        $ctr = $args['args']['container'] ?? $args['container'] ?? null;
-
-        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
+        parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI );
     }
 
     public function get_namespace(): string {
@@ -200,6 +198,9 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
     }
 
     protected function get_constructor_args(): array {
-        return array( 'namespace', 'description', 'priority' );
+        return \array_merge(
+            parent::get_constructor_args(),
+            array( 'namespace', 'description' ),
+        );
     }
 }

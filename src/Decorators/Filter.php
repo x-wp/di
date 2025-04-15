@@ -16,6 +16,7 @@ use XWP\DI\Container;
 use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Interfaces\Decorates_Callback;
 use XWP\DI\Interfaces\Decorates_Handler;
+use XWP\DI\Utils\Reflection;
 
 /**
  * Filter hook decorator.
@@ -56,6 +57,20 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
     protected bool $firing = false;
 
     /**
+     * Invocation strategy.
+     *
+     * @var array{
+     *   args: null|int|array<int,string>,
+     *   catch: bool,
+     *   limit: int,
+     *   params: array<string>,
+     *   proxy: bool,
+     *   recursive: bool,
+     * }
+     */
+    protected array $invoke = array();
+
+    /**
      * Constructor.
      *
      * @param string                                              $tag         Hook tag.
@@ -74,14 +89,22 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         Closure|array|int|string $priority = 10,
         int $context = self::CTX_GLOBAL,
         string|array|bool $modifiers = false,
-        protected int $invoke = self::INV_STANDARD,
-        protected ?int $args = null,
-        protected array $params = array(),
-        bool $debug = false,
-        bool $trace = false,
+        int $invoke = self::INV_STANDARD,
+        ?int $args = null,
+        ?array $params = null,
+        ?bool $debug = null,
+        ?bool $trace = null,
         mixed ...$depr,
     ) {
-        $depr = $depr[0] ?? $depr;
+        $depr         = $depr[0] ?? $depr;
+        $this->invoke = array(
+            'args'      => $args,
+            'catch'     => 0 !== ( $invoke & self::INV_SAFELY ),
+            'limit'     => 0 !== ( $invoke & self::INV_ONCE ) ? 1 : 0,
+            'params'    => $params ?? array(),
+            'proxy'     => 0 !== ( $invoke & self::INV_PROXIED ),
+            'recursive' => 0 !== ( $invoke & self::INV_LOOPED ),
+        );
 
         parent::__construct(
             tag:$tag,
@@ -91,8 +114,6 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
             debug: $debug,
             trace: $trace,
         );
-
-        $this->compat_args = \array_keys( \array_filter( $depr ) );
     }
 
     /**
@@ -104,10 +125,6 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
     public function with_handler( Decorates_Handler $handler ): static {
         $this->handler   = $handler;
         $this->classname = $handler->get_classname();
-
-        // if ( $handler->is_lazy() ) {
-        // $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
-        // }
 
         return $this;
     }
@@ -126,34 +143,12 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         return $this->method;
     }
 
-    public function get_reflector(): Reflector {
-        if ( isset( $this->reflector ) ) {
-            return $this->reflector;
-        }
-
-        return $this
-            ->with_reflector( $this->get_handler()->get_reflector()->getMethod( $this->get_method() ) )
-            ->get_reflector();
-    }
-
-    public function get_num_args(): int {
-        return $this->args ??= $this->get_reflector()->getNumberOfParameters();
-    }
-
     public function get_data(): array {
         $data = parent::get_data();
 
         $data['construct']['handler'] = $this->get_handler()->get_token();
 
         return $data;
-    }
-
-    public function get_container(): Container {
-        return $this->container ??= $this->get_handler()->get_container();
-    }
-
-    public function get_logger(): LoggerInterface {
-        return $this->logger ??= $this->get_handler()->get_logger();
     }
 
     /**
@@ -169,170 +164,11 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
         return 'cb:';
     }
 
-    /**
-     * Get the current hook.
-     *
-     * @return string
-     */
-    protected function current(): string {
-        $cb = "current_{$this->get_type()}";
-
-        return $cb();
-    }
-
     public function with_reflector( Reflector $r ): static {
-        $this->args   ??= $r->getNumberOfParameters();
+        $this->invoke   = $this->resolve_invoke( $r );
         $this->method ??= $r->getName();
 
         return parent::with_reflector( $r );
-    }
-
-    public function can_load(): bool {
-        return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
-    }
-
-    protected function init_handler( string $strategy ): bool {
-        if ( $this->get_handler()->is_loaded() ) {
-            return true;
-        }
-
-        if ( $strategy !== $this->get_handler()->get_strategy() ) {
-            return $this->can_load();
-        }
-
-        \do_action( "{$this->get_handler()->get_token()}_{$strategy}_init", $this->get_handler() );
-
-        return $this->get_handler()->is_loaded();
-    }
-
-    protected function cb_valid( int $current ): bool {
-        return 0 !== ( $this->invoke & $current );
-    }
-
-    /**
-     * Get the target for the hook.
-     *
-     * @return array{0:object,1:string}
-     */
-    protected function get_target(): array {
-        return $this->cb_valid( self::INV_STANDARD )
-            ? array( $this->get_handler()->get_target(), $this->get_method() )
-            : array( $this, 'invoke' );
-    }
-
-    public function load(): bool {
-        if ( $this->is_loaded() ) {
-            return true;
-        }
-
-        if ( ! $this->init_handler( Decorates_Handler::INIT_LAZY ) ) {
-            return false;
-        }
-
-        $this->loaded      = $this->load_hook();
-        $this->init_hook ??= \current_action();
-
-        return $this->loaded;
-    }
-
-    /**
-     * Loads the hook.
-     *
-     * @param  ?string $tag Optional hook tag.
-     * @return bool
-     */
-    protected function load_hook( ?string $tag = null ): bool {
-        return ( "add_{$this->get_type()}" )(
-            $tag ?? $this->get_tag(),
-            $this->get_target(),
-            $this->get_priority(),
-            $this->get_num_args(),
-        );
-    }
-
-    public function invoke( mixed ...$args ): mixed {
-        if (
-            ! $this->init_handler( Decorates_Handler::INIT_JIT ) ||
-            ! parent::can_load() ||
-            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
-            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
-        ) {
-            return $args[0] ?? null;
-        }
-
-        try {
-            return $this->fire_hook( ...$args );
-        } catch ( \Throwable $e ) {
-            return $this->handle_exception( $e, $args[0] ?? null );
-        } finally {
-            $this->firing = false;
-            ++$this->fired;
-        }
-    }
-
-    /**
-     * Fire the hook.
-     *
-     * @param  mixed ...$args Arguments to pass to the callback.
-     * @return mixed
-     */
-    protected function fire_hook( mixed ...$args ): mixed {
-        $this->firing = true;
-
-        return $this->get_container()->call(
-            array( $this->get_classname(), $this->get_method() ),
-            $this->get_cb_args( $args ),
-        );
-    }
-
-    /**
-     * Get the arguments to pass to the callback.
-     *
-     * @param  array<int, mixed> $args Existing arguments.
-     * @return array<int, mixed>
-     */
-    protected function get_cb_args( array $args ): array {
-        if ( $this->params ) {
-            foreach ( $this->params as $param ) {
-                $args[] = $this->get_cb_arg( $param );
-            }
-        }
-
-        return $args;
-    }
-
-    protected function get_cb_arg( string $param ): mixed {
-        return match ( $param ) {
-            '!self.handler' => $this->get_handler(),
-            default        => parent::get_cb_arg( $param ),
-        };
-    }
-
-    /**
-     * Handle an exception.
-     *
-     * @template TExc of \Throwable
-     * @param  TExc  $e The exception.
-     * @param  mixed $v The value to return.
-     * @return mixed
-     *
-     * @throws TExc If the handler is not set to safely invoke.
-     */
-    protected function handle_exception( \Throwable $e, mixed $v ): mixed {
-        if ( ! $this->cb_valid( self::INV_SAFELY ) ) {
-            throw $e;
-        }
-
-        $this->get_logger()->error(
-            \sprintf( 'Error executing %s "%s": %s', $this->get_type(), $this->get_tag(), $e->getMessage() ),
-            array(
-                'handler' => $this->get_classname(),
-                'method'  => $this->get_method(),
-                'tag'     => $this->get_tag(),
-            ),
-        );
-
-        return $v;
     }
 
     protected function get_token_base(): string {
@@ -348,7 +184,25 @@ class Filter extends Hook implements Can_Invoke, Decorates_Callback {
     protected function get_constructor_args(): array {
         return \array_merge(
             parent::get_constructor_args(),
-            array( 'invoke', 'args', 'method', 'handler', 'params' ),
+            array( 'invoke', 'method', 'handler' ),
         );
+    }
+
+    protected function resolve_invoke( ReflectionMethod $m ): array {
+        $invoke = array();
+
+        foreach ( Reflection::get_decorators( $m, Invocation::class ) as $i ) {
+            foreach ( $i->get_args() as $arg => $val ) {
+                $invoke[ $arg ] = $val;
+            }
+        }
+
+        $invoke['args'] ??= $m->getNumberOfParameters();
+
+        return \array_merge( $this->invoke, $invoke );
+    }
+
+    protected function is_unconditional(): bool {
+        return ! \method_exists( $this->classname, "can_invoke_{$this->method}" );
     }
 }
