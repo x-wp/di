@@ -146,9 +146,9 @@ class App_Builder extends ContainerBuilder {
                 ->parameter( 'file', \DI\get( 'app.file' ) );
             $definition['app.path'] = \DI\factory( 'plugin_dir_path' )
                 ->parameter( 'file', \DI\get( 'app.file' ) );
-            $definition['app.url']  = \DI\factory( 'plugin_dir_url' )
-                ->parameter( 'file', \DI\get( 'app.file' ) );
-
+            $definition['app.url']  = \DI\factory( 'plugins_url' )
+                ->parameter( 'path', '' )
+                ->parameter( 'plugin', \DI\get( 'app.base' ) );
         }
 
         return parent::addDefinitions( $definition );
