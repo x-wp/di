@@ -52,7 +52,7 @@ class App_Builder extends ContainerBuilder {
             ->enableHookCache( enableCache: $config['cache_hooks'], cacheDirectory: $config['cache_dir'] )
             ->writeProxiesToFile( writeToFile: $config['use_proxies'], proxyDirectory: $config['cache_dir'] )
             ->addBaseDefinition( $config )
-            ->addLogDefinition( $config )
+            // ->addLogDefinition( $config )
             ->addModuleDefinition( $config );
     }
 
@@ -161,30 +161,30 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addLogDefinition( array $config ): App_Builder {
-        $log_cfg = $config['logger'];
-        $params  = array(
-            'app_id'  => $log_cfg['app_id'],
-            'basedir' => $log_cfg['basedir'],
-            'level'   => $log_cfg['level'],
-        );
+        // $log_cfg = $config['logger'];
+        // $params  = array(
+        // 'app_id'  => $log_cfg['app_id'],
+        // 'basedir' => $log_cfg['basedir'],
+        // 'level'   => $log_cfg['level'],
+        // );
 
-        if ( ! $log_cfg['enabled'] ) {
-            $log_cfg['handler'] = NullLogger::class;
-            $params             = array();
-        }
+        // if ( ! $log_cfg['enabled'] ) {
+        // $log_cfg['handler'] = NullLogger::class;
+        // $params             = array();
+        // }
 
-        $definition = array(
-            'xwp.logger' => \DI\autowire( $log_cfg['handler'] )->constructor( ...$params ),
-            'app.logger' => \DI\factory(
-                static fn( $logger, string $ctx ) => \method_exists( $logger, 'with_context' )
-                    ? $logger->with_context( $ctx )
-                    : $logger,
-            )
-                ->parameter( 'logger', \DI\get( 'xwp.logger' ) ),
+        // $definition = array(
+        // 'xwp.logger' => \DI\autowire( $log_cfg['handler'] )->constructor( ...$params ),
+        // 'app.logger' => \DI\factory(
+        // static fn( $logger, string $ctx ) => \method_exists( $logger, 'with_context' )
+        // ? $logger->with_context( $ctx )
+        // : $logger,
+        // )
+        // ->parameter( 'logger', \DI\get( 'xwp.logger' ) ),
 
-        );
+        // );
 
-        return $this->addDefinitions( $definition );
+        return $this;// ->addDefinitions( $definition );
     }
 
     /**

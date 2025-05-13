@@ -86,19 +86,6 @@ final class App_Factory {
     }
 
     /**
-     * Call a static method on the instance.
-     *
-     * @param  string              $name Method name.
-     * @param  array<string,mixed> $args Method arguments.
-     * @return mixed
-     */
-    public static function __callStatic( string $name, array $args = array() ): mixed {
-        return \method_exists( self::class, "call_{$name}" )
-            ? self::instance()->{"call_{$name}"}( ...$args )
-            : null;
-    }
-
-    /**
      * Constructor.
      */
     protected function __construct() {
@@ -126,18 +113,16 @@ final class App_Factory {
     }
 
     /**
-     * Uninstall the container.
+     * Call a static method on the instance.
+     *
+     * @param  string              $name Method name.
+     * @param  array<string,mixed> $args Method arguments.
+     * @return mixed
      */
-    private function call_uninstall(): void {
-        $app = \defined( 'WP_UNINSTALL_PLUGIN' )
-            ? $this->files[ WP_UNINSTALL_PLUGIN ] ?? false
-            : false;
-
-        if ( ! $app ) {
-            return;
-        }
-
-        $this->decompile( $app, true );
+    public static function __callStatic( string $name, array $args = array() ): mixed {
+        return \method_exists( self::class, "call_{$name}" )
+            ? self::instance()->{"call_{$name}"}( ...$args )
+            : null;
     }
 
     /**
@@ -197,6 +182,62 @@ final class App_Factory {
         }
 
         $this->files[ $ext['file'] ] = $app;
+    }
+
+    /**
+     * Check if the file is a plugin file.
+     *
+     * @param  string $file File path.
+     * @return 'plugin'|'theme'
+     */
+    protected function parse_type( string $file ): string {
+        return \doing_action( 'plugins_loaded' ) || \str_contains( $file, \WP_PLUGIN_DIR )
+            ? 'plugin'
+            : 'theme';
+    }
+
+    /**
+     * Are we uninstalling the plugin?
+     *
+     * @param  string|bool $file File path.
+     * @return bool
+     */
+    protected function is_uninstalling( string|bool $file ): bool {
+        return \defined( 'WP_UNINSTALL_PLUGIN' ) && WP_UNINSTALL_PLUGIN === $file;
+    }
+
+    /**
+     * Can we debug this container?
+     *
+     * @param  string|null $app_id Application ID.
+     * @return bool
+     */
+    protected function can_debug( ?string $app_id = null ): bool {
+        return ! $this->app_debug || \in_array( $app_id, $this->app_debug, true );
+    }
+
+    /**
+     * Is this a production environment?
+     *
+     * @return bool
+     */
+    protected function is_prod(): bool {
+        return 'production' === \wp_get_environment_type();
+    }
+
+    /**
+     * Uninstall the container.
+     */
+    private function call_uninstall(): void {
+        $app = \defined( 'WP_UNINSTALL_PLUGIN' )
+            ? $this->files[ WP_UNINSTALL_PLUGIN ] ?? false
+            : false;
+
+        if ( ! $app ) {
+            return;
+        }
+
+        $this->decompile( $app, true );
     }
 
     /**
@@ -282,8 +323,8 @@ final class App_Factory {
      * @return array<string,mixed>
      */
     private function parse_app_config( array $config ): array {
-            $config = $this->parse_legacy_config( $config );
-        $config     = \xwp_parse_args(
+        $config = $this->parse_legacy_config( $config );
+        return \xwp_parse_args(
             $config,
             array(
                 'app_class'      => 'CompiledContainer' . \strtoupper( $config['app_id'] ),
@@ -304,33 +345,6 @@ final class App_Factory {
                 'use_proxies'    => false,
             ),
         );
-
-        return $this->parse_log_config( $config );
-    }
-
-    /**
-     * Parses the log config
-     *
-     * @param array<string,mixed> $config Configuration options.
-     * @return array<string,mixed>
-     */
-    private function parse_log_config( array $config ): array {
-        $logger = \is_array( $config['logger'] )
-            ? $config['logger']
-            : array( 'enabled' => (bool) $config['logger'] );
-
-        $config['logger'] = \xwp_parse_args(
-            $logger,
-            array(
-                'app_id'  => $config['app_id'],
-                'basedir' => \WP_CONTENT_DIR . '/logs/xwp-di',
-                'enabled' => true,
-                'handler' => Logger::class,
-                'level'   => $this->is_prod() ? LogLevel::ERROR : LogLevel::DEBUG,
-            ),
-        );
-
-        return $config;
     }
 
     /**
@@ -382,46 +396,5 @@ final class App_Factory {
         }
 
         return $config;
-    }
-
-    /**
-     * Check if the file is a plugin file.
-     *
-     * @param  string $file File path.
-     * @return 'plugin'|'theme'
-     */
-    protected function parse_type( string $file ): string {
-        return \doing_action( 'plugins_loaded' ) || \str_contains( $file, \WP_PLUGIN_DIR )
-            ? 'plugin'
-            : 'theme';
-    }
-
-    /**
-     * Are we uninstalling the plugin?
-     *
-     * @param  string|bool $file File path.
-     * @return bool
-     */
-    protected function is_uninstalling( string|bool $file ): bool {
-        return \defined( 'WP_UNINSTALL_PLUGIN' ) && WP_UNINSTALL_PLUGIN === $file;
-    }
-
-    /**
-     * Can we debug this container?
-     *
-     * @param  string|null $app_id Application ID.
-     * @return bool
-     */
-    protected function can_debug( ?string $app_id = null ): bool {
-        return ! $this->app_debug || \in_array( $app_id, $this->app_debug, true );
-    }
-
-    /**
-     * Is this a production environment?
-     *
-     * @return bool
-     */
-    protected function is_prod(): bool {
-        return 'production' === \wp_get_environment_type();
     }
 }

@@ -24,7 +24,6 @@
     "php": ">=8.0",
     "automattic/jetpack-constants": "^2 || ^3",
     "php-di/php-di": "^7",
-    "psr/log": "^2.0 || ^3.0",
     "symfony/polyfill-php81": "^1.31",
     "x-wp/helper-classes": "^1.13",
     "x-wp/helper-functions": "^1.13"

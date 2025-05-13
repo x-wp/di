@@ -8,7 +8,6 @@
 
 namespace XWP\DI;
 
-use Psr\Log\LoggerInterface;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Import;
@@ -33,20 +32,6 @@ class Invoker {
      * @var array<class-string,array<string,string>>>
      */
     private array $callbacks = array();
-
-    /**
-     * Uncached handlers.
-     *
-     * @var array<string,string> //array<Can_Handle<object>>
-     */
-    private array $uncached = array();
-
-    /**
-     * List of handlers which use deprecated arguments.
-     *
-     * @var array<class-string,array<string>>
-     */
-    private array $old_handlers = array();
 
     /**
      * Cache configuration.
@@ -82,13 +67,6 @@ class Invoker {
     private string $app_id;
 
     /**
-     * Logger instance.
-     *
-     * @var LoggerInterface
-     */
-    private LoggerInterface $logger;
-
-    /**
      * Constructor.
      *
      * @param  Factory   $factory   Factory instance.
@@ -99,13 +77,6 @@ class Invoker {
         $this->cache  = $container->get( 'app.cache' );
         $this->env    = $container->get( 'app.env' );
         $this->app_id = $container->get( 'app.id' );
-        $this->logger = $container->logger( self::class );
-
-        if ( ! $this->can_debug() ) {
-            return;
-        }
-
-        \add_action( 'shutdown', array( $this, 'debug_output' ), \PHP_INT_MAX );
     }
 
     /**
@@ -121,29 +92,6 @@ class Invoker {
         }
 
         return null;
-    }
-
-    /**
-     * Debug output.
-     */
-    public function debug_output(): void {
-        $this->logger->debug( 'Shutting down application' );
-
-        if ( $this->uncached ) {
-            $this->logger->debug(
-                'Hook definition cache is active. The following handlers were loaded manually',
-                $this->uncached,
-            );
-        }
-
-        if ( $this->old_handlers ) {
-            $this->logger->debug( 'Handlers with deprecated arguments', $this->old_handlers );
-        }
-
-        $this->logger->debug( 'Handlers', $this->handlers );
-        $this->logger->debug( 'Hooks', $this->callbacks );
-
-        $this->logger->debug( 'Application shutdown complete' );
     }
 
     /**
@@ -304,10 +252,6 @@ class Invoker {
 
         $this->handlers[ $h->get_classname() ] = $h->get_init_hook();
 
-        if ( $this->debug && $h->get_compat_args() ) {
-            $this->old_handlers[ $h->get_classname() ] = \implode( ', ', $h->get_compat_args() );
-        }
-
         return $h instanceof Can_Import
             ? $this->init_module( $h )
             : $this;
@@ -346,10 +290,6 @@ class Invoker {
 
         $cbs = \array_map( static fn( $cb ) => $cb->get_token(), $this->resolve_callbacks( $h ) );
         $h->with_callbacks( $cbs );
-
-        if ( $this->is_cached( 'hooks' ) && ( $this->debug || $this->is_prod() ) ) {
-            $this->uncached[ $h->get_token() ] = $h->get_classname();
-        }
 
         return $this;
     }
@@ -399,7 +339,7 @@ class Invoker {
             $this->add_callback( $cb );
         }
 
-        do_action( "xwp_di_hooks_loaded_{$h->get_classname()}" );
+        \do_action( "xwp_di_hooks_loaded_{$h->get_classname()}" );
 
         return $this;
     }

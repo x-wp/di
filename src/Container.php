@@ -96,7 +96,14 @@ class Container extends DI_Container {
 
         $this->started = true;
 
-        $this->get( Invoker::class )->register_handler( $this->get( 'app.module' ) );
+        /**
+         * Module class name.
+         *
+         * @var class-string<object> $root_module
+         */
+        $root_module = $this->get( 'app.module' );
+
+        $this->get( Invoker::class )->register_handler( $root_module );
 
         \do_action( "xwp_{$this->get('app.uuid')}_app_start" );
 
@@ -132,15 +139,5 @@ class Container extends DI_Container {
      */
     public function started(): bool {
         return $this->started;
-    }
-
-    /**
-     * Get a logger instance.
-     *
-     * @param  string $context Logger context.
-     * @return LoggerInterface
-     */
-    public function logger( string $context ): LoggerInterface {
-        return $this->make( 'app.logger', array( 'ctx' => $context ) );
     }
 }
