@@ -190,7 +190,12 @@ class Ajax_Action extends Action {
             $args[] = \json_decode( \file_get_contents( 'php://input' ), true ) ?? array();
         }
 
-        foreach ( \xwp_array_diff_assoc( $this->vars, 'body' ) as $k => $d ) {
+        if ( isset( $this->vars['form'] ) ) {
+            // @phpstan-ignore argument.templateType
+            $args[] = \xwp_req_arr( $this->vars['form'] );
+        }
+
+        foreach ( \xwp_array_diff_assoc( $this->vars, 'body', 'form' ) as $k => $d ) {
             $args[] = ( $this->getter )( $k, $d );
         }
 
