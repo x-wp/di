@@ -110,12 +110,16 @@ class Ajax_Action extends Action {
         $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
         $this->getter = Closure::fromCallable( $this->get_fetch_cb( $method ) );
 
+        [ $modifiers, $tag ] = '' !== $prefix
+            ? array( array( '%s', \rtrim( $prefix, '_' ), $action ), '%s_%s_%s' )
+            : array( array( '%s', $action ), '%s_%s' );
+
         parent::__construct(
-            tag: '%s_%s_%s',
+            tag: $tag,
             priority:$priority,
             context: self::CTX_AJAX,
             conditional: $conditional,
-            modifiers: array( '%s', \rtrim( $prefix, '_' ), $action ),
+            modifiers: $modifiers,
             invoke: self::INV_PROXIED,
             args: 0,
             params: $params,
