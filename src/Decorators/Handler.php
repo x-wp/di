@@ -225,7 +225,7 @@ class Handler extends Hook implements Can_Handle {
      * @return bool
      */
     protected function method_exists( string $method ): bool {
-        return \method_exists( $this->instance, $method );
+        return \method_exists( $this->instance ?? $this->classname, $method );
     }
 
     /**
@@ -235,6 +235,10 @@ class Handler extends Hook implements Can_Handle {
      * @return array<mixed>
      */
     protected function resolve_params( string $method ): array {
+        if ( ! $this->method_exists( $method ) ) {
+            return array();
+        }
+
         $injector = Reflection::get_decorator( $this->reflector->getMethod( $method ), Infuse::class );
 
         return $injector ? $injector->resolve( $this ) : array();
@@ -250,7 +254,11 @@ class Handler extends Hook implements Can_Handle {
     }
 
     public function can_load(): bool {
-        return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
+        return parent::can_load() &&
+            $this->check_method(
+                array( $this->classname, 'can_initialize' ),
+                $this->resolve_params( 'can_initialize' ),
+            );
     }
 
     protected function get_id(): string {

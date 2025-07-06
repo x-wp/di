@@ -181,15 +181,21 @@ class Invoker {
      * Register a handler.
      *
      * @template T of object
-     * @param  class-string<T> $classname The handler classname.
+     * @param  class-string<T>|T|Can_Handle<T> $classname The handler classname.
      * @return static
      */
-    public function register_handler( string $classname ): static {
-        if ( $this->has_handler( $classname ) ) {
+    public function register_handler( string|object $classname ): static {
+        $target = \is_object( $classname )
+            ? Handler_Factory::get_target( $classname )
+            : $classname;
+
+        if ( $this->has_handler( $target ) ) {
             return $this;
         }
 
-        $handler = Handler_Factory::from_classname( $classname );
+        $handler = \is_object( $classname )
+            ? Handler_Factory::from_instance( $classname )
+            : Handler_Factory::from_classname( $classname );
 
         return match ( $handler->strategy ) {
             $handler::INIT_EARLY       => $this
@@ -217,17 +223,18 @@ class Invoker {
      * @template T of object
      * @param  T           $instance  The handler instance.
      * @param  null|string $container The container to use.
+     * @param  bool        $force     Whether to force loading the handler.
      * @return static
      */
-    public function load_handler( object $instance, ?string $container = null ): static {
-        if ( $this->has_handler( Handler_Factory::get_target( $instance ) ) ) {
+    public function load_handler( object $instance, ?string $container = null, bool $force = false ): static {
+        if ( ! $force && $this->has_handler( Handler_Factory::get_target( $instance ) ) ) {
             return $this;
         }
 
         $handler = Handler_Factory::from_instance( $instance, $container );
 
         return $this
-            ->add_handler( $handler )
+            ->add_handler( $handler, $force )
             ->register_methods( $handler )
             ->invoke_methods( $handler );
     }

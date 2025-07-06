@@ -33,6 +33,7 @@ class Ajax_Handler extends Handler {
         parent::__construct(
             tag: 'admin_init',
             priority: $priority,
+            strategy: self::INIT_ON_DEMAND,
             container: $container,
             context: self::CTX_AJAX,
             conditional: $conditional,
