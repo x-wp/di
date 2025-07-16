@@ -13,6 +13,8 @@ use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use XWP\DI\Core\App_Config;
+use XWP\DI\Definition\Source\Definition_Module;
 use XWP\DI\Hook\Compiler;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Hook\Parser;
@@ -38,7 +40,7 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public static function configure( array $config = array() ): App_Builder {
-        return ( new App_Builder( Container::class ) )
+        $d = ( new App_Builder( Container::class ) )
             ->useAttributes( $config['use_attributes'] )
             ->useAutowiring( $config['use_autowiring'] )
             ->enableCompilation(
@@ -54,6 +56,38 @@ class App_Builder extends ContainerBuilder {
             ->addBaseDefinition( $config )
             // ->addLogDefinition( $config )
             ->addModuleDefinition( $config );
+
+        // \dump( $d );
+        // die;
+
+        return $d;
+    }
+
+    public function __construct( protected readonly App_Config $config ) {
+        parent::__construct( $config->container );
+
+        $this
+            ->useAttributes( true )
+            ->useAutowiring( true )
+            ->enableCompilation(
+                compile: $config->compile,
+                directory: $config->cache_dir,
+                containerClass: $config->cmp_ctr,
+                containerParentClass: Compiled_Container::class,
+            )
+            ->enableDefinitionCache( enableCache: $config->cache, cacheNamespace: $config->id );
+    }
+
+    /**
+     * Initialize the builder with the application module
+     *
+     * @template TMod of object
+     *
+     * @param  class-string<TMod> $module Application enty point module class.
+     * @return static
+     */
+    public function initialize( string $module ): static {
+        return $this->addDefinitions( array( 'app.cfg' => \DI\value( clone $this->config ) ) );
     }
 
     /**

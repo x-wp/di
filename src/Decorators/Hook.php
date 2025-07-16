@@ -26,18 +26,18 @@ use XWP_Context;
  */
 abstract class Hook implements Can_Hook {
     /**
-     * Is the hook definition cached?
-     *
-     * @var bool
-     */
-    protected bool $cached = false;
-
-    /**
      * Define the shared methods needed for hook invocation.
      *
      * @use Hook_Invoke_Methods<THndlr>
      */
     use Hook_Invoke_Methods;
+
+    /**
+     * Is the hook definition cached?
+     *
+     * @var bool
+     */
+    protected bool $cached = false;
 
     /**
      * The name of the action to which the function is hooked.

@@ -114,7 +114,7 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  * @return Container
  */
 function xwp_create_app( array $args ): Container {
-    return \XWP\DI\App_Factory::instance()->create( $args );
+    return \XWP\DI\App_Factory::instance()->make( $args );
 }
 
 /**
@@ -169,4 +169,18 @@ function xwp_decompile_app( string $container_id, bool $immediately = false ): v
  */
 function xwp_uninstall_ext(): void {
     \XWP\DI\App_Factory::uninstall();
+}
+
+
+/**
+ * Hook a bootstrap function to the `xwp_di_bootstrap` action.
+ *
+ * @param (callable(): void) $bootstrap_fn Function to bootstrap the application.
+ */
+function xwp_bootstrap_app( callable $bootstrap_fn ): void {
+    static $priority;
+
+    $priority ??= 0;
+
+    add_action( 'xwp_di_bootstrap', $bootstrap_fn, $priority++ );
 }

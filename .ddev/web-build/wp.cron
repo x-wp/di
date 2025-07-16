@@ -1,0 +1,4 @@
+#ddev-generated
+
+* * * * * XWPDI_PATH="/home/venom/projects/composer/xwp/di" IS_DDEV_PROJECT=true DDEV_PHP_VERSION=8.1 /usr/local/bin/wp --path='/var/www/html/public_html/' cron event run --due-now 2>&1 | tee -a /var/www/html/cron.log
+0 */2 * * * echo '' > /var/www/html/cron.log

@@ -8,6 +8,7 @@
 namespace XWP\DI\Utils;
 
 use ReflectionMethod as Method;
+use XWP\DI\Attributes\Module;
 use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Traits\Accessible_Hook_Methods;
 
@@ -58,5 +59,19 @@ final class Reflection extends \XWP\Helper\Classes\Reflection {
         $ignore = array( '__call', '__callStatic', 'check_method_access', 'is_method_valid', 'get_registered_hooks', '__construct' );
 
         return ! \in_array( $m->getName(), $ignore, true );
+    }
+
+    private static function is_classname( mixed $tgt ): bool {
+        return \is_string( $tgt ) && \class_exists( $tgt );
+    }
+
+    public function get_module( string|array|callable $module ): ?Module {
+        return match ( true ) {
+            $this->is_classname( $module ) => $this->get_decorator( $module, Module::class )->with_classname(
+                $module,
+            ),
+            $this->is_callable( $module ) => \call_user_func_array( $module, array() ),
+            \is_a( $module, Module::class, true ) => $module,
+        };
     }
 }

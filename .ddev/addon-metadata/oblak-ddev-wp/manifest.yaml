@@ -1,0 +1,33 @@
+name: oblak-ddev-wp
+repository: /home/venom/projects/ddev/ddev-config-wp
+version: ""
+install_date: "2025-06-24T14:45:47+02:00"
+project_files:
+    - mysql/extra.cnf
+    - php/20-ffi.ini
+    - php/20-ftp.ini
+    - php/20-ldap.ini
+    - php/20-msgpack.ini
+    - php/20-pgsql.ini
+    - php/20-shmop.ini
+    - php/20-soap.ini
+    - php/20-sockets.ini
+    - php/20-sysvmsg.ini
+    - php/20-sysvshm.ini
+    - php/20-uploadprogress.ini
+    - php/25-memcached.ini
+    - php/custom-opcache.ini
+    - php/exec_time.ini
+    - providers/oblak.yaml.tmpl
+    - web-build/wp.cron
+    - wp/config/wp-config-db.php
+    - wp/config/wp-config-debug.php
+    - wp/config/wp-config-redis.php
+    - wp/config/wp-config-salt.php
+    - wp/config/wp-config-tweaks.php
+    - wp/config/wp-config.php
+    - config.wp_hooks.yaml
+    - config.wp.yaml
+    - docker-compose.mounts.yml
+global_files: []
+removal_actions: []

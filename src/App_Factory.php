@@ -10,6 +10,8 @@ namespace XWP\DI;
 
 use DI\Definition\Source\SourceCache;
 use Psr\Log\LogLevel;
+use XWP\DI\Core\App_Config;
+use XWP\DI\Definition\Source\Definition_App;
 use XWP\DI\Interfaces\Extension_Module;
 use XWP\Helper\Traits\Singleton;
 
@@ -57,6 +59,37 @@ final class App_Factory {
      * @var array<string>
      */
     private array $app_debug;
+
+    /**
+     * Create a new application container.
+     *
+     * @template T of object
+     *
+     * @param  class-string<T> $module  Entry (root) application module class.
+     * @param  array{
+     *   id: string,
+     *   file?: string,
+     *   version?: string,
+     *   compile?: bool,
+     *   cache?: bool
+     * }                       $options Application options.
+     * @return App
+     */
+    public static function create( string $module, array $options = array() ): App {
+        $config  = new App_Config( ...$options );
+        $builder = ( new App_Builder( $config ) )->initialize( $module );
+        // $container = App_Builder::create( $config )
+            // ->addDefinitions( new Definition_App( $module ) )
+            // ->build();
+
+        return new App(
+            $builder->addDefinitions( new Definition_App( $module ) )->build(),
+            $config,
+            $module,
+        );
+
+        // return new App( $container, $config, $module );
+    }
 
     /**
      * Add a container to the decompile list.
@@ -134,7 +167,7 @@ final class App_Factory {
      * @throws \InvalidArgumentException If the app_id is missing.
      * @throws \InvalidArgumentException If the container already exists.
      */
-    public function create( array $config ): Container {
+    public function make( array $config ): Container {
         $id = $config['app_id'] ?? $config['id'] ?? throw new \InvalidArgumentException( 'Missing app_id' );
 
         if ( isset( $this->apps[ $id ] ) ) {

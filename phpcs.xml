@@ -1,18 +1,16 @@
 <?xml version="1.0"?>
 <ruleset name="WordPress Module">
 	<config name="minimum_wp_version" value="6.6"/>
-  <config name="testVersion" value="8.0-"/>
+  <config name="testVersion" value="8.1-"/>
 
   <rule ref="Oblak"/>
   <rule ref="Oblak-Advanced"/>
+  <rule ref="Oblak-Slevomat"/>
 
   <rule ref="Squiz.Commenting.FunctionComment.IncorrectTypeHint">
     <severity>0</severity>
   </rule>
 
-  <rule ref="SlevomatCodingStandard.Operators.SpreadOperatorSpacing.IncorrectSpacesAfterOperator">
-    <severity>0</severity>
-  </rule>
-
   <file>src/</file>
+  <file>test/fixtures/</file>
 </ruleset>

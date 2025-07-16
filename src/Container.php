@@ -59,12 +59,8 @@ class Container extends DI_Container {
     ) {
         parent::__construct( $definitions, $proxyFactory, $wrapperContainer );
 
-        $this->resolvedEntries[ self::class ]    = $this;
-        $this->resolvedEntries[ static::class ]  = $this;
-        $this->resolvedEntries['xwp.invoker']    = $this->has( 'xwp.invoker' )
-            ? $this->get( 'xwp.invoker' )
-            : $this->get( Invoker::class );
-        $this->resolvedEntries[ Invoker::class ] = $this->resolvedEntries['xwp.invoker'];
+        $this->resolvedEntries[ self::class ]   = $this;
+        $this->resolvedEntries[ static::class ] = $this;
     }
 
     /**
@@ -82,6 +78,15 @@ class Container extends DI_Container {
         return null;
     }
 
+    public function get( string $id ): mixed {
+        $v = parent::get( $id );
+
+        \dump( $this );
+        die;
+
+        return $v;
+    }
+
     /**
      * Run the XWP application.
      *
@@ -94,7 +99,11 @@ class Container extends DI_Container {
             throw new \RuntimeException( 'Container already started.' );
         }
 
-        $this->started = true;
+        $this->resolvedEntries['xwp.invoker']    = $this->has( 'xwp.invoker' )
+            ? $this->get( 'xwp.invoker' )
+            : $this->get( Invoker::class );
+        $this->resolvedEntries[ Invoker::class ] = $this->resolvedEntries['xwp.invoker'];
+        $this->started                           = true;
 
         /**
          * Module class name.

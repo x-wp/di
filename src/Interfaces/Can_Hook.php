@@ -157,4 +157,11 @@ interface Can_Hook extends Has_Context {
      * @return bool
      */
     public function is_loaded(): bool;
+
+    /**
+     * Check if the context is valid.
+     *
+     * @return bool
+     */
+    public function check_context(): bool;
 }

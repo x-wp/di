@@ -1,0 +1,8 @@
+#ddev-generated
+
+services:
+  web:
+    volumes:
+      - "$HOME/projects/plugins:/home/venom/projects/plugins"
+      - "$HOME/projects/composer:/home/venom/projects/composer"
+      - "$HOME/projects/composer/xwp/di/test/fixtures/di-plugin:/var/www/html/public_html/wp-content/plugins/di-plugin"
