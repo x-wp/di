@@ -42,9 +42,9 @@ class Ajax_Action extends Action {
     /**
      * Nonce query var.
      *
-     * @var bool|string
+     * @var array{0?:string,1?:string}
      */
-    protected bool|string $nonce;
+    protected array $nonce;
 
     /**
      * Capability required to perform the action.
@@ -83,7 +83,7 @@ class Ajax_Action extends Action {
      * @param string                                             $prefix      Prefix for the action name.
      * @param bool                                               $public      Whether the action is public or not.
      * @param 'GET'|'POST'|'REQ'                                 $method      Method to fetch the variable. GET, POST, or REQ.
-     * @param bool|string                                        $nonce       String defines the query var for nonce, true checks the default vars, false disables nonce check.
+     * @param bool|string|array{0:string,1:string}               $nonce       String defines the query var for nonce, true checks the default vars, false disables nonce check.
      * @param null|string|array<string,string|array<int,string>> $cap         Capability required to perform the action.
      * @param array<string,mixed>                                $vars        Variables to fetch.
      * @param array<int,mixed>                                   $params      Parameters to pass to the callback. Will be resolved by the container.
@@ -95,7 +95,7 @@ class Ajax_Action extends Action {
         string $prefix,
         bool $public = true,
         string $method = self::AJAX_REQ,
-        bool|string $nonce = false,
+        bool|string|array $nonce = false,
         null|string|array $cap = null,
         array $vars = array(),
         array $params = array(),
@@ -104,7 +104,7 @@ class Ajax_Action extends Action {
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
-        $this->nonce  = $nonce;
+        $this->nonce  = $this->parse_nonce( $nonce );
         $this->cap    = $cap;
         $this->vars   = $vars;
         $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
@@ -206,6 +206,27 @@ class Ajax_Action extends Action {
         return parent::get_cb_args( $args );
     }
 
+    /**
+     * Parse the nonce parameter.
+     *
+     * @param  bool|string|array{0:string,1:string} $nonce Nonce parameter.
+     * @return array{0?:string,1?:string}
+     */
+    private function parse_nonce( bool|string|array $nonce ): array {
+        if ( false === $nonce ) {
+            return array();
+        }
+
+        if ( \is_array( $nonce ) ) {
+            return $nonce;
+        }
+
+        return array(
+            "{$this->prefix}_{$this->action}",
+            \is_string( $nonce ) ? $nonce : false,
+        );
+    }
+
     private function fire_guard_cb( string $type ): void {
         $methods = array( "{$this->action}_{$type}_guard", "{$type}_guard", "{$this->action}_guard", 'unverified_call', 'invalid_call' );
 
@@ -222,9 +243,9 @@ class Ajax_Action extends Action {
     }
 
     private function nonce_check(): bool {
-        $query_arg = \is_string( $this->nonce ) ? $this->nonce : false;
+        [ $action, $query_arg ] = $this->nonce;
 
-        return \check_ajax_referer( "{$this->prefix}_{$this->action}", $query_arg, false );
+        return \check_ajax_referer( $action, $query_arg, false );
     }
 
     private function cap_check(): bool {
