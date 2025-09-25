@@ -1,0 +1,27 @@
+#ddev-generated
+
+files_pull_command:
+  command: |
+    set -eu -o pipefail
+    pushd /var/www/html/public_media > /dev/null
+    rsync --info=progress2 -rae "ssh -l root -p 8954" server.tis.rs:/home/b2b/public_html/media/* ./
+    popd > /dev/null
+  service: web
+
+db_pull_command:
+  command: |
+    set -eu -o pipefail
+    ssh tis.serv "wp --allow-root --path=/home/b2b/public_html action-scheduler clean --status=complete --batch-size=500"
+    ssh tis.serv "mysqldump b2b_core > /tmp/b2b.sql"
+    ssh tis.serv "cd /tmp && gzip -f b2b.sql"
+    rsync tis.serv:/tmp/b2b.sql.gz /home/venom/projects/tisb2b/.ddev/.downloads/db.sql.gz
+    ssh tis.serv "rm -f /tmp/b2b.sql.gz"
+  service: host
+
+files_import_command:
+  command: |
+    wp cache flush
+    wp transient delete --all
+    wp woosync export category
+    wp woosync export
+  service: web

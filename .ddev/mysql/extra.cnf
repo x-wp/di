@@ -1,0 +1,36 @@
+#ddev-generated
+
+[mysqld]
+
+max_connections = 20
+
+max_allowed_packet      = 128M
+sort_buffer_size        = 2M
+join_buffer_size        = 128M
+read_buffer_size        = 2M
+
+innodb_buffer_pool_size         = 2G
+innodb_redo_log_capacity        = 256M
+innodb_log_buffer_size          = 32M
+innodb_buffer_pool_instances    = 2
+innodb_file_per_table           = 1
+innodb_fast_shutdown            = 1
+innodb_max_dirty_pages_pct      = 90
+innodb_max_dirty_pages_pct_lwm  = 10
+innodb_idle_flush_pct           = 100
+innodb_flush_method             = O_DIRECT_NO_FSYNC
+innodb_use_native_aio           = 1
+innodb_doublewrite              = 0
+innodb_log_compressed_pages     = 0
+innodb_lru_scan_depth           = 1024
+innodb_page_cleaners            = 8
+innodb_flush_neighbors          = 0
+innodb_adaptive_flushing        = 1
+innodb_flush_log_at_trx_commit  = 2
+innodb_read_io_threads          = 10
+innodb_write_io_threads         = 10
+innodb_io_capacity              = 40000
+innodb_io_capacity_max          = 50000
+innodb_compression_level        = 2
+innodb_stats_on_metadata        = 0
+default-storage-engine          = InnoDB

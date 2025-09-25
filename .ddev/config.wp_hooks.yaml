@@ -1,0 +1,7 @@
+#ddev-generated
+hooks:
+  post-import-db:
+    - exec: bash /mnt/ddev_config/wp/post-db-import.sh
+  pre-stop:
+    - exec: echo '' > /var/www/html/debug.log
+    - exec: echo '' > /var/www/html/cron.log

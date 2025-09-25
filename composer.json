@@ -56,11 +56,19 @@
       "XWP\\DI\\": "src/"
     },
     "classmap": [
-      "src/Core/"
+      "src/Global/"
     ],
     "files": [
       "src/Functions/xwp-di-container-fns.php",
       "src/Functions/xwp-di-helper-fns.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "XWP\\DIT\\": "test/fixtures/shared"
+    },
+    "classmap": [
+      "test/fixtures/shared/App_Module.php"
     ]
   },
   "config": {

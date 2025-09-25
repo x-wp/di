@@ -1,0 +1,12 @@
+#ddev-generated
+override_config: true
+database:
+  type: mysql
+  version: "8.0"
+type: "wordpress"
+docroot: "public_html"
+working_dir:
+  web: /var/www/html/public_html
+timezone: Europe/Belgrade
+disable_settings_management: true
+default_container_timeout: 300
