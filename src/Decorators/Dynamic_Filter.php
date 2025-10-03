@@ -86,42 +86,6 @@ class Dynamic_Filter extends Filter {
         return $data;
     }
 
-    /**
-     * Process variables.
-     *
-     * @param  string|array<string>|callable():array<string> $vars Variables to mix into the tag.
-     * @return array<int,string>|array<string,string>
-     */
-    private function process_vars( string|callable|array $vars ): array {
-        if ( \is_callable( $vars ) ) {
-            return $vars();
-        }
-
-        if ( \is_string( $vars ) && $this->container->has( $vars ) ) {
-            return $this->container->get( $vars );
-        }
-
-        return $vars;
-    }
-
-    /**
-     * Parse variables.
-     *
-     * @param  string|array<string>|callable():array<string> $vars Variables to mix into the tag.
-     * @return array<string,string>
-     */
-    protected function parse_vars( string|callable|array $vars ): array {
-        $parsed = array();
-
-        foreach ( $this->process_vars( $vars ) as $key => $val ) {
-            $key = \is_int( $key ) ? $val : $key;
-
-            $parsed[ $key ] = $val;
-        }
-
-        return $parsed;
-    }
-
     public function with_reflector( Reflector $r ): static {
         $this->args ??= $r->getNumberOfParameters() - 1;
 
@@ -142,11 +106,47 @@ class Dynamic_Filter extends Filter {
         return $res;
     }
 
+    /**
+     * Parse variables.
+     *
+     * @param  string|array<string>|callable():array<string> $vars Variables to mix into the tag.
+     * @return array<string,string>
+     */
+    protected function parse_vars( string|callable|array $vars ): array {
+        $parsed = array();
+
+        foreach ( $this->process_vars( $vars ) as $key => $val ) {
+            $key = \is_int( $key ) ? $val : $key;
+
+            $parsed[ $key ] = $val;
+        }
+
+        return $parsed;
+    }
+
     protected function get_cb_args( array $args ): array {
         $args = parent::get_cb_args( $args );
 
         $args[] = $this->extra[ $this->current() ];
 
         return $args;
+    }
+
+    /**
+     * Process variables.
+     *
+     * @param  string|array<string>|callable():array<string> $vars Variables to mix into the tag.
+     * @return array<int,string>|array<string,string>
+     */
+    private function process_vars( string|callable|array $vars ): array {
+        if ( \is_callable( $vars ) ) {
+            return $vars();
+        }
+
+        if ( \is_string( $vars ) && $this->container->has( $vars ) ) {
+            return $this->container->get( $vars );
+        }
+
+        return $vars;
     }
 }

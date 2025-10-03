@@ -42,9 +42,9 @@ class Ajax_Action extends Action {
     /**
      * Nonce query var.
      *
-     * @var bool|string|array<string,string>
+     * @var array{0?:string,1?:string}
      */
-    protected bool|string|array $nonce;
+    protected array $nonce;
 
     /**
      * Capability required to perform the action.
@@ -111,7 +111,7 @@ class Ajax_Action extends Action {
     ) {
         $this->action = $action;
         $this->prefix = $prefix;
-        $this->nonce  = $nonce;
+        $this->nonce  = $this->parse_nonce( $nonce );
         $this->cap    = $cap;
         $this->vars   = $vars;
         $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
@@ -262,7 +262,7 @@ class Ajax_Action extends Action {
     }
 
     private function nonce_check(): bool {
-        [ $arg, $action ] = $this->get_nonce_args();
+        [ $action, $arg ] = $this->nonce;
 
         return \check_ajax_referer( $action, $arg, false );
     }
@@ -282,20 +282,25 @@ class Ajax_Action extends Action {
     }
 
     /**
-     * Get the nonce arguments.
+     * Parse the nonce parameter.
      *
-     * @return array{0: string|false, 1: string}
+     * @param  bool|string|array{0:string,1:string}|array<string,string> $nonce Nonce parameter.
+     * @return array{0?:string,1?:string}
      */
-    private function get_nonce_args(): array {
-        $query_arg = match ( true ) {
-            \is_array( $this->nonce ) => \key( $this->nonce ),
-            \is_string( $this->nonce ) => $this->nonce,
-            default => false,
-        };
-        $action = \is_array( $this->nonce )
-            ? \current( $this->nonce )
-            : "{$this->prefix}_{$this->action}";
+    private function parse_nonce( bool|string|array $nonce ): array {
+        if ( ! $nonce ) {
+            return array();
+        }
 
-        return array( $query_arg, $action );
+        if ( ! \is_array( $nonce ) ) {
+            return array(
+                "{$this->prefix}_{$this->action}",
+                \is_string( $nonce ) ? $nonce : false,
+            );
+        }
+
+        return ! \array_is_list( $nonce )
+            ? array( \current( $nonce ), \key( $nonce ) )
+            : $nonce;
     }
 }

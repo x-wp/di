@@ -148,6 +148,52 @@ class Filter extends Hook implements Can_Invoke {
         return $this->container ??= $this->get_handler()->get_container();
     }
 
+    public function with_reflector( Reflector $r ): static {
+        $this->args   ??= $r->getNumberOfParameters();
+        $this->method ??= $r->getName();
+
+        return parent::with_reflector( $r );
+    }
+
+    public function can_load(): bool {
+        return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
+    }
+
+    public function load(): bool {
+        if ( $this->loaded ) {
+            return true;
+        }
+
+        if ( ! $this->init_handler( Can_Handle::INIT_LAZY ) ) {
+            return false;
+        }
+
+        $this->loaded      = $this->load_hook();
+        $this->init_hook ??= \current_action();
+
+        return $this->loaded;
+    }
+
+    public function invoke( mixed ...$args ): mixed {
+        if (
+            ! $this->init_handler( Can_Handle::INIT_JIT ) ||
+            ! parent::can_load() ||
+            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
+            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
+        ) {
+            return $args[0] ?? null;
+        }
+
+        try {
+            return $this->fire_hook( ...$args );
+        } catch ( \Throwable $e ) {
+            return $this->handle_exception( $e, $args[0] ?? null );
+        } finally {
+            $this->firing = false;
+            ++$this->fired;
+        }
+    }
+
     /**
      * Get the type of hook.
      *
@@ -166,17 +212,6 @@ class Filter extends Hook implements Can_Invoke {
         $cb = "current_{$this->get_type()}";
 
         return $cb();
-    }
-
-    public function with_reflector( Reflector $r ): static {
-        $this->args   ??= $r->getNumberOfParameters();
-        $this->method ??= $r->getName();
-
-        return parent::with_reflector( $r );
-    }
-
-    public function can_load(): bool {
-        return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
     }
 
     protected function init_handler( string $strategy ): bool {
@@ -208,21 +243,6 @@ class Filter extends Hook implements Can_Invoke {
             : array( $this, 'invoke' );
     }
 
-    public function load(): bool {
-        if ( $this->loaded ) {
-            return true;
-        }
-
-        if ( ! $this->init_handler( Can_Handle::INIT_LAZY ) ) {
-            return false;
-        }
-
-        $this->loaded      = $this->load_hook();
-        $this->init_hook ??= \current_action();
-
-        return $this->loaded;
-    }
-
     /**
      * Loads the hook.
      *
@@ -236,26 +256,6 @@ class Filter extends Hook implements Can_Invoke {
             $this->get_priority(),
             $this->get_num_args(),
         );
-    }
-
-    public function invoke( mixed ...$args ): mixed {
-        if (
-            ! $this->init_handler( Can_Handle::INIT_JIT ) ||
-            ! parent::can_load() ||
-            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
-            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
-        ) {
-            return $args[0] ?? null;
-        }
-
-        try {
-            return $this->fire_hook( ...$args );
-        } catch ( \Throwable $e ) {
-            return $this->handle_exception( $e, $args[0] ?? null );
-        } finally {
-            $this->firing = false;
-            ++$this->fired;
-        }
     }
 
     /**

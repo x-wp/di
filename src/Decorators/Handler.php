@@ -115,6 +115,24 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
+     * Mark the handler as loaded, and call the on_initialize method.
+     *
+     * @return bool
+     */
+    protected function on_initialize(): bool {
+        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
+            $this->container->call(
+                array( $this->instance, __FUNCTION__ ),
+                $this->resolve_params( __FUNCTION__ ),
+            );
+        }
+
+        $this->did_init = true;
+
+        return true;
+    }
+
+    /**
      * Set the handler instance.
      *
      * @param  T $instance Handler instance.
@@ -228,6 +246,18 @@ class Handler extends Hook implements Can_Handle {
         return \in_array( $this->get_strategy(), array( self::INIT_LAZY, self::INIT_JIT ), true );
     }
 
+    public function can_load(): bool {
+        return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
+    }
+
+    public function is_hookable(): bool {
+        if ( ! $this->check_context() ) {
+            return false;
+        }
+
+        return $this->hookable ?? true;
+    }
+
     /**
      * Lazy load the handler.
      */
@@ -294,24 +324,6 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
-     * Mark the handler as loaded, and call the on_initialize method.
-     *
-     * @return bool
-     */
-    protected function on_initialize(): bool {
-        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
-            $this->container->call(
-                array( $this->instance, __FUNCTION__ ),
-                $this->resolve_params( __FUNCTION__ ),
-            );
-        }
-
-        $this->did_init = true;
-
-        return true;
-    }
-
-    /**
      * Check if the method exists.
      *
      * @param  string $method Method to check.
@@ -329,17 +341,5 @@ class Handler extends Hook implements Can_Handle {
      */
     protected function resolve_params( string $method ): array {
         return $this->get_params( $method )?->resolve( $this ) ?? array();
-    }
-
-    public function can_load(): bool {
-        return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
-    }
-
-    public function is_hookable(): bool {
-        if ( ! $this->check_context() ) {
-            return false;
-        }
-
-        return $this->hookable ?? true;
     }
 }
