@@ -86,6 +86,20 @@ abstract class Hook implements Can_Hook {
     }
 
     /**
+     * Get the container instance.
+     *
+     * @return Container
+     */
+    abstract protected function get_container(): Container;
+
+    /**
+     * Get the hook ID.
+     *
+     * @return string
+     */
+    abstract protected function get_id(): string;
+
+    /**
      * Set the reflector instance.
      *
      * @param  TRflct $r Reflector instance.
@@ -144,17 +158,15 @@ abstract class Hook implements Can_Hook {
      * If the tag is dynamic (contains %s), replace the placeholders with the provided arguments.
      *
      * @param  ?string                        $tag       Tag to set.
-     * @param  array<int,string>|string|false $modifiers Values to replace in the tag name.
+     * @param  array<int,string>|false|string $modifiers Values to replace in the tag name.
      * @return string
      */
     protected function define_tag( ?string $tag, array|string|bool $modifiers ): string {
+        $modifiers = \array_values( \array_filter( (array) $modifiers, 'is_string' ) );
+
         if ( ! $modifiers || ! $tag ) {
             return $tag;
         }
-
-        $modifiers = \is_array( $modifiers )
-            ? $modifiers
-            : array( $modifiers );
 
         return \vsprintf( $tag, $modifiers );
     }
@@ -200,16 +212,17 @@ abstract class Hook implements Can_Hook {
     }
 
     /**
-     * Get the container instance.
+     * Get the hook tag.
      *
-     * @return Container
+     * @return ?string
      */
-    abstract protected function get_container(): Container;
+    protected function get_tag(): ?string {
+        if ( ! $this->tag ) {
+            return $this->tag;
+        }
 
-    /**
-     * Get the hook ID.
-     *
-     * @return string
-     */
-    abstract protected function get_id(): string;
+        return \str_contains( $this->tag, '{' )
+            ? $this->get_container()->make( 'xwp.inv.tag', array( 'tag' => $this->tag ) )
+            : $this->tag;
+    }
 }

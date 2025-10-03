@@ -101,6 +101,24 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
+     * Mark the handler as loaded, and call the on_initialize method.
+     *
+     * @return bool
+     */
+    protected function on_initialize(): bool {
+        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
+            $this->container->call(
+                array( $this->instance, __FUNCTION__ ),
+                $this->resolve_params( __FUNCTION__ ),
+            );
+        }
+
+        $this->did_init = true;
+
+        return true;
+    }
+
+    /**
      * Set the handler classname.
      *
      * @param  class-string<T> $classname Handler classname.
@@ -160,6 +178,35 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
+     * Get the handler target.
+     *
+     * @return T|null
+     */
+    public function get_target(): ?object {
+        return $this->instance ?? null;
+    }
+
+    public function can_load(): bool {
+        return parent::can_load() &&
+            $this->check_method(
+                array( $this->classname, 'can_initialize' ),
+                $this->resolve_params( 'can_initialize' ),
+            );
+    }
+
+    public function is_lazy(): bool {
+        return self::INIT_ON_DEMAND === $this->strategy || self::INIT_JUST_IN_TIME === $this->strategy;
+    }
+
+    public function is_hookable(): bool {
+        if ( ! $this->check_context() ) {
+            return false;
+        }
+
+        return $this->hookable ?? true;
+    }
+
+    /**
      * Instantiate the handler.
      *
      * @return T
@@ -201,24 +248,6 @@ class Handler extends Hook implements Can_Handle {
     }
 
     /**
-     * Mark the handler as loaded, and call the on_initialize method.
-     *
-     * @return bool
-     */
-    protected function on_initialize(): bool {
-        if ( ! $this->did_init && $this->method_exists( __FUNCTION__ ) ) {
-            $this->container->call(
-                array( $this->instance, __FUNCTION__ ),
-                $this->resolve_params( __FUNCTION__ ),
-            );
-        }
-
-        $this->did_init = true;
-
-        return true;
-    }
-
-    /**
      * Check if the method exists.
      *
      * @param  string $method Method to check.
@@ -244,29 +273,12 @@ class Handler extends Hook implements Can_Handle {
         return $injector ? $injector->resolve( $this ) : array();
     }
 
-    /**
-     * Get the handler target.
-     *
-     * @return T|null
-     */
-    public function get_target(): ?object {
-        return $this->instance ?? null;
-    }
-
-    public function can_load(): bool {
-        return parent::can_load() &&
-            $this->check_method(
-                array( $this->classname, 'can_initialize' ),
-                $this->resolve_params( 'can_initialize' ),
-            );
-    }
-
     protected function get_id(): string {
         return \strtolower( \str_replace( '\\', '_', $this->classname ) );
     }
 
     protected function get_tag(): string {
-        return $this->tag ?: \current_action();
+        return parent::get_tag() ?: \current_action();
     }
 
     protected function get_priority(): int {
@@ -285,17 +297,5 @@ class Handler extends Hook implements Can_Handle {
 
     protected function get_lazy_hook(): string {
         return "{$this->id}_{$this->strategy}_init";
-    }
-
-    public function is_lazy(): bool {
-        return self::INIT_ON_DEMAND === $this->strategy || self::INIT_JUST_IN_TIME === $this->strategy;
-    }
-
-    public function is_hookable(): bool {
-        if ( ! $this->check_context() ) {
-            return false;
-        }
-
-        return $this->hookable ?? true;
     }
 }

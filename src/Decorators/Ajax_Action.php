@@ -209,22 +209,24 @@ class Ajax_Action extends Action {
     /**
      * Parse the nonce parameter.
      *
-     * @param  bool|string|array{0:string,1:string} $nonce Nonce parameter.
+     * @param  bool|string|array{0:string,1:string}|array<string,string> $nonce Nonce parameter.
      * @return array{0?:string,1?:string}
      */
     private function parse_nonce( bool|string|array $nonce ): array {
-        if ( false === $nonce ) {
+        if ( ! $nonce ) {
             return array();
         }
 
-        if ( \is_array( $nonce ) ) {
-            return $nonce;
+        if ( ! \is_array( $nonce ) ) {
+            return array(
+                "{$this->prefix}_{$this->action}",
+                \is_string( $nonce ) ? $nonce : false,
+            );
         }
 
-        return array(
-            "{$this->prefix}_{$this->action}",
-            \is_string( $nonce ) ? $nonce : false,
-        );
+        return ! \array_is_list( $nonce )
+            ? array( \current( $nonce ), \key( $nonce ) )
+            : $nonce;
     }
 
     private function fire_guard_cb( string $type ): void {

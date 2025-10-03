@@ -9,6 +9,7 @@
 namespace XWP\DI;
 
 use DI\Container;
+use Psr\Container\ContainerInterface;
 use XWP\Helper\Traits\Singleton;
 
 /**
@@ -58,7 +59,15 @@ final class App_Factory {
 
         return $this->containers[ $config['id'] ] ??= App_Builder::configure( $config )
             ->addDefinitions( $config['module'] )
-            ->addDefinitions( array( 'xwp.app.config' => $config ) )
+            ->addDefinitions(
+                array(
+                    'xwp.app.config' => $config,
+                    'xwp.app.tag'    => \DI\factory(
+                        static fn( string $tag, ContainerInterface $ctr ) =>
+                        \DI\string( $tag )->resolve( $ctr ),
+                    ),
+                ),
+            )
             ->build();
     }
 
@@ -73,7 +82,7 @@ final class App_Factory {
     protected function call_extend( string $container, array $module, string $position = 'after', ?string $target = null ): void {
         \add_filter(
             "xwp_extend_import_{$container}",
-            static function ( array $imports, string $classname ) use( $module, $position, $target ): array {
+            static function ( array $imports, string $classname ) use ( $module, $position, $target ): array {
                 if ( $target && $target !== $classname ) {
                     return $imports;
                 }

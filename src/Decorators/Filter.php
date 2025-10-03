@@ -79,30 +79,6 @@ class Filter extends Hook implements Can_Invoke {
         parent::__construct( $tag, $priority, $context, $conditional, $modifiers );
     }
 
-    protected function get_container(): Container {
-        return $this->handler->container;
-    }
-
-    /**
-     * Get the type of hook.
-     *
-     * @return string
-     */
-    protected function get_type(): string {
-        return 'filter';
-    }
-
-    /**
-     * Get the current hook.
-     *
-     * @return string
-     */
-    protected function current(): string {
-        $cb = "current_{$this->get_type()}";
-
-        return $cb();
-    }
-
     public function with_reflector( Reflector $r ): static {
         $this->args   ??= $r->getNumberOfParameters();
         $this->method ??= $r->getName();
@@ -136,6 +112,64 @@ class Filter extends Hook implements Can_Invoke {
         return parent::can_load() && ( $this->handler->is_lazy() || $this->handler->loaded );
     }
 
+    public function load(): bool {
+        if ( $this->loaded ) {
+            return true;
+        }
+
+        if ( ! $this->init_handler( $this->handler::INIT_ON_DEMAND ) ) {
+            return false;
+        }
+
+        $this->loaded = $this->load_hook();
+
+        return $this->loaded;
+    }
+
+    public function invoke( mixed ...$args ): mixed {
+        if (
+            ! $this->init_handler( $this->handler::INIT_JUST_IN_TIME ) ||
+            ! parent::can_load() ||
+            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
+            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
+        ) {
+            return $args[0] ?? null;
+        }
+
+        try {
+            return $this->fire_hook( ...$args );
+        } catch ( \Throwable $e ) {
+            return $this->handle_exception( $e, $args[0] ?? null );
+        } finally {
+            $this->firing = false;
+            ++$this->fired;
+        }
+    }
+
+    protected function get_container(): Container {
+        return $this->handler->container;
+    }
+
+    /**
+     * Get the type of hook.
+     *
+     * @return string
+     */
+    protected function get_type(): string {
+        return 'filter';
+    }
+
+    /**
+     * Get the current hook.
+     *
+     * @return string
+     */
+    protected function current(): string {
+        $cb = "current_{$this->get_type()}";
+
+        return $cb();
+    }
+
     protected function init_handler( string $strategy ): bool {
         if ( $this->handler->loaded ) {
             return true;
@@ -165,20 +199,6 @@ class Filter extends Hook implements Can_Invoke {
             : array( $this, 'invoke' );
     }
 
-    public function load(): bool {
-        if ( $this->loaded ) {
-            return true;
-        }
-
-        if ( ! $this->init_handler( $this->handler::INIT_ON_DEMAND ) ) {
-            return false;
-        }
-
-        $this->loaded = $this->load_hook();
-
-        return $this->loaded;
-    }
-
     /**
      * Loads the hook.
      *
@@ -187,31 +207,11 @@ class Filter extends Hook implements Can_Invoke {
      */
     protected function load_hook( ?string $tag = null ): bool {
         return ( "add_{$this->get_type()}" )(
-            $tag ?? $this->tag,
+            $tag ?? $this->get_tag(),
             $this->target,
             $this->priority,
             $this->args,
         );
-    }
-
-    public function invoke( mixed ...$args ): mixed {
-        if (
-            ! $this->init_handler( $this->handler::INIT_JUST_IN_TIME ) ||
-            ! parent::can_load() ||
-            ( $this->cb_valid( self::INV_ONCE ) && $this->fired ) ||
-            ( $this->cb_valid( self::INV_LOOPED ) && $this->firing )
-        ) {
-            return $args[0] ?? null;
-        }
-
-        try {
-            return $this->fire_hook( ...$args );
-        } catch ( \Throwable $e ) {
-            return $this->handle_exception( $e, $args[0] ?? null );
-        } finally {
-            $this->firing = false;
-            ++$this->fired;
-        }
     }
 
     /**
@@ -276,7 +276,7 @@ class Filter extends Hook implements Can_Invoke {
             \sprintf(
                 'Error during %s %s for handler %s. %s',
                 \esc_html( $this->get_type() ),
-                \esc_html( $this->tag ),
+                \esc_html( $this->get_tag() ),
                 \esc_html( $this->handler->classname ),
                 \esc_html( $e->getMessage() ),
             ),
