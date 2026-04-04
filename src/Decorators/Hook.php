@@ -222,7 +222,7 @@ abstract class Hook implements Can_Hook {
         }
 
         return \str_contains( $this->tag, '{' )
-            ? $this->get_container()->make( 'xwp.inv.tag', array( 'tag' => $this->tag ) )
+            ? $this->get_container()->make( 'xwp.app.tag', array( 'tag' => $this->tag ) )
             : $this->tag;
     }
 }
