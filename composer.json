@@ -54,7 +54,7 @@
     "automattic/jetpack-autoloader": "Allow for better interoperability with other plugins that use this package."
   },
   "autoload-dev": {
-    "XWP\\DI\\T\\": "test/fixtures/shared/"
+    "XWP\\DI\\T\\": "tests/fixtures/shared/"
   },
   "autoload": {
     "psr-4": {
