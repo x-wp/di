@@ -10,12 +10,9 @@ namespace XWP\DI;
 
 use DI\Container as DI_Container;
 use DI\Definition\Source\MutableDefinitionSource;
-use DI\Proxy\ProxyFactory;
+use DI\Proxy\ProxyFactoryInterface;
 use Psr\Container\ContainerInterface;
-use Psr\Log\LoggerInterface;
-use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Custom WordPress container.
@@ -49,12 +46,12 @@ class Container extends DI_Container {
      * @see ContainerBuilder
      *
      * @param array<string,mixed>|MutableDefinitionSource $definitions      The container definitions.
-     * @param ProxyFactory|null                           $proxyFactory     The proxy factory to use.
+     * @param ProxyFactoryInterface|null                  $proxyFactory     The proxy factory to use.
      * @param ContainerInterface                          $wrapperContainer If the container is wrapped by another container.
      */
     public function __construct(
         array|MutableDefinitionSource $definitions = array(),
-        ?ProxyFactory $proxyFactory = null,
+        ?ProxyFactoryInterface $proxyFactory = null,
         ?ContainerInterface $wrapperContainer = null,
     ) {
         parent::__construct( $definitions, $proxyFactory, $wrapperContainer );
