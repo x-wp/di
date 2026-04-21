@@ -160,16 +160,12 @@ final class XWP_Context {
     /**
      * Check if the request is a REST request.
      *
-     * Handles both pretty-permalink requests (REQUEST_URI contains /wp-json/)
-     * and plain-permalink requests routed via the ?rest_route= query var.
-     *
      * @return bool
      */
     public static function rest(): bool {
         $prefix = \trailingslashit( \rest_get_url_prefix() );
 
-        return false !== \strpos( \xwp_fetch_server_var( 'REQUEST_URI', '' ), $prefix )
-            || ! empty( $_GET['rest_route'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return false !== \strpos( \xwp_fetch_server_var( 'REQUEST_URI', '' ), $prefix ) || ! empty( \xwp_fetch_get_var('rest_route') );
     }
 
     /**
