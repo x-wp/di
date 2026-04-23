@@ -62,10 +62,7 @@ final class App_Factory {
             ->addDefinitions(
                 array(
                     'xwp.app.config' => $config,
-                    'xwp.app.tag'    => \DI\factory(
-                        static fn( string $tag, ContainerInterface $ctr ) =>
-                        \DI\string( $tag )->resolve( $ctr ),
-                    ),
+                    'xwp.app.tag'    => \DI\factory( \xwp_hook_invoker()->make_tag( ... ) ),
                 ),
             )
             ->build();

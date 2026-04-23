@@ -217,11 +217,7 @@ abstract class Hook implements Can_Hook {
      * @return ?string
      */
     protected function get_tag(): ?string {
-        if ( ! $this->tag ) {
-            return $this->tag;
-        }
-
-        return \str_contains( $this->tag, '{' )
+        return $this->tag && \str_contains( $this->tag, '{' )
             ? $this->get_container()->make( 'xwp.app.tag', array( 'tag' => $this->tag ) )
             : $this->tag;
     }

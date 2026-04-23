@@ -8,6 +8,7 @@
 
 namespace XWP\DI;
 
+use Psr\Container\ContainerInterface;
 use XWP\DI\Decorators\Module;
 use XWP\DI\Handler_Factory;
 use XWP\DI\Interfaces\Can_Handle;
@@ -240,6 +241,59 @@ class Invoker {
     }
 
     /**
+     * Invoke methods.
+     *
+     * @template T of object
+     * @param  Can_Handle<T> $handler The handler to invoke methods for.
+     * @return static
+     */
+    public function invoke_methods( Can_Handle $handler ): static {
+        foreach ( $this->hooks[ $handler->classname ] as $hooks ) {
+            foreach ( $hooks as $hook ) {
+                $hook->load();
+            }
+        }
+
+        \do_action( "xwp_di_hooks_loaded_{$handler->classname}", $handler );
+
+        return $this;
+    }
+
+    /**
+     * Load hooks for a handler.
+     *
+     * @template T of object
+     * @template H of Can_Handle<T>
+     * @param  H                                        $handler The handler to load hooks for.
+     * @param  array<string,array<int,Can_Invoke<T,H>>> $hooks The hooks to load.
+     * @return static
+     */
+    public function load_hooks( Can_Handle $handler, array $hooks ): static {
+        if ( ! $this->has_handler( $handler->classname, ) ) {
+            $this->add_handler( $handler, false );
+        }
+
+        if ( ! $this->has_hooks( $handler->classname ) ) {
+            $this->hooks[ $handler->classname ] = $hooks;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Make a tag.
+     *
+     * @param string             $tag  Potentially dynamic tag to resolve.
+     * @param ContainerInterface $ctr  Container to use for resolving the tag.
+     * @return string
+     */
+    public function make_tag( string $tag, ContainerInterface $ctr ): ?string {
+        return \str_contains( $tag, '{' )
+            ? \DI\Definition\StringDefinition::resolveExpression( 'xwp.app.tag', $tag, $ctr )
+            : $tag;
+    }
+
+    /**
      * Enqueue a handler.
      *
      * @template T of object
@@ -287,41 +341,22 @@ class Invoker {
      * @return static
      */
     protected function register_methods( Can_Handle $handler ): static {
-		if ( $this->has_hooks( $handler->classname ) || ! $handler->is_hookable() ) {
-			return $this;
+        if ( $this->has_hooks( $handler->classname ) || ! $handler->is_hookable() ) {
+            return $this;
         }
 
         foreach ( Reflection::get_hookable_methods( $handler->reflector ) as $m ) {
             $hooks = $this->register_method( $handler, $m );
 
-			if ( ! $hooks ) {
-				continue;
-			}
+            if ( ! $hooks ) {
+                continue;
+            }
 
-			$this->hooks[ $handler->classname ][ $m->getName() ] = $hooks;
+            $this->hooks[ $handler->classname ][ $m->getName() ] = $hooks;
         }
 
         return $this;
     }
-
-    /**
-     * Register a method.
-     *
-     * @template T of object
-     * @template H of Can_Handle<T>
-     *
-     * @param  H                 $handler The handler to register the method for.
-     * @param  \ReflectionMethod $method       The method to register.
-     * @return array<int,Can_Invoke<T,H>>
-     */
-	private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
-        return \array_map(
-            static fn( $h ) => $h
-                ->with_reflector( $method )
-                ->with_handler( $handler ),
-            Reflection::get_decorators( $method, Can_Invoke::class ),
-        );
-	}
 
     /**
      * Enqueue methods.
@@ -357,42 +392,21 @@ class Invoker {
     }
 
     /**
-     * Invoke methods.
-     *
-     * @template T of object
-     * @param  Can_Handle<T> $handler The handler to invoke methods for.
-     * @return static
-     */
-    public function invoke_methods( Can_Handle $handler ): static {
-        foreach ( $this->hooks[ $handler->classname ] as $hooks ) {
-			foreach ( $hooks as $hook ) {
-				$hook->load();
-			}
-		}
-
-        \do_action( "xwp_di_hooks_loaded_{$handler->classname}", $handler );
-
-        return $this;
-    }
-
-    /**
-     * Load hooks for a handler.
+     * Register a method.
      *
      * @template T of object
      * @template H of Can_Handle<T>
-     * @param  H                                        $handler The handler to load hooks for.
-     * @param  array<string,array<int,Can_Invoke<T,H>>> $hooks The hooks to load.
-     * @return static
+     *
+     * @param  H                 $handler The handler to register the method for.
+     * @param  \ReflectionMethod $method       The method to register.
+     * @return array<int,Can_Invoke<T,H>>
      */
-    public function load_hooks( Can_Handle $handler, array $hooks ): static {
-        if ( ! $this->has_handler( $handler->classname, ) ) {
-            $this->add_handler( $handler, false );
-        }
-
-        if ( ! $this->has_hooks( $handler->classname ) ) {
-            $this->hooks[ $handler->classname ] = $hooks;
-        }
-
-        return $this;
+    private function register_method( Can_Handle $handler, \ReflectionMethod $method ) {
+        return \array_map(
+            static fn( $h ) => $h
+                ->with_reflector( $method )
+                ->with_handler( $handler ),
+            Reflection::get_decorators( $method, Can_Invoke::class ),
+        );
     }
 }
