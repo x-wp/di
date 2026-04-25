@@ -1,169 +1,179 @@
-# Migration 04 — Implementation Plan (Slice Breakdown)
+# Migration 04 - Revised Implementation Plan
 
-> The 14 slices that take `beta` from where it is to `2.0.0` GA. Each slice maps to one beads issue.
+> The execution slices that take `beta` from pre-lock runtime branch to `2.0.0` GA.
 
-## Reading this document
+Each slice maps to a Beads issue. Issue IDs in Beads use hyphenated forms such as
+`di-bao-r0-1`; the section labels below keep the shorter `R0.1` notation for readability.
 
-Each slice has:
+## Phase 0 - Truth and tooling
 
-- **Bead label** — `B0.1`, `B1.2`, etc. — used to refer to the issue.
-- **Title** — what shows up in `bd list`.
-- **Why** — the architectural reason this slice exists.
-- **Scope** — what's in (and explicitly what's out).
-- **Acceptance** — what proves the slice is done.
-- **Depends on** — beads that must be `closed` before this slice starts.
+### R0.1 - Correct migration docs and public API inventory
 
-The actual `bd create` commands and dependency wiring happen at the end of this file's companion plan execution. The labels here are stable references; bead IDs (`beads-XXX`) are assigned by `bd create`.
+- **Why:** The first draft had cross-document contradictions around the beta tag, API lock,
+  namespaces, constants, and rewrite portability.
+- **Scope:** Update `migration-00` through `migration-05` so they agree on lock point, release
+  sequence, public API facts, and implementation order.
+- **Acceptance:** Repo docs consistently describe `2.0.0-rc.1` as the freeze point, document helper
+  functions as global where applicable, document `INIT_*` as strings, and avoid describing the
+  `rewrite` branch as a complete Definition-layer source.
+- **Depends on:** none.
 
-## Phase 0 — Foundations
+### R0.2 - Add/verify test harness before runtime rewrites
 
-### B0.1 — Lock public API surface for 2.0
+- **Why:** Parser, compiler, dispatcher, and decorator changes need regression tests before code
+  moves.
+- **Scope:** Add or repair PHPUnit config, composer scripts, bootstrap files, and fixture loading
+  needed for unit/runtime tests on `beta`.
+- **Acceptance:** `composer test` or the documented fallback PHPUnit command runs and exercises at
+  least one fixture app bootstrap test.
+- **Depends on:** R0.1.
 
-- **Why:** Until the surface is locked, every later slice has license to add to it. The lock comes first because it disciplines everything that follows.
-- **Scope:** Audit `src/Functions/`, `src/Decorators/`, `src/Interfaces/`, `src/Container.php`. Mark everything else `@internal` in PHPDoc. Update [migration-03-public-api.md](migration-03-public-api.md) with any corrections discovered during the audit. *Out:* writing new public APIs.
-- **Acceptance:** Every public class/function in `src/` is either listed in `migration-03-public-api.md` or has `@internal` in its PHPDoc. PHPStan custom rule (or grep) confirms no orphans.
-- **Depends on:** —
+### R0.3 - Public/internal annotation pass
 
-### B0.2 — Set CI matrix for PHP 8.1–8.4, drop upper bound in composer
+- **Why:** Current interfaces expose internals. Before implementation, code docs must identify what
+  is stable and what is migration scaffolding.
+- **Scope:** Annotate internal classes/methods and update docblocks for global functions,
+  decorators, interfaces, and container methods.
+- **Acceptance:** Public inventory in `migration-03` matches source docblocks and no orphan public
+  class remains without a decision.
+- **Depends on:** R0.1.
 
-- **Why:** Current `composer.json` has `<8.5` ceiling on master and unclear range on beta. PHP 8.1 native is the floor. No upper bound — we don't want to time-bomb the install.
-- **Scope:** `composer.json` PHP constraint becomes `>=8.1`. CI workflow runs jobs for PHP 8.1, 8.2, 8.3, 8.4. *Out:* tooling/lint setup beyond what CI needs.
-- **Acceptance:** `composer install` works on PHP 8.1, 8.2, 8.3, 8.4. CI matrix passes for all four.
-- **Depends on:** —
+## Phase 1 - Definition schema
 
-### B0.3 — Write migration plan docs (migration-00 through migration-05)
+### R1.1 - Write executable definition/cache schema tests
 
-- **Why:** This very document set. Reference for all later slices.
-- **Scope:** Six docs in `docs/migration-XX-*.md`. *Out:* anything that isn't the planning content itself.
-- **Acceptance:** All six files committed to `beta`. Reviewed for accuracy.
-- **Depends on:** —
+- **Why:** The schema must be locked by tests before new parser/compiler work.
+- **Scope:** Add tests that describe `ModuleDefinition`, `HandlerDefinition`, `CallbackDefinition`,
+  `ServiceDefinition`, and primitive cache arrays.
+- **Acceptance:** Tests fail only because the definition classes/serializers do not exist yet.
+- **Depends on:** R0.2.
 
-## Phase 1 — Definition layer
+### R1.2 - Add immutable definition objects
 
-### B1.1 — Introduce `src/Definition/` with `HookDefinition` interface + `ModuleDefinitionHelper`
+- **Why:** Definitions replace mutable decorators as parser output.
+- **Scope:** Add definition classes with constructor-only state, getters, and `to_array()` /
+  `from_array()` or equivalent serializer methods.
+- **Acceptance:** R1.1 tests pass. Objects serialize to primitive arrays only.
+- **Depends on:** R1.1.
 
-- **Why:** This is the missing layer. Without it, decorators stay fused to the runtime.
-- **Scope:** Port `HookDefinition` and `ModuleDefinitionHelper` from `rewrite` branch. Adapt to beta's class layout (no `old/` directory). Add to `src/Definition/Helper/`. Add `module()` factory function in `src/Functions/xwp-di-definition-fns.php`. *Out:* using the helpers from anywhere in the existing code yet — that's later slices.
-- **Acceptance:** `new ModuleDefinitionHelper(MyModule::class)` produces a PHP-DI `ObjectDefinition`. Unit test confirms the metatype and constructor parameter wiring.
-- **Depends on:** B0.1.
+### R1.3 - Add `ModuleDefinitionHelper` and `module()`
 
-### B1.2 — Add `HandlerDefinition` and `CallbackDefinition` value objects
+- **Why:** Modules should be composable through PHP-DI definitions without relying only on attribute
+  arrays.
+- **Scope:** Implement the helper from the revised schema. Reuse ideas from `rewrite`, but do not
+  treat it as a complete port.
+- **Acceptance:** Unit tests prove `module(MyModule::class)` creates the expected PHP-DI
+  definition/helper metadata.
+- **Depends on:** R1.2.
 
-- **Why:** Cover the metadata that currently lives mutably on `Decorators\Handler` and `Decorators\Filter`. These are the input to the dispatcher.
-- **Scope:** Two immutable value objects. Constructor takes all data. Getters only — no setters, no with_*().  *Out:* using them in Parser yet.
-- **Acceptance:** Unit tests for construction, equality, getter coverage.
-- **Depends on:** B1.1.
+## Phase 2 - Parser and compiler
 
-### B1.3 — Add `ServiceDefinition` for autowired services and explicit providers
+### R2.1 - Parser emits definitions behind an adapter
 
-- **Why:** Modules declare `services[]`. Today they're plain class names. We want a typed definition that supports autowire vs factory vs value providers.
-- **Scope:** `ServiceDefinition` value object + small builder. *Out:* PHP 8.5 closure-as-attribute factories — that's 3.0.
-- **Acceptance:** Round-trip from `ServiceDefinition` to PHP-DI definition object verified.
-- **Depends on:** B1.1.
+- **Why:** Runtime behavior should remain stable while parser output changes.
+- **Scope:** Refactor parser internals so module/handler/callback discovery creates definition
+  objects. Keep an adapter that can still feed existing container definitions until dispatcher work
+  lands.
+- **Acceptance:** Existing fixture bootstrap still works. Parser tests assert no live decorator
+  object is returned as public parser output.
+- **Depends on:** R1.2.
 
-### B1.4 — Add definition validation: cycle detection, missing dependencies, schema
+### R2.2 - Compiler writes primitive deterministic cache
 
-- **Why:** Catch mis-wired modules at compile time, not at WP-init time. Frenzy detection at the framework level.
-- **Scope:** Walks the definition graph. Detects: import cycles, undeclared dependencies, conflicting service IDs. Throws structured exceptions. *Out:* runtime validation — that's done.
-- **Acceptance:** Unit tests cover each failure mode with a fixture that reproduces the bug.
-- **Depends on:** B1.1, B1.2, B1.3.
+- **Why:** Hook cache must not depend on decorator constructors or object export.
+- **Scope:** Replace object/cache export with primitive arrays matching `migration-01`.
+- **Acceptance:** Parse -> compile -> read round trip passes. Two runs over identical input produce
+  byte-identical cache files.
+- **Depends on:** R2.1.
 
-## Phase 2 — Compiler refactor
+## Phase 3 - Runtime contract split
 
-### B2.1 — Refactor `Hook/Parser` to emit Definition objects, not decorator instances
+### R3.1 - Split metadata contracts from runtime execution contracts
 
-- **Why:** Today `Parser` produces both raw arrays and decorator instances. After this slice, it produces only Definition objects.
-- **Scope:** Rewrite `Parser::parse_module()` and friends to return `ModuleDefinition[]` / `HookDefinition[]` / `ServiceDefinition[]`. *Out:* changing what Parser does — input contract identical, output type changes.
-- **Acceptance:** Existing parser tests (or new tests if absent) pass with definition-typed output. No `Filter` / `Action` / `Module` decorator instances created during parse.
-- **Depends on:** B1.1, B1.2, B1.3.
+- **Why:** Immutable decorators cannot implement interfaces that require mutation and loading.
+- **Scope:** Introduce or revise internal runtime interfaces for loading/execution. Keep public
+  metadata-facing contracts small. Update classes gradually without breaking bootstrap.
+- **Acceptance:** `Can_Hook`, `Can_Invoke`, and `Can_Handle` no longer need to be frozen with
+  `with_*()` methods as public metadata contracts.
+- **Depends on:** R2.1.
 
-### B2.2 — Refactor `Hook/Compiler` to serialize primitive arrays, not `var_export`'d objects
+### R3.2 - Dispatcher binds callbacks from definitions
 
-- **Why:** Cache file becomes stable across decorator constructor changes. Inspectable. Diffable.
-- **Scope:** Rewrite `Compiler::compile()` to serialize Definition objects to plain arrays. Rewrite `Compiler::read()` (or equivalent) to consume the new format. Old format dies — no migration shim. *Out:* changing the cache *file path* or *invalidation strategy*.
-- **Acceptance:** Round-trip test: parse → compile → read → equals original. Cache file is human-readable. Diff between two runs over identical input shows no spurious changes.
-- **Depends on:** B2.1.
+- **Why:** WordPress should see dispatcher-owned callbacks, not decorator instances.
+- **Scope:** Add `Hook\Dispatcher` with bind logic for action/filter callbacks from primitive
+  definitions. Wire it through `Invoker` or container bootstrap without changing user syntax.
+- **Acceptance:** Fixture action/filter callbacks register through dispatcher and fire.
+- **Depends on:** R2.2, R3.1.
 
-## Phase 3 — Decorator + dispatcher split
+### R3.3 - Dispatcher owns invocation behavior
 
-### B3.1 — Remove `with_*()` mutators from decorators; make them immutable
+- **Why:** Runtime state belongs in dispatch, not metadata.
+- **Scope:** Move context checks, conditionals, lazy/JIT initialization, safe/once/looped flags, and
+  proxied invocation behavior into dispatcher/runtime collaborators.
+- **Acceptance:** Focused tests cover standard, proxied, safely, once, looped, lazy, and JIT paths.
+- **Depends on:** R3.2.
 
-- **Why:** Decorators must be metadata only. No mutation between attribute construction and use.
-- **Scope:** Strip `with_handler()`, `with_method()`, `with_target()`, etc. from `Hook`, `Handler`, `Filter`, `Action`, `Module`, REST/AJAX/CLI variants. Constructor signatures grow to accept all data up front; the Parser provides everything when constructing. Public attribute syntax for users does NOT change. *Out:* removing `invoke()` — that's B3.2.
-- **Acceptance:** Grep confirms no `with_*()` methods on decorator classes. All uses redirected to constructor arguments.
-- **Depends on:** B2.1.
+### R3.4 - Clean decorators after dispatcher migration
 
-### B3.2 — Extract `Hook/Dispatcher`: move `invoke()` out of `Filter`
+- **Why:** Mutators can only be removed after no active runtime path depends on them.
+- **Scope:** Remove or internalize `with_*()`, `load()`, `can_load()`, container references, handler
+  target references, and `invoke()` from decorators.
+- **Acceptance:** Grep confirms public decorator APIs are constructor/getter metadata only, and all
+  dispatcher tests still pass.
+- **Depends on:** R3.3.
 
-- **Why:** The decorator should not be the WP callback. The dispatcher should.
-- **Scope:** New `src/Hook/Dispatcher.php` class. Consumes the compiled definition graph. `bind_all()` registers `add_filter()` / `add_action()` callbacks. Each callback is a method on the Dispatcher (or a closure created by it), not on the decorator. Move `invoke()`, `load()`, `can_load()`, context checks, init strategies from `Filter`/`Action`/`Handler` into `Dispatcher`. *Out:* changing what user code looks like.
-- **Acceptance:** A handler with one `#[Filter]`, one `#[Action]`, one `#[REST_Route]` registers and fires through Dispatcher. Decorators have no `invoke()` method left.
-- **Depends on:** B3.1, B2.2.
+## Phase 4 - Module composition and validation
 
-## Phase 4 — Module composition
+### R4.1 - Module helper composition
 
-### B4.1 — Module imports/exports/providers via `ModuleDefinitionHelper` composition
+- **Why:** Attribute imports and PHP-DI helper composition should feed the same graph.
+- **Scope:** Support modules declared via `#[Module(imports: ...)]` and via `module(...)->imports()`
+  / `provides()` / `exports()` where implemented.
+- **Acceptance:** Attribute module and helper module fixtures produce equivalent definition graphs.
+- **Depends on:** R1.3, R2.1.
 
-- **Why:** Today `imports[]` is an attribute argument array. We want it to be definition-driven so modules compose at the DI layer, not at the decorator layer.
-- **Scope:** Modules can declare imports either via the `#[Module(imports: [...])]` attribute (existing) or via `ModuleDefinitionHelper` returned from a `configure()` static method. Both paths flow into the same definition graph. `provides`/`exports` enter via the helper. *Out:* removing the attribute-array path — both styles coexist.
-- **Acceptance:** A module declared via `ModuleDefinitionHelper` and one via attribute produce equivalent definition graphs.
-- **Depends on:** B1.1, B1.4.
+### R4.2 - Definition validation
 
-## Phase 5 — Verification
+- **Why:** Module graph problems should fail at compile time.
+- **Scope:** Detect import cycles, missing module/handler classes, conflicting service IDs, and
+  invalid callback references.
+- **Acceptance:** Unit tests cover each failure mode with clear exception messages.
+- **Depends on:** R4.1.
 
-### B5.1 — Unit test coverage for Definition layer + Dispatcher
+## Phase 5 - Dogfood, freeze, ship
 
-- **Why:** Without tests we cannot lock anything; the lock contract assumes regression detection works.
-- **Scope:** Tests for every public method on every Definition class. End-to-end tests for: bootstrap a fixture app, fire a hook, observe the side effect. Tests for Dispatcher's bind/invoke/init-strategy paths. *Out:* full WordPress integration test suite — too large for v2.0.
-- **Acceptance:** `composer test` passes. PHPUnit reports >80% line coverage for `src/Definition/` and `src/Hook/Dispatcher.php`.
-- **Depends on:** B3.2, B4.1.
+### R5.1 - Port one production plugin
 
-## Phase 6 — Dogfood + ship
+- **Why:** The dogfood port is the API truth detector.
+- **Scope:** Port one of the production plugins to the revised v2 branch. Document exact consumer
+  changes.
+- **Acceptance:** Plugin runs in a WP environment and behaves like its v1 counterpart. Migration
+  guide is updated with real findings.
+- **Depends on:** R3.4, R4.2.
 
-### B6.1 — Port one production plugin to v2.0 as canonical example
+### R5.2 - Freeze at `2.0.0-rc.1`, soak, then GA
 
-- **Why:** This is the truth detector. If a real plugin can't migrate, the API isn't done.
-- **Scope:** Pick one of the 5 production plugins. Fork it (the v1.x version stays in production on master/1.x of this lib). Port the fork to consume v2.0. Land the port either in `examples/` or as its own repo, referenced from `examples/`. Document the diff: what changed at the consumer level, what stayed the same. *Out:* migrating all 5 plugins.
-- **Acceptance:** The ported plugin runs in a WP environment, registers its hooks, and behaves identically to its v1.x counterpart. The diff document is checked in.
-- **Depends on:** B5.1.
-
-### B6.2 — Tag `2.0.0-beta.1`, collect feedback, tag `2.0.0` GA
-
-- **Why:** The lock event. After this, public surface is frozen until 3.0.
-- **Scope:** Tag `2.0.0-beta.1`. Announce. Soak window: 2 weeks minimum, longer if real usage shakes out issues. During the soak: only bug fixes, no new public API. After soak: tag `2.0.0`. *Out:* implementing 2.1 features.
-- **Acceptance:** Tag pushed. CHANGELOG entry. Migration guide for v1.x → v2.0 published.
-- **Depends on:** B6.1.
+- **Why:** The public surface should freeze after implementation and dogfood, not before.
+- **Scope:** Tag `2.0.0-rc.1`, run soak window, fix bugs only, then tag `2.0.0`.
+- **Acceptance:** RC tag pushed, changelog/migration guide published, no critical issues during
+  soak.
+- **Depends on:** R5.1.
 
 ## Dependency graph
 
 ```
-B0.1 ─┬─→ B1.1 ─┬─→ B1.2 ─┬─→ B1.4 ─→ B4.1 ─┐
-      │         ├─→ B1.3 ─┘                  │
-      │         │                            │
-      │         └─→ B2.1 ─→ B2.2 ─→ B3.1 ─→ B3.2 ─→ B5.1 ─→ B6.1 ─→ B6.2
-      │                                                      ↑
-B0.2 ─┘ (parallel, no blockers)                              │
-B0.3 ─┘ (parallel, ideally early)                            │
-                                                             │
-                                            B4.1 ────────────┘
+R0.1 -> R0.2 -> R1.1 -> R1.2 -> R2.1 -> R2.2 -> R3.2 -> R3.3 -> R3.4 -> R5.1 -> R5.2
+  |       |        |       |       |       |       ^
+  |       |        |       |       |       +-- R3.1
+  |       |        |       +-- R1.3 -> R4.1 -> R4.2 --+
+  |       +-- R0.3 ------------------------------------+
 ```
 
-## Slice sizing guideline
-
-- **Small slice:** 1–3 days of focused work, one PR, one merge.
-- **Medium slice:** up to 1 week, possibly with a sub-bead split if scope grows.
-- **No large slices.** If a slice would take more than a week, split it into beads.
-
-A slice that grows past its scope mid-work is the frenzy signal. File a follow-up bead, close the current scope, do not extend.
-
-## How to start
+## Start command
 
 ```bash
-bd ready                                 # see what's unblocked
-bd update <bead-id> --claim              # claim the slice
-# ... work ...
-bd close <bead-id>                       # close when acceptance met
-git add . && git commit && git push      # ship the work
+bd ready
+bd update <issue-id> --claim
 ```
 
-`B0.1`, `B0.2`, and `B0.3` have no dependencies. They are the entry points.
+Do not start runtime slices before R0.2 has a passing test command.

@@ -1,153 +1,170 @@
-# Migration 03 — Public API Surface (Locked at 2.0.0-beta.1)
+# Migration 03 - Public API Inventory
 
-> Every public function, decorator, interface, and helper. From the `2.0.0-beta.1` tag forward, this surface does not grow.
+> Current intended public surface for v2. This is an inventory before the `2.0.0-rc.1` lock.
 
-## The lock contract
+## Lock status
 
-After `2.0.0-beta.1` is tagged: a change to this surface is one of (a) bug fix in already-promised behavior, (b) pure internal optimization with identical outward behavior, (c) deferred to 3.0. Anything else is scope creep — file a 3.0 bead and move on.
+The public API is not frozen at the historical `v2.0.0-beta.1` tag. It freezes at `2.0.0-rc.1`
+after the dogfood port passes. Until then, changes to this document are allowed when they correct
+repo facts or dogfood findings.
 
-Anything *not* in this document is `@internal`. Internal classes can change without a major version bump. Tag them with `@internal` in PHPDoc so static analysers and IDEs flag misuse.
+Anything not listed here should be marked `@internal` during implementation, unless the dogfood
+port proves it must be public.
 
-## Bootstrap functions (`XWP\DI` namespace)
+## Global bootstrap functions
 
-| Function | Signature | Role |
+These are global Composer-loaded functions.
+
+| Function | Intended signature | Role |
 |---|---|---|
-| `xwp_load_app` | `(array $config, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN): bool` | Schedule app creation on a WP hook. Returns true if scheduled. |
-| `xwp_create_app` | `(array $config): Container` | Synchronous app creation. Returns the container. |
-| `xwp_app` | `(string $container_id): Container` | Fetch a registered container by ID. |
-| `xwp_has` | `(string $container_id): bool` | Check whether a container is registered. |
-| `xwp_extend_app` | `(array $extension, string $application): void` | Register an extension/feature flag bundle for an existing app. |
-| `xwp_decompile_app` | `(string $container_id, bool $immediately = false): void` | Clear compiled artifacts for an app (cache invalidation). |
-| `xwp_uninstall_ext` | `(): void` | Hook into WP's uninstall flow to clean up extension state. |
+| `xwp_load_app` | `(array $config, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN): bool` | Schedule app creation and `run()` on a WP hook. |
+| `xwp_create_app` | `(array $config): Container` | Create an app container synchronously. |
+| `xwp_app` | `(string $container_id): Container` | Fetch a public container by ID. |
+| `xwp_has` | `(string $container_id): bool` | Check whether a container exists. |
+| `xwp_extend_app` | `(array $extension, string $application): void` | Register an extension module for an app. |
+| `xwp_decompile_app` | `(string $container_id, bool $immediately = false): void` | Clear compiled artifacts for an app. |
+| `xwp_uninstall_ext` | `(): void` | Extension uninstall cleanup hook. |
 
-### `$config` array shape
+## Global handler helper functions
+
+| Function | Intended signature | Role |
+|---|---|---|
+| `xwp_create_hook_handler` | `(object $instance, string $app): Can_Handle` | Create a runtime handler for a live instance. |
+| `xwp_load_hook_handler` | `(object $instance, string $app): Can_Handle` | Create and load a runtime handler for a live instance. |
+| `xwp_load_handler_cbs` | `(Can_Handle $handler, array $callbacks): Can_Handle` | Attach pre-built callbacks to a handler. |
+| `xwp_register_hook_handler` | `(Can_Handle $handler): void` | Register a handler with its app runtime. |
+| `xwp_log` | `(string $message, string|array $vars = array()): void` | Debug logging helper; candidate for internal/deprecated status before RC. |
+
+## Global definition helper functions
+
+Master already exposes WordPress-aware PHP-DI helpers. They should remain documented unless a
+separate compatibility decision removes them.
+
+| Function | Role |
+|---|---|
+| `XWP\DI\option` | PHP-DI helper resolving a WordPress option. |
+| `XWP\DI\filtered` | PHP-DI helper resolving a filtered value. |
+| `XWP\DI\transient` | PHP-DI helper resolving a WordPress transient. |
+| `XWP\DI\module` | Planned v2 helper for `ModuleDefinitionHelper`. |
+
+`wrapped()` exists as a helper class concept on master, but no public global function is currently
+present. Do not document it as public unless the function is added intentionally.
+
+## App config keys
+
+Required or expected keys:
 
 ```php
-[
-    'app_id'          => string,                   // unique identifier (required)
-    'app_module'      => class-string,             // root #[Module] class (required)
-    'app_file'        => string,                   // plugin's main __FILE__ (required)
-    'cache_app'       => bool,                     // compile container (default: false)
-    'cache_defs'      => bool,                     // PHP-DI APCu cache (default: false)
-    'cache_hooks'     => bool,                     // hook-definition.php (default: false)
-    'cache_dir'       => string,                   // where to write artifacts
-    'use_attributes'  => bool,                     // PHP-DI attribute autowiring (default: true)
-    'use_autowiring'  => bool,                     // PHP-DI autowiring (default: true)
-    'use_proxies'     => bool,                     // lazy proxies (default: false)
-    'extendable'      => bool,                     // allow xwp_extend_app (default: false)
-]
+array(
+    'app_id' => 'my-app',
+    'app_module' => My\App\Module::class,
+    'app_file' => __FILE__,
+    'cache_app' => false,
+    'cache_defs' => false,
+    'cache_hooks' => false,
+    'cache_dir' => WP_CONTENT_DIR . '/cache/xwp-di/my-app',
+    'use_attributes' => true,
+    'use_autowiring' => true,
+    'use_proxies' => false,
+    'extendable' => true,
+    'public' => true,
+)
 ```
 
-## Handler/hook helper functions
+Legacy aliases such as `id`, `module`, `compile`, `compile_dir`, `attributes`, `autowiring`, and
+`proxies` may be removed before RC if the migration guide calls that out.
 
-| Function | Signature | Role |
-|---|---|---|
-| `xwp_create_hook_handler` | `(object $instance, string $app): Can_Handle` | Build a handler decorator from a live instance. |
-| `xwp_load_hook_handler` | `(object $instance, string $app): Can_Handle` | Same as `create_hook_handler` but loads it. |
-| `xwp_load_handler_cbs` | `(Can_Handle $handler, array $callbacks): Can_Handle` | Attach pre-built callbacks to a handler. |
-| `xwp_register_hook_handler` | `(Can_Handle $handler): void` | Push a handler to the invoker. |
-| `xwp_log` | `(string $message, string\|array $vars = []): void` | Optional debug logger. May be removed in 3.0. |
+## Decorators
 
-## Decorators (`XWP\DI\Decorators\*`)
+The user-facing attribute names remain public:
 
-All are PHP attributes. All are immutable after construction in v2.0.
+- `Module`
+- `Handler`
+- `Filter`
+- `Action`
+- `Ajax_Action`
+- `Ajax_Handler`
+- `CLI_Command`
+- `CLI_Handler`
+- `REST_Route`
+- `REST_Handler`
+- `Dynamic_Action`
+- `Dynamic_Filter`
+- `Infuse`
 
-| Decorator | Target | Constructor (key arguments) |
-|---|---|---|
-| `Module` | class | `imports[]`, `handlers[]`, `services[]`, `hook`, `priority` |
-| `Handler` | class | `tag`, `priority`, `context`, `strategy` |
-| `Filter` | method | `tag`, `priority`, `args`, `context`, `invoke` |
-| `Action` | method | (extends `Filter`, void return) |
-| `Ajax_Action` | method | `tag`, `priority`, `nonce`, `prefix` |
-| `Ajax_Handler` | class | (extends `Handler`, sets context to AJAX) |
-| `CLI_Command` | method | `tag`, ... |
-| `CLI_Handler` | class | (extends `Handler`, sets context to CLI) |
-| `REST_Route` | method | `route`, `methods`, `vars`, `guard` |
-| `REST_Handler` | class | (extends `Handler`, sets context to REST) |
-| `Dynamic_Action` | method | `tag` (with `%s` placeholder), `modifiers[]` |
-| `Dynamic_Filter` | method | `tag` (with `%s` placeholder), `modifiers[]` |
-| `Infuse` | parameter | named arguments — values or service references |
+Constructor argument compatibility is part of the public surface. Runtime mutators and invocation
+methods are not intended public API, even though current interfaces expose some of them.
 
-## Definition helpers (`XWP\DI\Definition\Helper\*`)
+## Interfaces
 
-New in v2.0. Compose container definitions declaratively.
+Pre-RC status:
 
-| Helper | Role |
-|---|---|
-| `ModuleDefinitionHelper` | Produces a PHP-DI `ObjectDefinition` for a module class with `imports`, `provides`, `exports` |
-| (interface) `HookDefinition` | Common contract for definition helpers that produce hook bindings |
-
-The four definition helpers already on master 1.x (`option()`, `transient()`, `filtered()`, `wrapped()`) are intentionally **not** part of v2.0's surface. They live on master/1.x; if they're wanted in v2.0 they get backported in a 2.1 minor, not v2.0.
-
-## Definition functions (`XWP\DI` namespace)
-
-| Function | Signature | Role |
-|---|---|---|
-| `module` | `(string $class): ModuleDefinitionHelper` | Sugar for `new ModuleDefinitionHelper($class)` |
-
-(Future: `provider()`, `factory_provider()`, etc., as 2.x minors. Not in initial 2.0.)
-
-## Interfaces (`XWP\DI\Interfaces\*`)
-
-Stable contracts. Implement to integrate with the library.
-
-| Interface | Role |
-|---|---|
-| `Can_Handle` | A class that can be registered as a hook handler. |
-| `Can_Hook` | A method-level hook descriptor. |
-| `Can_Import` | A module that can import other modules. |
-| `Can_Invoke` | A callback descriptor. |
-| `Can_Initialize` | A handler that needs an `on_initialize()` callback. |
-| `Has_Context` | Anything that validates against execution context (REST/CLI/etc.). |
-| `On_Initialize` | Lifecycle hook for handler initialization. |
-| `Can_Route` | A REST route descriptor. |
-| `Can_Handle_Ajax`, `Can_Handle_CLI`, `Can_Handle_REST` | Specialization markers. |
-| `Async_Module`, `Extendable_Module`, `Extension_Module` | Module composition markers. |
-| `Can_Execute` | Runtime executable contract (used by Dispatcher internals). |
+- `Can_Initialize`, `On_Initialize`, `Has_Context`, and marker interfaces are intended public or
+  semi-public contracts.
+- `Can_Hook`, `Can_Invoke`, and `Can_Handle` currently mix metadata and runtime execution methods.
+  They must be revised or split before RC. Do not freeze their current method sets.
+- Any new dispatcher-only execution interface should be internal unless dogfood proves consumers
+  need it.
 
 ## Constants
 
-| Constant | Range | Role |
-|---|---|---|
-| `CTX_GLOBAL`, `CTX_FRONTEND`, `CTX_ADMIN`, `CTX_AJAX`, `CTX_REST`, `CTX_CLI`, `CTX_CRON` | bitmask | Execution context flags |
-| `INIT_AUTO`, `INIT_EARLY`, `INIT_LAZY`, `INIT_JIT`, `INIT_NOW`, `INIT_USER` | enum-style int | Handler initialization strategies |
-| `INV_STANDARD`, `INV_PROXIED`, `INV_SAFELY`, `INV_LOOPED`, `INV_ONCE` | bitmask | Invocation flags |
+These values are part of compatibility and must not change accidentally.
 
-These flags exist on master 1.x. v2.0 keeps them. The exact bit values are part of the locked surface.
+### Context bitmasks
 
-## Container (`XWP\DI\Container`)
+- `CTX_FRONTEND = 1`
+- `CTX_ADMIN = 2`
+- `CTX_AJAX = 4`
+- `CTX_CRON = 8`
+- `CTX_REST = 16`
+- `CTX_CLI = 32`
+- `CTX_GLOBAL = 63`
 
-Limited public surface — most methods are `@internal`. Public on `Container`:
+### Handler initialization strategies
 
-| Method | Signature | Role |
-|---|---|---|
-| `run` | `(): Container` | Bootstrap the app — register the root module. |
-| `started` | `(): bool` | Has `run()` been called? |
-| `register` | `(object $instance): Can_Handle` | Register a runtime handler instance. |
-| `hookOn` | `(object $handler): void` | Attach a handler to its declared hook. |
+These are string constants:
 
-Plus PHP-DI's standard container methods (`get`, `has`, `make`, `call`).
+- `INIT_EARLY = 'early'`
+- `INIT_NOW = 'immediately'`
+- `INIT_LAZY = 'on-demand'`
+- `INIT_JIT = 'just-in-time'`
+- `INIT_AUTO = 'deferred'`
+- `INIT_USER = 'dynamically'`
 
-## What's `@internal`
+Deprecated aliases such as `INIT_IMMEDIATELY`, `INIT_ON_DEMAND`, `INIT_JUST_IN_TIME`,
+`INIT_DYNAMICALY`, and `INIT_DEFFERED` must be explicitly kept or removed before RC.
 
-Anything not in the tables above. Highlights:
+### Invocation bitmasks
 
-- `App_Factory`, `App_Builder` — bootstrap mechanism, not for direct use
-- `Invoker` — orchestrator, not for direct use
-- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook\Dispatcher` — internal pipeline
-- `Compiled_Container` — generated, not for human consumption
-- `Utils\Reflection`, `Traits\*`, `Global\*` (most of it)
-- All abstract bases (`Decorators\Hook`, `Decorators\Handler` as a base, etc.) — extend at your own risk; signatures may change in minors
+- `INV_STANDARD = 1`
+- `INV_PROXIED = 2`
+- `INV_ONCE = 4`
+- `INV_LOOPED = 8`
+- `INV_SAFELY = 16`
 
-If you find yourself reaching for an `@internal` class to do something user-code-shaped, that's a signal we're missing a public helper. File a 2.1 bead.
+## Container
 
-## SemVer commitments
+Public app-facing methods:
 
-- **2.0.0** → **2.x.y**: no breaking change to anything in this document. New decorators, new helpers, new interface methods (default-implemented) are minors. New required interface methods are majors.
-- **2.x.y** → **2.x.y+1**: bug fixes only. No new public surface.
-- **2.0.0-beta.x**: surface may still change between betas, but the *shape* documented here is the target. Major changes require a doc update PR before tagging.
-- **3.0.0**: this is the door for everything in the parking lot.
+- `run(): static`
+- `started(): bool`
+- `register(object $instance): Can_Handle`
+- `hookOn(object $handler): void`
 
-## Versioning of attached docs
+PHP-DI `get`, `has`, `make`, and `call` remain available through inheritance.
 
-This file is itself part of the lock. Changes to it require a separate decision and a CHANGELOG entry. Prefer adding a `migration-03-public-api-2.1.md` for additions over editing this one in-place.
+## Internal by default
+
+Unless promoted before RC, these are internal:
+
+- `App_Factory`
+- `App_Builder`
+- `Invoker`
+- `Hook\Parser`
+- `Hook\Compiler`
+- `Hook\Factory`
+- `Hook\Dispatcher`
+- `Compiled_Container`
+- `Utils\Reflection`
+- Traits
+- Abstract decorator bases

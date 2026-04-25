@@ -1,99 +1,80 @@
-# Migration 02 — Current State of `beta` and the Gap
+# Migration 02 - Current State and Gap
 
-> A snapshot of `beta` as of 2026-04-23. What's there, what's the gap to the target architecture, what to keep / rework / throw out.
+> What `beta` currently contains, what is usable, and what must be corrected before runtime work.
 
 ## Snapshot
 
-`beta` is at commit `2950574` (`fix(Core): Fixed ProxyFactory signature on PHP 8.4+`, 2026-04-16). It is *not* what the older `docs/state-rewrite.md` describes. The `rewrite` branch had `old/` + a `Definition/` layer that beta does not. Beta is a maturation of the **alpha-style** parser/compiler architecture — it never carried the rewrite's NestJS-style direction forward.
+`beta` is an alpha-style runtime branch with custom `Container`, `Compiled_Container`, parser,
+compiler, and hook factory code. It is not the `rewrite` branch, and it does not contain a complete
+Definition layer.
 
-What `beta` has on disk:
+Important current facts:
 
-```
-src/
-  App_Builder.php            ← container builder, configures PHP-DI
-  App_Factory.php            ← singleton factory, app lifecycle
-  Compiled_Container.php     ← abstract base for compiled containers
-  Container.php              ← custom Container, run() bootstrap, __call proxy
-  Invoker.php                ← orchestrates handler registration + dispatch
-  Decorators/                ← Hook, Handler, Module, Filter, Action, REST_*, AJAX_*, CLI_*, Dynamic_*, Infuse
-  Global/                    ← Context, REST_Controller, CLI_Namespace
-  Hook/
-    Parser.php               ← reflects on modules, builds raw arrays
-    Factory.php              ← instantiates handlers/hooks from data
-    Compiler.php             ← serializes parser output to cache file
-  Interfaces/                ← 15 contract interfaces
-  Functions/                 ← public helper functions
-  Traits/                    ← Accessible_Hook_Methods, Hook_Invoke_Methods, Hook_Token_Methods
-  Utils/Reflection.php       ← reflection helpers
-```
+- `composer.json` still has `"php": ">=8.1 <8.5"`.
+- The historical `v2.0.0-beta.1` tag already exists.
+- `src/Functions/xwp-di-container-fns.php` and `src/Functions/xwp-di-helper-fns.php` define global
+  functions, not namespaced `XWP\DI\...` functions.
+- `src/Definition/` is absent on `beta`.
+- `test/fixtures/` exists, but there is no complete PHPUnit test harness or `composer test` script
+  on `beta`.
+- `Hook\Parser` and `Hook\Factory` currently build and mutate decorator instances.
+- `Hook\Compiler` writes `var_export()` output from parser data.
 
-What `beta` does **not** have:
+## Keep unless a slice proves otherwise
 
-- `src/Definition/` directory or any Definition value objects
-- `ModuleDefinitionHelper` / `HookDefinition` interface (these existed on `rewrite`, never made the jump)
-- `Hook/Dispatcher.php` (the runtime layer that should consume compiled definitions)
-- A test directory beyond fixtures
+- `App_Factory` as the singleton app/container factory.
+- `App_Builder` as the PHP-DI builder wrapper.
+- `Container` and `Compiled_Container` as the app runtime boundary.
+- Existing bootstrap/helper function names.
+- Existing WordPress hook semantics and timing.
+- Existing attribute names and common constructor arguments.
 
-## The gap to target architecture
+## Major refactor areas
 
-| Target layer | What's on beta | Gap |
-|---|---|---|
-| **Definition (Layer 1)** | Nothing — decorator instances act as definitions | Whole layer must be added. Port `ModuleDefinitionHelper` from `rewrite`, fit to beta's class layout. Add `HookDefinition`, `HandlerDefinition`, `CallbackDefinition`, `ServiceDefinition` value objects. |
-| **Compilation (Layer 2)** | `Hook/Parser`, `Hook/Compiler`, `Hook/Factory` exist and work | `Parser` emits ad-hoc arrays *and* decorator instances — needs to emit Definition objects only. `Compiler` `var_export()`'s decorator instances — needs to emit primitive arrays. |
-| **Dispatch (Layer 3)** | Dispatch logic lives inside `Filter::invoke()`, `Action::invoke()`, etc. Decorators ARE the dispatchers. | Whole layer must be extracted. New `Hook/Dispatcher` class, runtime `invoke()` moves out of decorators. |
-| **Decorators** | Mutable. `with_*()` setters, `invoke()` methods, handler/container references | Make immutable. Strip mutators and runtime methods. Keep them as PHP attribute holders only. |
+### Parser and Factory
 
-## Salvage list (keep as-is)
+`Hook\Parser` currently stores mixed arrays, service IDs, aliases, values, extensions, and hook
+tokens. It asks `Hook\Factory` to resolve module/handler/callback decorators, then records data from
+those mutable objects.
 
-These are correct as they stand. Touch only if a refactor forces it.
+This means parser migration is not just an output type change. It must replace decorator mutation
+with definition creation while preserving module imports, extension imports, services, static
+`configure()` / `define()` / `extend()` data, and handler callback discovery.
 
-- `App_Factory` — singleton container factory + lifecycle. Works.
-- `App_Builder` — fluent PHP-DI builder. Works.
-- `Container` — custom container with `run()`. Works. The 8.4 ProxyFactory fix was real.
-- `Compiled_Container` — abstract base for compiled output. Works.
-- `Invoker` — orchestrator. Will get *thinner* as Dispatcher takes over runtime, but the orchestration itself stays.
-- All interfaces in `src/Interfaces/`. Stable contracts.
-- All traits in `src/Traits/`. Stable shared logic.
-- `Global/Context`, `Global/REST_Controller`, `Global/CLI_Namespace`. Working WP-facing bases.
-- `Functions/xwp-di-container-fns.php`, `Functions/xwp-di-helper-fns.php`. The public API.
-- `Utils/Reflection`. Stable.
+### Compiler
 
-## Rework list (refactor, don't rewrite)
+`Hook\Compiler` currently writes a cache file using `var_export()` of parser data. It must move to a
+primitive schema that can be read without reconstructing decorator objects.
 
-- `Hook/Parser` — change output type from raw arrays + decorator instances to typed Definition objects. Internal change; same input (module classnames), different output shape.
-- `Hook/Compiler` — change serialization format from `var_export()`'d objects to primitive arrays. Cache file becomes stable across decorator constructor changes.
-- `Hook/Factory` — light cleanup once Parser produces Definition objects. Stays as the "instantiate runtime hook objects from definitions" service.
-- All decorators in `src/Decorators/` — strip `with_*()` mutators and `invoke()`/`load()`/`can_load()` methods. Keep constructor arguments and getters. Public attribute syntax unchanged for users.
+### Interfaces and decorators
 
-## Throw-out list (delete in v2.0)
+The current `Can_Hook`, `Can_Invoke`, and `Can_Handle` interfaces require fluent mutators and
+runtime methods such as `with_*()`, `load()`, and `can_load()`. Therefore they cannot stay as the
+stable public metadata contracts while decorators become immutable.
 
-- `Filter::invoke()`, `Action::invoke()`, `REST_Route::invoke()` — runtime invocation logic. Moves to `Hook/Dispatcher`.
-- `Filter::load()`, `Filter::can_load()` — load/conditional checks. Move to `Hook/Dispatcher`.
-- `Handler::with_*()`, `Filter::with_*()`, etc. — fluent mutation API. Constructors take all data.
-- The `$container_id` / `xwp_app($container_id)` lookup pattern — Dispatcher receives the container by constructor injection, not global lookup.
-- Whatever remains of the `parse_legacy_config()` shim in `App_Factory` — v2.0 is a clean break, no v1.x config compat.
+The plan must split metadata contracts from internal runtime/execution contracts before mutators
+are removed.
 
-## Frenzy detection signals to watch for during the migration
+## Rewrite branch reality
 
-These are the patterns that produced the previous rewrites. If any appears mid-slice, file a follow-up bead and do not extend the current slice:
+`rewrite` is useful as design inspiration only. Its `ModuleDefinitionHelper` is a small stub and
+several `src/Definition/*` files are empty. Do not describe Phase 1 as "port the Definition layer
+from rewrite." It is new design work with a few reusable names.
 
-- A new public class that nobody asked for.
-- A second copy of a thing that was supposed to replace the first.
-- A new lifecycle hook that is not a WordPress hook.
-- An "internal" abstraction with one consumer.
-- A NestJS feature being ported because it would be cool, not because a slice needs it.
-- A "while I'm in here" cleanup that grows past two files.
+## Immediate blockers before runtime changes
 
-## Open architectural questions (resolve during slices, not now)
+1. Docs must agree on release names, lock point, helper namespace, constants, and public/internal
+   contracts.
+2. Beads issues must match the revised slice order.
+3. Test infrastructure must exist before parser/compiler/dispatcher rewrites.
+4. The definition and cache schemas must be written down before implementation.
 
-- **Dispatcher, one per app or one per dispatch event?** Probably one per app, lifetime tied to the container.
-- **Do we keep `Invoker` as an orchestration class or fold its responsibilities into `Container::run()`?** Keep it. It works and it's a reasonable seam.
-- **Does the compiled cache file become a class or stay a return-array?** Stay a return-array. Less magic, easier to inspect, no opcache class-shape concerns.
-- **Does the new `Hook/Dispatcher` register itself with the container as a service, or is it constructed at bootstrap time?** Constructed at bootstrap. It's the entrypoint, not a service.
+## Verification baseline
 
-## Verification before any slice merges
+Before a runtime slice merges:
 
-- The existing examples under `examples/` must still bootstrap successfully.
-- The hook cache file must be deterministic across runs (same input → same output).
-- A handler with at least one `#[Filter]`, one `#[Action]`, one `#[REST_Route]` must register and fire correctly.
-- The dogfood plugin port (slice B6.1) must run end-to-end before tagging GA.
+- Focused unit tests must cover the new behavior.
+- Fixture app bootstrapping must be exercised by PHPUnit or a documented integration command.
+- Hook cache output must be deterministic for identical input.
+- A handler with `#[Action]`, `#[Filter]`, and at least one REST/AJAX/CLI-specific path relevant to
+  the slice must register and invoke correctly.

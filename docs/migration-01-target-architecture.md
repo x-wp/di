@@ -1,204 +1,165 @@
-# Migration 01 — Target Architecture
+# Migration 01 - Target Architecture
 
-> The three-layer split: definition, compilation, dispatch. Concrete classes and namespaces.
+> The desired Definition -> Compilation -> Dispatch split, with concrete boundaries.
 
-## The shape
+## Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                       USER CODE                          │
-│  #[Module(...)]  #[Handler(...)]  #[Filter(...)]         │
-│  PHP attributes on user classes — read-only metadata     │
-└──────────────────────────┬──────────────────────────────┘
-                           │ reflected once at build time
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│              LAYER 1: DEFINITION                         │
-│  src/Definition/                                         │
-│    HookDefinition (interface)                            │
-│    ModuleDefinitionHelper                                │
-│    HandlerDefinition                                     │
-│    CallbackDefinition                                    │
-│    ServiceDefinition                                     │
-│  Pure value objects. Immutable. Serializable. No WP.     │
-└──────────────────────────┬──────────────────────────────┘
-                           │ produced by
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│              LAYER 2: COMPILATION                        │
-│  src/Hook/                                               │
-│    Parser    — walks module tree, reflects, emits defs   │
-│    Compiler  — serializes def graph to primitive arrays  │
-│    Factory   — instantiates handlers from definitions    │
-│  Reflection happens HERE. Once. Cached to disk.          │
-└──────────────────────────┬──────────────────────────────┘
-                           │ consumed by
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│              LAYER 3: DISPATCH                           │
-│  src/Hook/Dispatcher.php (new)                           │
-│    Consumes definition graph                             │
-│    Registers WP hooks via add_action / add_filter        │
-│    Handles invocation, context checks, init strategies   │
-│  Zero reflection. Zero `with_*()` mutation.              │
-└──────────────────────────┬──────────────────────────────┘
-                           │ wires into
-                           ▼
-                  WordPress hook system
+User code
+  #[Module] #[Handler] #[Filter] #[Action] ...
+        |
+        v
+Definition layer
+  immutable module/handler/callback/service definitions
+        |
+        v
+Compilation layer
+  Parser reflects attributes and static config
+  Compiler writes primitive hook-definition.php arrays
+        |
+        v
+Dispatch layer
+  Invoker starts the app
+  Dispatcher binds and invokes WordPress callbacks
 ```
 
-## Layer 1: Definition (`src/Definition/`)
+`Invoker` remains the bootstrap orchestrator. `Dispatcher` owns hook binding and callback
+invocation. `Factory` and `Parser` move away from mutable decorator instances and toward
+definition objects, and should be treated as major refactor points.
 
-Pure value objects. Constructed once with all required data. Immutable thereafter. Composable into PHP-DI's existing definition system.
+## Definition layer
 
-### `HookDefinition` (interface)
+Definitions are immutable value objects. They are internal data contracts unless explicitly listed
+in `migration-03-public-api.md`.
+
+### `ModuleDefinition`
+
+Fields:
+
+- `class`: root module class-string.
+- `hook`: WordPress hook that initializes the module.
+- `priority`: hook priority as declared by the module metadata.
+- `context`: context bitmask.
+- `imports`: list of module class-strings.
+- `handlers`: list of handler class-strings.
+- `services`: list of service IDs or class-strings.
+- `extendable`: whether extension modules may be added through the existing extension mechanism.
+
+### `HandlerDefinition`
+
+Fields:
+
+- `class`: handler class-string.
+- `tag`: initialization hook, or empty/null when initialization is immediate/user-driven.
+- `priority`: initialization priority.
+- `context`: context bitmask.
+- `strategy`: one of the `INIT_*` string constants.
+- `hookable`: whether method callbacks are automatically registered.
+- `params`: resolved `Infuse` metadata for initialization methods.
+- `callbacks`: callback definition IDs, populated by parsing method attributes.
+
+### `CallbackDefinition`
+
+Fields:
+
+- `id`: stable callback ID, derived from handler class, method, hook type, and tag.
+- `handler`: handler class-string.
+- `method`: reflected method name.
+- `type`: `action`, `filter`, `rest`, `ajax`, `cli`, or a specific internal type.
+- `tag`: final hook tag template before dynamic modifier resolution.
+- `priority`: declared priority value.
+- `accepted_args`: WordPress accepted argument count.
+- `context`: context bitmask.
+- `invoke`: invocation bitmask using `INV_*` constants.
+- `params`: extra callback params such as `!self.handler`, container IDs, constants, or literal values.
+- `modifiers`: dynamic tag modifiers.
+- `conditional`: conditional callback metadata, if any.
+
+### `ServiceDefinition`
+
+Fields:
+
+- `id`: service ID.
+- `class`: class-string for autowired services, when applicable.
+- `kind`: `autowire`, `factory`, or `value`.
+- `value`: primitive value or PHP-DI compatible definition metadata.
+- `public`: whether module exports expose the service to imports.
+
+2.0 should only implement service shapes already needed by current module/service declarations.
+Factory-provider ergonomics can be added later when real usage needs them.
+
+## Compilation layer
+
+`Hook\Parser` reads module attributes and static module configuration. It should produce definition
+objects and should not return live decorator instances as its public output.
+
+`Hook\Compiler` serializes definitions to one primitive PHP array file per app:
 
 ```php
-namespace XWP\DI\Definition;
-
-interface HookDefinition {
-    public function metatype(): string;      // class-string of the runtime wrapper
-}
-```
-
-Common contract for anything that describes a WP hook attachment. The `metatype()` method names the runtime class that knows how to dispatch this hook (e.g. `Hook\Action`, `Hook\Filter` — the runtime classes, not the decorators).
-
-### `ModuleDefinitionHelper`
-
-```php
-namespace XWP\DI\Definition\Helper;
-
-class ModuleDefinitionHelper extends \DI\Definition\Helper\AutowireDefinitionHelper
-    implements HookDefinition
-{
-    public function __construct(string $module);
-    public function metatype(): string;
-    public function imports(string ...$modules): self;
-    public function provides(string ...$services): self;
-    public function exports(string ...$services): self;
-}
-```
-
-PHP-DI compatible. Modules become container definitions, not "decorated handler classes that also import other handlers." The shape mirrors NestJS's `@Module({ imports, providers, exports })` — adapted to PHP-DI's fluent definition idiom.
-
-### `HandlerDefinition` / `CallbackDefinition` / `ServiceDefinition`
-
-Value objects describing what currently lives mutably on `Handler`, `Filter`, etc. After the refactor, the runtime classes hold a reference to their definition; they don't store the data themselves.
-
-## Layer 2: Compilation (`src/Hook/`)
-
-Existing files refactored. Same names, same general flow, different output shape.
-
-### `Parser` (refactored)
-
-Reflection-driven. Walks the module tree starting from `app_module`, finds attributes, produces `HookDefinition[]` / `ModuleDefinition[]` / `ServiceDefinition[]`. Output is plain arrays of definition objects (or, after `Compiler`, plain arrays of primitive data).
-
-The current `Parser` already emits arrays via `Hook::get_data()` — the refactor consolidates that into a typed Definition output and removes the parallel "decorator instances" path.
-
-### `Compiler` (refactored)
-
-Serializes the definition graph to a single PHP file per app: `cache_dir/hook-definition.php`. Output is primitive arrays — no `var_export()` of objects, no decorator constructor calls in the cache file.
-
-Cache format sketch:
-```php
-return [
-    'modules' => [
-        'My\\App\\Module' => [
-            'imports' => ['My\\App\\Sub_Module'],
-            'handlers' => ['My\\App\\Foo_Handler'],
-            'services' => ['My\\App\\Bar_Service'],
-        ],
-    ],
-    'hooks' => [
-        'My\\App\\Foo_Handler::on_init' => [
+return array(
+    'modules' => array(
+        'My\\App\\App_Module' => array(
+            'class' => 'My\\App\\App_Module',
+            'imports' => array('My\\App\\Admin_Module'),
+            'handlers' => array('My\\App\\Foo_Handler'),
+            'services' => array('My\\App\\Bar_Service'),
+        ),
+    ),
+    'handlers' => array(
+        'My\\App\\Foo_Handler' => array(
+            'class' => 'My\\App\\Foo_Handler',
+            'tag' => 'init',
+            'priority' => 10,
+            'strategy' => 'deferred',
+            'callbacks' => array('My\\App\\Foo_Handler::on_init[action:init]'),
+        ),
+    ),
+    'callbacks' => array(
+        'My\\App\\Foo_Handler::on_init[action:init]' => array(
+            'handler' => 'My\\App\\Foo_Handler',
+            'method' => 'on_init',
             'type' => 'action',
             'tag' => 'init',
             'priority' => 10,
-            'args' => 1,
-            'context' => CTX_GLOBAL,
-        ],
-    ],
-    'services' => [...],
-];
+            'accepted_args' => 0,
+            'invoke' => 1,
+        ),
+    ),
+    'services' => array(),
+);
 ```
 
-Stable across decorator constructor changes. Inspectable by humans. Safe to ship.
+Cache output must not contain objects, closures, live containers, decorator constructor calls, or
+request-specific state.
 
-### `Factory` (existing, light cleanup)
+## Dispatch layer
 
-Stays roughly as-is. Instantiates the runtime hook objects (Hook\Action, Hook\Filter) from definitions when needed.
+`Hook\Dispatcher` is constructed with the app container and a primitive/definition graph. It owns:
 
-## Layer 3: Dispatch (`src/Hook/Dispatcher.php`, new)
+- Binding callbacks to WordPress with `add_action()`, `add_filter()`, REST, AJAX, and CLI adapters.
+- Resolving dynamic tags and priorities at bind time when those values depend on WP/container data.
+- Context checks and conditionals.
+- Handler initialization strategies: early, now, lazy, JIT, user, and deferred.
+- Invocation flags: standard, proxied, safely, looped, and once.
+- Runtime state such as fired counts and currently-firing guards.
 
-The class that didn't exist before. Consumes the compiled definition graph. Registers WP hooks. Handles invocation.
+Decorators no longer own invocation state once the dispatcher path is complete.
 
-Sketch:
-```php
-namespace XWP\DI\Hook;
+## Decorators
 
-final class Dispatcher {
-    public function __construct(
-        private readonly Container $container,
-        private readonly array $definitions, // from Compiler output
-    ) {}
+Decorators remain user-facing PHP attributes, but their target role is metadata only:
 
-    public function bind_all(): void {
-        foreach ($this->definitions['hooks'] as $id => $def) {
-            \add_filter(
-                $def['tag'],
-                fn(...$args) => $this->invoke($id, $def, $args),
-                $def['priority'],
-                $def['args'],
-            );
-        }
-    }
+- Constructor arguments remain the user-facing syntax.
+- No live container references.
+- No target handler instances.
+- No runtime `invoke()` path.
+- No fluent mutation as part of normal operation.
 
-    private function invoke(string $id, array $def, array $args): mixed {
-        // context check, init strategy, container resolve, method call
-    }
-}
-```
+Removing mutators is intentionally late in the plan. The parser and dispatcher must stop depending
+on them first.
 
-The decorators no longer have `invoke()` methods. They're metadata. The dispatcher is the only thing WordPress sees.
+## Compatibility stance
 
-## Decorators (after the split)
-
-Decorators stay in `src/Decorators/`. They still carry the user-friendly attribute syntax. But they shrink:
-
-- No `with_*()` setters
-- No `invoke()`, `load()`, `can_load()` methods
-- No reference to handler instances
-- No reference to containers
-- Constructor arguments only
-
-What remains is the metadata that PHP captures from the attribute literal. Everything else moved to Definition + Dispatcher.
-
-## NestJS analogues (for orientation)
-
-| NestJS | xwp/di v2.0 | Notes |
-|--------|-------------|-------|
-| `@Module({...})` | `#[Module(...)]` + `ModuleDefinitionHelper` | Same role, PHP-DI definition under the hood |
-| `imports: [...]` | `ModuleDefinitionHelper::imports(...)` | Module composition |
-| `providers: [...]` | `ModuleDefinitionHelper::provides(...)` | Service registration |
-| `exports: [...]` | `ModuleDefinitionHelper::exports(...)` | Public surface of a module |
-| `@Injectable()` | (none — autowiring handles it) | PHP-DI autowiring is closer to constructor injection in modern frameworks |
-| `useFactory` | PHP-DI `\DI\factory(...)` | Already supported |
-| `forRoot()` / `forFeature()` | (deferred to 3.0) | Needs PHP 8.5 closures-in-attributes |
-| Guards / interceptors / pipes | (out of scope) | WordPress hooks already handle the cross-cutting concerns |
-| `OnModuleInit` lifecycle | `#[Handler]` on a `plugins_loaded` hook | Use WP's lifecycle, don't build a parallel one |
-
-## What this gets us
-
-- **Reflection happens once.** Cached to disk. Production cost is zero.
-- **Decorators are testable.** Construct one with literal arguments, assert on its properties. No App_Factory, no WP globals.
-- **Dispatcher is testable.** Pass it a fake definition array, fire a closure, assert on side effects.
-- **Modules are first-class DI citizens.** They compose via PHP-DI definitions, which is the same machinery that handles every other service.
-- **The runtime is replaceable.** If someone wants to write a new dispatcher (compiled hook closures, async runtime, whatever), they consume the same definition graph. The other layers don't change.
-
-## What this does *not* get us
-
-- Lower memory footprint per request — PHP-DI's container is still the same size.
-- Faster `add_action`/`add_filter` calls — those are WordPress's bottleneck, not ours.
-- A simpler API — the public surface looks the same to users, by design.
-
-The win is structural, not headline-numeric. It compounds: every future change is smaller because the layers don't bleed.
+v2 is allowed to break v1 internals, but normal attribute users should see a small migration:
+composer constraint, PHP floor, config-key cleanup where needed, and removal of calls into internal
+decorator/Invoker APIs.
