@@ -10,6 +10,8 @@ namespace XWP\DI\Traits;
 
 /**
  * Allows making private methods of a class accessible from the outside.
+ *
+ * @internal Shared runtime implementation detail.
  */
 trait Accessible_Hook_Methods {
     /**

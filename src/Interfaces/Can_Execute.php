@@ -22,6 +22,8 @@ interface Can_Execute extends Can_Invoke {
      * Get the before invoke callback.
      *
      * @return ?Closure
+     *
+     * @internal Runtime command registration detail.
      */
     public function get_before_invoke(): ?Closure;
 
@@ -29,6 +31,8 @@ interface Can_Execute extends Can_Invoke {
      * Get the after invoke callback.
      *
      * @return ?Closure
+     *
+     * @internal Runtime command registration detail.
      */
     public function get_after_invoke(): ?Closure;
 

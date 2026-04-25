@@ -18,6 +18,8 @@ use Invoker\ParameterResolver\ResolverChain;
 
 /**
  * Compiled version of the dependency injection container.
+ *
+ * @internal Generated-container base for PHP-DI compilation.
  */
 abstract class Compiled_Container extends Container {
     /**

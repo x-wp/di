@@ -19,6 +19,8 @@ use XWP\DI\Invoker;
  * Parses the hook decorated classes.
  *
  * @template TTgt of object
+ *
+ * @internal Hook parsing pipeline detail.
  */
 class Parser {
     /**

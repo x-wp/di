@@ -17,6 +17,8 @@ use XWP\DI\Interfaces\Can_Invoke;
  * Handles hook registration and invocation.
  *
  * @mixin Factory
+ *
+ * @internal Runtime orchestration detail. Use Container or helper functions.
  */
 class Invoker {
     /**

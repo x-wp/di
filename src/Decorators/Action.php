@@ -26,6 +26,14 @@ class Action extends Filter {
         return 'action';
     }
 
+    /**
+     * Invoke the action callback.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
+     *
+     * @param  mixed ...$args Hook arguments.
+     * @return mixed
+     */
     public function invoke( mixed ...$args ): mixed {
         parent::invoke( ...$args );
 

@@ -19,6 +19,8 @@ use XWP\DI\Interfaces\Can_Hook;
  * @template TTgt of object
  *
  * @phpstan-require-implements Can_Hook<TTgt,Reflector>
+ *
+ * @internal Shared runtime implementation detail.
  */
 trait Hook_Invoke_Methods {
     /**

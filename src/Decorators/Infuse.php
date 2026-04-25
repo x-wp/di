@@ -32,7 +32,9 @@ class Infuse {
     }
 
     /**
-     * Get the parameters.
+     * Get parameter tokens for a handler.
+     *
+     * @internal Runtime parameter-resolution detail.
      *
      * @template T of object
      * @param  Can_Handle<T> $h The handler.
@@ -50,7 +52,9 @@ class Infuse {
     }
 
     /**
-     * Resolve the parameters.
+     * Resolve parameters for a handler.
+     *
+     * @internal Runtime parameter-resolution detail.
      *
      * @template T of object
      * @param  Can_Handle<T> $h The handler.

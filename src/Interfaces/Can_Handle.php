@@ -109,6 +109,8 @@ interface Can_Handle extends Can_Hook {
      *
      * @param  THndlr $instance Handler instance.
      * @return static
+     *
+     * @internal Runtime wiring detail.
      */
     public function with_target( object $instance ): static;
 
@@ -117,6 +119,8 @@ interface Can_Handle extends Can_Hook {
      *
      * @param  array<string,mixed> $params Parameters to pass to the magic function.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_params( array $params ): static;
 
@@ -125,6 +129,8 @@ interface Can_Handle extends Can_Hook {
      *
      * @param  array<int,string|Can_Invoke<THndlr,static>> $callbacks Hook methods.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_callbacks( array $callbacks ): static;
 
@@ -132,6 +138,8 @@ interface Can_Handle extends Can_Hook {
      * Get the handler instance.
      *
      * @return THndlr|null
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_target(): ?object;
 
@@ -140,6 +148,8 @@ interface Can_Handle extends Can_Hook {
      *
      * @param  string $method Method name.
      * @return ?Infuse
+     *
+     * @internal Runtime parameter-resolution detail.
      */
     public function get_params( string $method ): ?Infuse;
 
@@ -154,6 +164,8 @@ interface Can_Handle extends Can_Hook {
      * Get the handler hooks.
      *
      * @return ?array<int,string>
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_callbacks(): ?array;
 
@@ -161,6 +173,8 @@ interface Can_Handle extends Can_Hook {
      * Get the tag for lazy loading.
      *
      * @return string
+     *
+     * @internal Runtime dispatch detail.
      */
     public function get_lazy_tag();
 
@@ -168,6 +182,8 @@ interface Can_Handle extends Can_Hook {
      * Get the deprecated constructor arguments.
      *
      * @return array<string>
+     *
+     * @internal Runtime compatibility detail.
      */
     public function get_compat_args(): array;
 
@@ -175,6 +191,8 @@ interface Can_Handle extends Can_Hook {
      * Is the handler lazy loaded?
      *
      * @return bool
+     *
+     * @internal Runtime dispatch detail.
      */
     public function is_lazy(): bool;
 
@@ -182,6 +200,8 @@ interface Can_Handle extends Can_Hook {
      * Is the handler hookable?
      *
      * @return bool
+     *
+     * @internal Runtime dispatch detail.
      */
     public function is_hookable(): bool;
 
@@ -189,6 +209,8 @@ interface Can_Handle extends Can_Hook {
      * Lazy load the handler.
      *
      * @return void
+     *
+     * @internal Runtime dispatch detail.
      */
     public function lazy_load(): void;
 }

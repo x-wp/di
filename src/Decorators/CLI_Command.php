@@ -71,6 +71,13 @@ class CLI_Command extends Action implements Can_Execute {
         );
     }
 
+    /**
+     * Get compiler data for this CLI command.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),
@@ -90,10 +97,24 @@ class CLI_Command extends Action implements Can_Execute {
         );
     }
 
+    /**
+     * Get the before-invoke callback.
+     *
+     * @internal Runtime command registration detail.
+     *
+     * @return ?Closure
+     */
     public function get_before_invoke(): ?Closure {
         return $this->get_invoke( $this->before );
     }
 
+    /**
+     * Get the after-invoke callback.
+     *
+     * @internal Runtime command registration detail.
+     *
+     * @return ?Closure
+     */
     public function get_after_invoke(): ?Closure {
         return $this->get_invoke( $this->after );
     }
@@ -278,6 +299,14 @@ class CLI_Command extends Action implements Can_Execute {
      * Add the command arguments to the command.
      *
      * Set the summary in the `CLI_Command` decorator to override this description
+     *
+     * @param  array<int,mixed>    $positional Positional arguments.
+     * @param  array<string,mixed> $assoc      Associative arguments.
+     */
+    /**
+     * Run the command through the container.
+     *
+     * @internal Runtime command dispatch detail.
      *
      * @param  array<int,mixed>    $positional Positional arguments.
      * @param  array<string,mixed> $assoc      Associative arguments.

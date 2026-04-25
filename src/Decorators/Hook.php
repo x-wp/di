@@ -23,6 +23,8 @@ use XWP_Context;
  * @template THndlr of object
  * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
  * @implements Can_Hook<THndlr,TRflct>
+ *
+ * @internal Base implementation for public decorators.
  */
 abstract class Hook implements Can_Hook {
     /**
@@ -131,18 +133,42 @@ abstract class Hook implements Can_Hook {
             : $this->$name ?? null;
     }
 
+    /**
+     * Mark whether this hook came from cache.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  bool $cached Cached flag.
+     * @return static
+     */
     public function with_cache( bool $cached ): static {
         $this->cached = $cached;
 
         return $this;
     }
 
+    /**
+     * Set the owning class name.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  class-string $classname Class name.
+     * @return static
+     */
     public function with_classname( string $classname ): static {
         $this->classname = $classname;
 
         return $this;
     }
 
+    /**
+     * Set the runtime container.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  null|string|Container $container Container instance or ID.
+     * @return static
+     */
     public function with_container( null|string|Container $container ): static {
         if ( $container instanceof Container ) {
             $this->container = $container;
@@ -156,6 +182,8 @@ abstract class Hook implements Can_Hook {
      *
      * @param  TRflct $r Reflector instance.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      */
     public function with_reflector( \Reflector $r ): static {
         $this->reflector ??= $r;
@@ -163,6 +191,14 @@ abstract class Hook implements Can_Hook {
         return $this;
     }
 
+    /**
+     * Set compiler data.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  array<string,mixed> $data Hook data.
+     * @return static
+     */
     public function with_data( array $data ): static {
         foreach ( $data as $arg => $value ) {
             $this->{"with_{$arg}"}( $value );
@@ -185,14 +221,35 @@ abstract class Hook implements Can_Hook {
         return $this->resolve_priority( $this->prio );
     }
 
+    /**
+     * Get the runtime container.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return ?Container
+     */
     public function get_container(): ?Container {
         return $this->container ?? null;
     }
 
+    /**
+     * Get the owning class name.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return class-string
+     */
     public function get_classname(): string {
         return $this->classname;
     }
 
+    /**
+     * Get compiler data for this hook.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return array(
             'args'   => array(
@@ -213,24 +270,54 @@ abstract class Hook implements Can_Hook {
         return $this->context;
     }
 
+    /**
+     * Get the hook that initialized this hook object.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return string
+     */
     public function get_init_hook(): string {
         return $this->init_hook;
     }
 
+    /**
+     * Get the container token for this hook object.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return string
+     */
     final public function get_token(): string {
         return $this->token ??= $this->generate_token();
     }
 
+    /**
+     * Whether this hook came from cache.
+     *
+     * @internal Parser/runtime wiring detail.
+     *
+     * @return bool
+     */
     public function is_cached(): bool {
         return $this->cached;
     }
 
+    /**
+     * Whether this hook has been loaded.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return bool
+     */
     public function is_loaded(): bool {
         return $this->loaded;
     }
 
     /**
      * Check if the hook can be fired.
+     *
+     * @internal Runtime dispatch detail.
      *
      * @return bool
      */
@@ -240,6 +327,8 @@ abstract class Hook implements Can_Hook {
 
     /**
      * Check if the context is valid.
+     *
+     * @internal Runtime dispatch detail.
      *
      * @return bool
      */

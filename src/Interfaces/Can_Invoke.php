@@ -52,6 +52,8 @@ interface Can_Invoke extends Can_Hook {
      *
      * @param  THndl $handler Handler instance.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_handler( Can_Handle $handler ): static;
 
@@ -60,6 +62,8 @@ interface Can_Invoke extends Can_Hook {
      *
      * @param  string $method Method name.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_method( string $method ): static;
 
@@ -67,6 +71,8 @@ interface Can_Invoke extends Can_Hook {
      * Get the handler instance.
      *
      * @return THndl
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_handler(): Can_Handle;
 

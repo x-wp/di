@@ -48,6 +48,8 @@ class Container extends DI_Container {
      * @param array<string,mixed>|MutableDefinitionSource $definitions      The container definitions.
      * @param ProxyFactoryInterface|null                  $proxyFactory     The proxy factory to use.
      * @param ContainerInterface                          $wrapperContainer If the container is wrapped by another container.
+     *
+     * @internal Prefer App_Builder, xwp_create_app(), or xwp_load_app().
      */
     public function __construct(
         array|MutableDefinitionSource $definitions = array(),
@@ -70,6 +72,8 @@ class Container extends DI_Container {
      * @param  string             $name Method name.
      * @param  array<mixed,mixed> $args Method arguments.
      * @return mixed
+     *
+     * @internal Runtime proxy for Invoker methods.
      */
     public function __call( string $name, array $args ): mixed {
         if ( \in_array( $name, self::INV_METHODS, true ) ) {

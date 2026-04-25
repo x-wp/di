@@ -23,6 +23,8 @@ interface Can_Route extends Can_Invoke {
      *
      * @param  int $priority Priority.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_priority( int $priority ): static;
 
@@ -31,6 +33,8 @@ interface Can_Route extends Can_Invoke {
      *
      * @param  string $tag Tag.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_tag( string $tag ): static;
 
@@ -52,6 +56,8 @@ interface Can_Route extends Can_Invoke {
      * Get the route callback.
      *
      * @return Closure|array{0: T, 1: string}
+     *
+     * @internal Runtime dispatch detail.
      */
     public function get_callback(): array|Closure;
 

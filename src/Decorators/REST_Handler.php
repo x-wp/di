@@ -45,6 +45,13 @@ class REST_Handler extends Handler implements Can_Handle_REST {
         );
     }
 
+    /**
+     * Get compiler data for this REST handler.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),
@@ -74,6 +81,8 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      *
      * Checks if the REST namespace matches the requested route.
      *
+     * @internal Runtime dispatch detail.
+     *
      * @return bool
      */
     public function can_load(): bool {
@@ -84,6 +93,8 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      * Initialize the handler.
      *
      * Sets the namespace and basename.
+     *
+     * @internal Runtime dispatch detail.
      *
      * @return T
      */

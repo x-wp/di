@@ -137,6 +137,8 @@ class Handler extends Hook implements Can_Handle {
      *
      * @param  T $instance Handler instance.
      * @return static
+     *
+     * @internal Runtime wiring detail. Attributes are immutable in v2.0.
      */
     public function with_target( object $instance ): static {
         $this->instance  ??= $instance;
@@ -148,12 +150,28 @@ class Handler extends Hook implements Can_Handle {
         return $this;
     }
 
+    /**
+     * Set reflected handler data.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  Reflector $r Reflector instance.
+     * @return static
+     */
     public function with_reflector( Reflector $r ): static {
         $this->classname = $r->getName();
 
         return parent::with_reflector( $r );
     }
 
+    /**
+     * Set infuse parameter metadata.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  array<string,array<string>> $params Parameters.
+     * @return static
+     */
     public function with_params( array $params ): static {
         foreach ( $params as $method => $args ) {
             $this->params[ $method ] = new Infuse( ...$args );
@@ -162,16 +180,39 @@ class Handler extends Hook implements Can_Handle {
         return $this;
     }
 
+    /**
+     * Set callback metadata.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  array<int,string>|null $callbacks Callbacks.
+     * @return static
+     */
     public function with_callbacks( ?array $callbacks ): static {
         $this->callbacks = $callbacks;
 
         return $this;
     }
 
+    /**
+     * Get the runtime handler instance.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return T|null
+     */
     public function get_target(): ?object {
         return $this->instance ?? null;
     }
 
+    /**
+     * Get infuse parameter metadata for a method.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @param  string $method Method name.
+     * @return Infuse|null
+     */
     public function get_params( string $method ): ?Infuse {
         return $this->params[ $method ] ??= \method_exists( $this->get_classname(), $method )
             ? Reflection::get_decorator( $this->get_reflector()->getMethod( $method ), Infuse::class )
@@ -207,12 +248,21 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Get the reflector instance.
      *
+     * @internal Parser/runtime wiring detail.
+     *
      * @return ReflectionClass<T>
      */
     public function get_reflector(): ReflectionClass {
         return $this->reflector ??= new ReflectionClass( $this->classname );
     }
 
+    /**
+     * Get compiler data for this handler.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         $data = parent::get_data();
 
@@ -230,26 +280,68 @@ class Handler extends Hook implements Can_Handle {
         return $data;
     }
 
+    /**
+     * Get resolved callbacks.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return array<int,string>|null
+     */
     public function get_callbacks(): ?array {
         return $this->callbacks;
     }
 
+    /**
+     * Get the lazy-load hook tag.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return string
+     */
     public function get_lazy_tag(): string {
         return \sprintf( '%s_%s_init', $this->get_token(), $this->get_strategy() );
     }
 
+    /**
+     * Get legacy compatibility arguments.
+     *
+     * @internal Runtime compatibility detail.
+     *
+     * @return array<mixed>
+     */
     public function get_compat_args(): array {
         return $this->compat_args;
     }
 
+    /**
+     * Whether this handler uses lazy initialization.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return bool
+     */
     public function is_lazy(): bool {
         return \in_array( $this->get_strategy(), array( self::INIT_LAZY, self::INIT_JIT ), true );
     }
 
+    /**
+     * Can the handler be loaded?
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return bool
+     */
     public function can_load(): bool {
         return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
     }
 
+    /**
+     * Whether this handler can register callbacks.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return bool
+     */
     public function is_hookable(): bool {
         if ( ! $this->check_context() ) {
             return false;
@@ -260,6 +352,8 @@ class Handler extends Hook implements Can_Handle {
 
     /**
      * Lazy load the handler.
+     *
+     * @internal Runtime dispatch detail.
      */
     public function lazy_load(): void {
         $this->load();
@@ -267,6 +361,8 @@ class Handler extends Hook implements Can_Handle {
 
     /**
      * Loads the handler.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
      *
      * @return bool
      */

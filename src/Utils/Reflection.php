@@ -13,6 +13,8 @@ use XWP\DI\Traits\Accessible_Hook_Methods;
 
 /**
  * Reflection utilities.
+ *
+ * @internal Hook reflection implementation detail.
  */
 final class Reflection extends \XWP\Helper\Classes\Reflection {
     /**

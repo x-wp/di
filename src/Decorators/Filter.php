@@ -83,6 +83,8 @@ class Filter extends Hook implements Can_Invoke {
      *
      * @param  H $handler The handler.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      */
     public function with_handler( Can_Handle $handler ): static {
         $this->handler   = $handler;
@@ -95,12 +97,29 @@ class Filter extends Hook implements Can_Invoke {
         return $this;
     }
 
+    /**
+     * Set the target method.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  string $method Method name.
+     * @return static
+     */
     public function with_method( string $method ): static {
         $this->method = $method;
 
         return $this;
     }
 
+    /**
+     * Get the runtime handler.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return H
+     *
+     * @throws \RuntimeException If no container or class name is available.
+     */
     public function get_handler(): Can_Handle {
         if ( isset( $this->handler ) ) {
             return $this->handler;
@@ -119,6 +138,13 @@ class Filter extends Hook implements Can_Invoke {
         return $this->method;
     }
 
+    /**
+     * Get the reflected method.
+     *
+     * @internal Parser/runtime wiring detail.
+     *
+     * @return Reflector
+     */
     public function get_reflector(): Reflector {
         if ( isset( $this->reflector ) ) {
             return $this->reflector;
@@ -133,6 +159,13 @@ class Filter extends Hook implements Can_Invoke {
         return $this->args ??= $this->get_reflector()->getNumberOfParameters();
     }
 
+    /**
+     * Get compiler data for this callback.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         $data = parent::get_data();
 
@@ -144,10 +177,25 @@ class Filter extends Hook implements Can_Invoke {
         return $data;
     }
 
+    /**
+     * Get the runtime container.
+     *
+     * @internal Runtime wiring detail.
+     *
+     * @return Container
+     */
     public function get_container(): Container {
         return $this->container ??= $this->get_handler()->get_container();
     }
 
+    /**
+     * Set reflected method data.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  Reflector $r Reflector instance.
+     * @return static
+     */
     public function with_reflector( Reflector $r ): static {
         $this->args   ??= $r->getNumberOfParameters();
         $this->method ??= $r->getName();
@@ -155,10 +203,24 @@ class Filter extends Hook implements Can_Invoke {
         return parent::with_reflector( $r );
     }
 
+    /**
+     * Can the callback be loaded?
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return bool
+     */
     public function can_load(): bool {
         return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
     }
 
+    /**
+     * Load the callback into WordPress.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
+     *
+     * @return bool
+     */
     public function load(): bool {
         if ( $this->loaded ) {
             return true;
@@ -174,6 +236,14 @@ class Filter extends Hook implements Can_Invoke {
         return $this->loaded;
     }
 
+    /**
+     * Invoke the callback.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
+     *
+     * @param  mixed ...$args Hook arguments.
+     * @return mixed
+     */
     public function invoke( mixed ...$args ): mixed {
         if (
             ! $this->init_handler( Can_Handle::INIT_JIT ) ||

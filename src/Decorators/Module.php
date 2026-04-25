@@ -92,6 +92,13 @@ class Module extends Handler implements Can_Import {
             : array();
     }
 
+    /**
+     * Get compiler data for this module.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         $data = parent::get_data();
 

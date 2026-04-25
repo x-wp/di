@@ -15,6 +15,8 @@ use XWP\DI\Interfaces\Can_Hook;
 
 /**
  * Methods for working with hook tokens.
+ *
+ * @internal Shared runtime implementation detail.
  */
 trait Hook_Token_Methods {
     /**

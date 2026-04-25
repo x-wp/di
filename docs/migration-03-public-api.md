@@ -90,6 +90,8 @@ The four definition helpers already on master 1.x (`option()`, `transient()`, `f
 ## Interfaces (`XWP\DI\Interfaces\*`)
 
 Stable contracts. Implement to integrate with the library.
+Interface names are part of the public surface. Individual methods marked `@internal` in source are runtime wiring for the current beta implementation and are not SemVer-stable.
+`Async_Module` currently exists in the global namespace; the rest are under `XWP\DI\Interfaces`.
 
 | Interface | Role |
 |---|---|
@@ -128,6 +130,14 @@ Limited public surface — most methods are `@internal`. Public on `Container`:
 
 Plus PHP-DI's standard container methods (`get`, `has`, `make`, `call`).
 
+## WordPress-facing base classes
+
+| Class | Role |
+|---|---|
+| `XWP_REST_Controller` | Base REST controller that wires `on_initialize()` to route registration. |
+
+The classmapped `XWP_Context` and `XWP_CLI_Namespace` classes are runtime implementation details and are `@internal`.
+
 ## What's `@internal`
 
 Anything not in the tables above. Highlights:
@@ -136,8 +146,9 @@ Anything not in the tables above. Highlights:
 - `Invoker` — orchestrator, not for direct use
 - `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook\Dispatcher` — internal pipeline
 - `Compiled_Container` — generated, not for human consumption
-- `Utils\Reflection`, `Traits\*`, `Global\*` (most of it)
-- All abstract bases (`Decorators\Hook`, `Decorators\Handler` as a base, etc.) — extend at your own risk; signatures may change in minors
+- `Utils\Reflection`, `Traits\*`, `XWP_Context`, `XWP_CLI_Namespace`
+- `Decorators\Hook` and inherited base-class behavior on decorators — extend at your own risk; signatures may change in minors
+- Any public method tagged `@internal`, especially decorator mutation/dispatch methods such as `with_*()`, `load()`, `can_load()`, and `invoke()`
 
 If you find yourself reaching for an `@internal` class to do something user-code-shaped, that's a signal we're missing a public helper. File a 2.1 bead.
 

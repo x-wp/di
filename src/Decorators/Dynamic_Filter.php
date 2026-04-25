@@ -71,6 +71,13 @@ class Dynamic_Filter extends Filter {
         );
     }
 
+    /**
+     * Get compiler data for this dynamic filter.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         $data = parent::get_data();
 
@@ -86,12 +93,28 @@ class Dynamic_Filter extends Filter {
         return $data;
     }
 
+    /**
+     * Set reflected method data.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  Reflector $r Reflector instance.
+     * @return static
+     */
     public function with_reflector( Reflector $r ): static {
         $this->args ??= $r->getNumberOfParameters() - 1;
 
         return parent::with_reflector( $r );
     }
 
+    /**
+     * Load dynamic hooks into WordPress.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
+     *
+     * @param  string|null $tag Hook tag.
+     * @return bool
+     */
     public function load_hook( ?string $tag = null ): bool {
         $res = true;
 

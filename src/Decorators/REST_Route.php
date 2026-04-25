@@ -91,6 +91,8 @@ class REST_Route extends Action implements Can_Route {
      *
      * @param  H $handler Handler instance.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      */
     public function with_handler( Can_Handle $handler ): static {
         return parent::with_handler( $handler )
@@ -98,18 +100,41 @@ class REST_Route extends Action implements Can_Route {
             ->with_priority( $handler->get_priority() + 1 );
     }
 
+    /**
+     * Set the runtime REST route priority.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  int $priority Priority.
+     * @return static
+     */
     public function with_priority( int $priority ): static {
         $this->prio = $priority;
 
         return $this;
     }
 
+    /**
+     * Set the runtime REST route tag.
+     *
+     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     *
+     * @param  string $tag Tag.
+     * @return static
+     */
     public function with_tag( string $tag ): static {
         $this->tag = $tag;
 
         return $this;
     }
 
+    /**
+     * Get compiler data for this REST route.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),
@@ -137,6 +162,13 @@ class REST_Route extends Action implements Can_Route {
             : $this->route_guard;
     }
 
+    /**
+     * Get the runtime route callback.
+     *
+     * @internal Runtime dispatch detail.
+     *
+     * @return Closure|array{0: T, 1: string}
+     */
     public function get_callback(): array|Closure {
         return $this->cb_valid( self::INV_STANDARD )
             ? array( $this->get_handler()->get_target(), $this->get_method() )
@@ -162,6 +194,8 @@ class REST_Route extends Action implements Can_Route {
 
     /**
      * Register the REST route.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
      *
      * @param  mixed ...$args Arguments.
      * @return mixed

@@ -12,6 +12,8 @@ namespace XWP\DI\Hook;
  * Compiles the hook definitions.
  *
  * @template TMod of object
+ *
+ * @internal Hook compilation pipeline detail.
  */
 class Compiler {
     /**

@@ -144,6 +144,13 @@ class Ajax_Action extends Action {
         );
     }
 
+    /**
+     * Get compiler data for this AJAX action.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),
@@ -165,6 +172,13 @@ class Ajax_Action extends Action {
 
     /**
      * Check if the action can be loaded.
+     *
+     * @return bool
+     */
+    /**
+     * Can the AJAX action be loaded?
+     *
+     * @internal Runtime dispatch detail.
      *
      * @return bool
      */

@@ -12,6 +12,7 @@ use Automattic\Jetpack\Constants;
  * Determines execution context.
  *
  * @since 1.0.0
+ * @internal Runtime context helper used by hook dispatch.
  */
 final class XWP_Context {
     /**

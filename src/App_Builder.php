@@ -23,6 +23,8 @@ use XWP\DI\Hook\Parser;
  *
  * @extends ContainerBuilder<Container>
  * @method Container build()
+ *
+ * @internal Bootstrap implementation detail. Use xwp_create_app() or xwp_load_app().
  */
 class App_Builder extends ContainerBuilder {
     /**

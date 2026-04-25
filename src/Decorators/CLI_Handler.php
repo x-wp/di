@@ -68,6 +68,8 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      * @param  array<string> $choices  Array of choices.
      * @param  string|null   $def  Default choice.
      * @return string
+     *
+     * @internal CLI runtime helper.
      */
     public static function choice( string $question, array $choices, ?string $def = null ): string {
         $lines   = array( $question );
@@ -95,6 +97,8 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      * @param  string $question  Question to ask.
      * @param  bool   $multiline Whether to allow multiline input.
      * @return string
+     *
+     * @internal CLI runtime helper.
      */
     public static function prompt( string $question, bool $multiline = false ): string {
         if ( $multiline ) {
@@ -126,6 +130,8 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      * @param  array<mixed>|int $count  Array of items or count of items.
      * @param  int              $interval Interval to update the progress bar.
      * @param  string|null      $action Action to hook into to update the progress bar.
+     *
+     * @internal CLI runtime helper.
      */
     public static function track( string $message, array|int $count, int $interval = 100, ?string $action = null, ): void {
         static::$message  = $message . ' (%d / %d)';
@@ -146,6 +152,8 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      *
      * @param  int         $incr    Increment.
      * @param  string|null $message Message to display.
+     *
+     * @internal CLI runtime helper.
      */
     public static function tick( int $incr = 1, ?string $message = null ): void {
         $message ??= static::$message;
@@ -156,6 +164,8 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
 
     /**
      * Finish the progress bar.
+     *
+     * @internal CLI runtime helper.
      */
     public static function finish(): void {
         static::$bar->finish();
@@ -184,6 +194,13 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         parent::__construct( tag: 'cli_init', priority: $priority, context: static::CTX_CLI, container: $ctr );
     }
 
+    /**
+     * Get compiler data for this CLI handler.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),
@@ -205,6 +222,13 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         return WP_CLI::add_command( $this->namespace, NSC::class, array( 'shortdesc' => $this->description ) );
     }
 
+    /**
+     * Load the CLI namespace and commands.
+     *
+     * @internal Runtime command registration detail. Dispatcher replaces this in v2.0.
+     *
+     * @return bool
+     */
     public function load(): bool {
         static::$roots[ $this->namespace ] ??= $this->add_command();
 

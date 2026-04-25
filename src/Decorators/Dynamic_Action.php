@@ -21,6 +21,14 @@ class Dynamic_Action extends Dynamic_Filter {
         return 'action';
     }
 
+    /**
+     * Invoke the dynamic action callback.
+     *
+     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
+     *
+     * @param  mixed ...$args Hook arguments.
+     * @return mixed
+     */
     public function invoke( mixed ...$args ): mixed {
         parent::invoke( ...$args );
 

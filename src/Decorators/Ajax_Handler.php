@@ -52,6 +52,13 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
             : '';
     }
 
+    /**
+     * Get compiler data for this AJAX handler.
+     *
+     * @internal Hook parser/compiler detail.
+     *
+     * @return array<string,mixed>
+     */
     public function get_data(): array {
         return \array_merge(
             parent::get_data(),

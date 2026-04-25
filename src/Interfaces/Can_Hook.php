@@ -25,6 +25,8 @@ interface Can_Hook extends Has_Context {
      *
      * @param  bool $cached Cached or not.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_cache( bool $cached ): static;
 
@@ -33,6 +35,8 @@ interface Can_Hook extends Has_Context {
      *
      * @param  class-string<THndlr> $classname Handler classname.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_classname( string $classname ): static;
 
@@ -41,6 +45,8 @@ interface Can_Hook extends Has_Context {
      *
      * @param  null|string|Container $container Container instance.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_container( null|string|Container $container ): static;
 
@@ -49,6 +55,8 @@ interface Can_Hook extends Has_Context {
      *
      * @param  TRflct $reflector Reflector instance.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_reflector( Reflector $reflector ): static;
 
@@ -57,6 +65,8 @@ interface Can_Hook extends Has_Context {
      *
      * @param  array<string,mixed> $data Parameters to pass to the callback.
      * @return static
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function with_data( array $data ): static;
 
@@ -85,6 +95,8 @@ interface Can_Hook extends Has_Context {
      * Get the container.
      *
      * @return ?Container
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_container(): ?Container;
 
@@ -92,6 +104,8 @@ interface Can_Hook extends Has_Context {
      * Get the handler classname.
      *
      * @return class-string<THndlr>
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_classname(): string;
 
@@ -99,6 +113,8 @@ interface Can_Hook extends Has_Context {
      * Get the hook token.
      *
      * @return string
+     *
+     * @internal Runtime wiring detail.
      */
     public function get_token(): string;
 
@@ -106,6 +122,8 @@ interface Can_Hook extends Has_Context {
      * Get the reflector.
      *
      * @return TRflct
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function get_reflector(): Reflector;
 
@@ -117,6 +135,8 @@ interface Can_Hook extends Has_Context {
      *   type: class-string<static>,
      *   params: array{classname: class-string<THndlr>},
      * }
+     *
+     * @internal Hook parser/compiler detail.
      */
     public function get_data(): array;
 
@@ -124,6 +144,8 @@ interface Can_Hook extends Has_Context {
      * Get the handler initialization hook.
      *
      * @return string
+     *
+     * @internal Runtime dispatch detail.
      */
     public function get_init_hook(): string;
 
@@ -131,6 +153,8 @@ interface Can_Hook extends Has_Context {
      * Is the hook definition cached?
      *
      * @return bool
+     *
+     * @internal Parser/runtime wiring detail.
      */
     public function is_cached(): bool;
 
@@ -141,6 +165,8 @@ interface Can_Hook extends Has_Context {
      * For filters and actions - checks if they can be invoked.
      *
      * @return bool
+     *
+     * @internal Runtime dispatch detail.
      */
     public function can_load(): bool;
 
@@ -148,6 +174,8 @@ interface Can_Hook extends Has_Context {
      * Loads the handler, filter or action.
      *
      * @return bool
+     *
+     * @internal Runtime dispatch detail.
      */
     public function load(): bool;
 
@@ -155,6 +183,8 @@ interface Can_Hook extends Has_Context {
      * Check if the hook is loaded.
      *
      * @return bool
+     *
+     * @internal Runtime dispatch detail.
      */
     public function is_loaded(): bool;
 }

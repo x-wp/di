@@ -22,6 +22,8 @@ use XWP\DI\Utils\Reflection;
 
 /**
  * Factory for creating and resolving hooks.
+ *
+ * @internal Hook runtime factory detail.
  */
 class Factory {
     use Hook_Token_Methods;

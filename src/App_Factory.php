@@ -19,6 +19,8 @@ use XWP\Helper\Traits\Singleton;
  * @method static bool      has( string $id)                                                 Check if a container exists.
  * @method static Container get( string $id )                                                Get a container instance.
  * @method static void      uninstall()                                                      Uninstall the container.
+ *
+ * @internal Bootstrap implementation detail. Use the public xwp_* functions.
  */
 final class App_Factory {
     use Singleton;
