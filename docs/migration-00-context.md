@@ -35,6 +35,7 @@ These are tempting but explicitly out of 2.0. Park them now so they don't drift 
 - Async lifecycle hooks beyond WP-native ones.
 - Rewrite of `Container` / `Compiled_Container` / `App_Factory` / `App_Builder`. They work; leave them.
 - Integration of the master-line definition helpers (`option()`, `transient()`, `filtered()`, `wrapped()`) into the new definition layer. They stay where they are.
+- Module-level encapsulation (NestJS-style `exports` / re-exports). v2.0 keeps v1's flat container — every imported module's services and handlers stay container-global. Visibility barriers between modules are deferred.
 
 ## The discipline contract
 

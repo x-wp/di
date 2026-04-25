@@ -54,7 +54,7 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 - **Acceptance:** Unit tests for construction, equality, getter coverage.
 - **Depends on:** B1.1.
 
-### B1.3 — Add `ServiceDefinition` for autowired services and explicit providers
+### B1.3 — Add `ServiceDefinition` for autowired services and explicit service definitions
 
 - **Why:** Modules declare `services[]`. Today they're plain class names. We want a typed definition that supports autowire vs factory vs value providers.
 - **Scope:** `ServiceDefinition` value object + small builder. *Out:* PHP 8.5 closure-as-attribute factories — that's 3.0.
@@ -102,10 +102,10 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 ## Phase 4 — Module composition
 
-### B4.1 — Module imports/exports/providers via `ModuleDefinitionHelper` composition
+### B4.1 — Module imports/handlers/services via `ModuleDefinitionHelper` composition
 
 - **Why:** Today `imports[]` is an attribute argument array. We want it to be definition-driven so modules compose at the DI layer, not at the decorator layer.
-- **Scope:** Modules can declare imports either via the `#[Module(imports: [...])]` attribute (existing) or via `ModuleDefinitionHelper` returned from a `configure()` static method. Both paths flow into the same definition graph. `provides`/`exports` enter via the helper. *Out:* removing the attribute-array path — both styles coexist.
+- **Scope:** Modules can declare composition either via the `#[Module(imports: [...], handlers: [...], services: [...])]` attribute (existing) or via `ModuleDefinitionHelper` returned from a `configure()` static method. Both paths flow into the same definition graph. `handlers` and `services` enter via the helper. *Out:* removing the attribute-array path — both styles coexist. Module `exports` / encapsulation barriers are deferred to 3.0 (see [migration-00-context.md](migration-00-context.md)).
 - **Acceptance:** A module declared via `ModuleDefinitionHelper` and one via attribute produce equivalent definition graphs.
 - **Depends on:** B1.1, B1.4.
 

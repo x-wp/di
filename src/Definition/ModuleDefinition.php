@@ -19,14 +19,14 @@ final class ModuleDefinition {
      *
      * @param class-string            $metatype Module class name.
      * @param array<int,class-string> $imports  Imported module class names.
-     * @param array<int,class-string> $provides Provided service class names.
-     * @param array<int,class-string> $exports  Exported service class names.
+     * @param array<int,class-string> $handlers Handler class names.
+     * @param array<int,class-string> $services Autowired service class names.
      */
     public function __construct(
         private string $metatype,
         private array $imports = array(),
-        private array $provides = array(),
-        private array $exports = array(),
+        private array $handlers = array(),
+        private array $services = array(),
     ) {
     }
 
@@ -49,20 +49,20 @@ final class ModuleDefinition {
     }
 
     /**
-     * Get provided service class names.
+     * Get handler class names.
      *
      * @return array<int,class-string>
      */
-    public function get_provides(): array {
-        return $this->provides;
+    public function get_handlers(): array {
+        return $this->handlers;
     }
 
     /**
-     * Get exported service class names.
+     * Get autowired service class names.
      *
      * @return array<int,class-string>
      */
-    public function get_exports(): array {
-        return $this->exports;
+    public function get_services(): array {
+        return $this->services;
     }
 }

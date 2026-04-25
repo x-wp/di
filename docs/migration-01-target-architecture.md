@@ -74,12 +74,12 @@ class ModuleDefinitionHelper extends \DI\Definition\Helper\AutowireDefinitionHel
     public function __construct(string $module);
     public function metatype(): string;
     public function imports(string ...$modules): self;
-    public function provides(string ...$services): self;
-    public function exports(string ...$services): self;
+    public function handlers(string ...$classes): self;
+    public function services(string ...$classes): self;
 }
 ```
 
-PHP-DI compatible. Modules become container definitions, not "decorated handler classes that also import other handlers." The shape mirrors NestJS's `@Module({ imports, providers, exports })` — adapted to PHP-DI's fluent definition idiom.
+PHP-DI compatible. Modules become container definitions, not "decorated handler classes that also import other handlers." The bucket list — `imports`, `handlers`, `services` — matches v1's `#[Module]` decorator exactly. v2 adopts NestJS's *declarative-module ergonomics* but keeps v1's flat container: imported modules' services and handlers are container-global, with no `exports` boundary. Module-level encapsulation is deferred to 3.0 (see [migration-00-context.md](migration-00-context.md)).
 
 ### `HandlerDefinition` / `CallbackDefinition` / `ServiceDefinition`
 
@@ -179,8 +179,9 @@ What remains is the metadata that PHP captures from the attribute literal. Every
 |--------|-------------|-------|
 | `@Module({...})` | `#[Module(...)]` + `ModuleDefinitionHelper` | Same role, PHP-DI definition under the hood |
 | `imports: [...]` | `ModuleDefinitionHelper::imports(...)` | Module composition |
-| `providers: [...]` | `ModuleDefinitionHelper::provides(...)` | Service registration |
-| `exports: [...]` | `ModuleDefinitionHelper::exports(...)` | Public surface of a module |
+| `providers: [...]` | `ModuleDefinitionHelper::services(...)` | Autowired service registration |
+| `exports: [...]` | (deferred to 3.0) | Module encapsulation parked; v2 keeps v1's flat container |
+| (no analogue) | `ModuleDefinitionHelper::handlers(...)` | v1 bucket for `#[Handler]` classes whose hooks should be bound |
 | `@Injectable()` | (none — autowiring handles it) | PHP-DI autowiring is closer to constructor injection in modern frameworks |
 | `useFactory` | PHP-DI `\DI\factory(...)` | Already supported |
 | `forRoot()` / `forFeature()` | (deferred to 3.0) | Needs PHP 8.5 closures-in-attributes |

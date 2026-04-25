@@ -31,18 +31,18 @@ final class ModuleDefinitionHelper_Test extends TestCase {
         );
     }
 
-    public function test_helper_wires_imports_providers_and_exports(): void {
+    public function test_helper_wires_imports_handlers_and_services(): void {
         $definition = module( Fixture_Module::class )
             ->imports( Imported_Module::class )
-            ->provides( Provided_Service::class )
-            ->exports( Provided_Service::class )
+            ->handlers( Fixture_Handler::class )
+            ->services( Provided_Service::class )
             ->getDefinition( 'test.module' );
 
         self::assertSame(
             array(
                 0 => Fixture_Module::class,
                 1 => array( Imported_Module::class ),
-                2 => array( Provided_Service::class ),
+                2 => array( Fixture_Handler::class ),
                 3 => array( Provided_Service::class ),
             ),
             $definition->getConstructorInjection()?->getParameters(),
@@ -54,6 +54,9 @@ final class Fixture_Module {
 }
 
 final class Imported_Module {
+}
+
+final class Fixture_Handler {
 }
 
 final class Provided_Service {

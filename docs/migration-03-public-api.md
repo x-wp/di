@@ -74,7 +74,7 @@ New in v2.0. Compose container definitions declaratively.
 
 | Helper | Role |
 |---|---|
-| `ModuleDefinitionHelper` | Produces a PHP-DI `ObjectDefinition` for a module class with `imports`, `provides`, `exports` |
+| `ModuleDefinitionHelper` | Produces a PHP-DI `ObjectDefinition` for a module class with `imports`, `handlers`, `services` |
 | (interface) `HookDefinition` | Common contract for definition helpers that produce hook bindings |
 
 The four definition helpers already on master 1.x (`option()`, `transient()`, `filtered()`, `wrapped()`) are intentionally **not** part of v2.0's surface. They live on master/1.x; if they're wanted in v2.0 they get backported in a 2.1 minor, not v2.0.

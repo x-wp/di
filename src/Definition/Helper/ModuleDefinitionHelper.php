@@ -23,18 +23,18 @@ class ModuleDefinitionHelper extends AutowireDefinitionHelper implements HookDef
     private array $imports = array();
 
     /**
-     * Provided service class names.
+     * Handler class names.
      *
      * @var array<int,class-string>
      */
-    private array $provides = array();
+    private array $handlers = array();
 
     /**
-     * Exported service class names.
+     * Autowired service class names.
      *
      * @var array<int,class-string>
      */
-    private array $exports = array();
+    private array $services = array();
 
     /**
      * Constructor.
@@ -70,26 +70,26 @@ class ModuleDefinitionHelper extends AutowireDefinitionHelper implements HookDef
     }
 
     /**
-     * Set provided services.
+     * Set handlers.
      *
-     * @param  class-string ...$services Provided service class names.
+     * @param  class-string ...$classes Handler class names.
      * @return self
      */
-    public function provides( string ...$services ): self {
-        $this->provides = \array_values( $services );
+    public function handlers( string ...$classes ): self {
+        $this->handlers = \array_values( $classes );
 
-        return $this->constructorParameter( 2, $this->provides );
+        return $this->constructorParameter( 2, $this->handlers );
     }
 
     /**
-     * Set exported services.
+     * Set autowired services.
      *
-     * @param  class-string ...$services Exported service class names.
+     * @param  class-string ...$classes Autowired service class names.
      * @return self
      */
-    public function exports( string ...$services ): self {
-        $this->exports = \array_values( $services );
+    public function services( string ...$classes ): self {
+        $this->services = \array_values( $classes );
 
-        return $this->constructorParameter( 3, $this->exports );
+        return $this->constructorParameter( 3, $this->services );
     }
 }
