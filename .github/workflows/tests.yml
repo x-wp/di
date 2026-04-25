@@ -1,0 +1,66 @@
+name: tests
+
+on:
+  push:
+    branches: [master, develop, alpha, beta]
+  pull_request:
+
+jobs:
+  phpunit:
+    name: "PHP ${{ matrix.php }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wp_phpunit_tests
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      WP_TESTS_DB_HOST: 127.0.0.1
+      WP_TESTS_DB_NAME: wp_phpunit_tests
+      WP_TESTS_DB_USER: root
+      WP_TESTS_DB_PASSWORD: root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+          coverage: xdebug
+          extensions: mysqli, pdo_mysql
+
+      - name: Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - run: composer install --no-progress --no-interaction --prefer-dist
+
+      - run: php tests/bin/install-tests.php
+
+      - run: composer test:unit
+
+      - run: composer test:integration
+
+      - if: matrix.php == '8.3'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: build/coverage

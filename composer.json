@@ -28,17 +28,22 @@
     "x-wp/helper-functions": "^1.13"
   },
   "require-dev": {
+    "brain/monkey": "^2.6",
+    "mockery/mockery": "^1.6",
     "oblak/wordpress-coding-standard": "^1.1",
     "php-stubs/woocommerce-stubs": "^9.5",
     "php-stubs/wordpress-stubs": "^6.6",
     "phpstan/extension-installer": "^1.4",
     "phpstan/phpstan": "^1.12",
     "phpstan/phpstan-deprecation-rules": "^1.2",
+    "phpunit/phpunit": "^9.6.24",
     "swissspidy/phpstan-no-private": "^0.2",
     "symfony/polyfill-php82": "^1.31",
     "symfony/var-dumper": "^5.4",
     "szepeviktor/phpstan-wordpress": "^1.3",
-    "wp-cli/wp-cli": "^2.11"
+    "wp-cli/wp-cli": "^2.11",
+    "wp-phpunit/wp-phpunit": "^6.6",
+    "yoast/phpunit-polyfills": "^2.0 || ^3.0"
   },
   "conflict": {
     "oblak/wp-hook-di": "*"
@@ -64,6 +69,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "Tests\\XWP\\DI\\": "tests/",
       "XWP\\DIT\\": "test/fixtures/shared"
     },
     "classmap": [
@@ -80,5 +86,17 @@
       "php": "8.1"
     },
     "sort-packages": true
+  },
+  "scripts": {
+    "test:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "test:down": "docker compose -f docker-compose.test.yml down -v",
+    "test:install": "@php tests/bin/install-tests.php",
+    "test:unit": "phpunit --testsuite=unit",
+    "test:integration": "phpunit --testsuite=integration",
+    "test": [
+      "@test:unit",
+      "@test:integration"
+    ],
+    "test:coverage": "XDEBUG_MODE=coverage phpunit --coverage-html build/coverage/html --coverage-clover build/coverage/clover.xml"
   }
 }

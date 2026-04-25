@@ -119,6 +119,57 @@ class My_Handler {
 
 You can find the examples in the [examples](https://github.com/x-wp/di/tree/master/examples) directory.
 
+## Testing
+
+The test harness pairs PHPUnit with `wp-phpunit` and a docker-compose MySQL service. Two suites are wired up:
+
+- **Unit** — fast, no WordPress. Uses `Brain\Monkey` to stub WP functions; covers the DI container, decorators, and reflection helpers.
+- **Integration** — boots a real WordPress install via `wp-phpunit` against the docker MySQL and asserts the decorator-driven hooks actually register.
+
+### Prerequisites
+
+- PHP 8.1+ with the `pdo_mysql` and `mysqli` extensions
+- Composer
+- Docker (for the MySQL service)
+
+### One-time setup
+
+```bash
+composer install
+composer test:up        # starts the MySQL 8 container on 127.0.0.1:33076
+composer test:install   # resets the test DB and downloads WordPress core
+```
+
+### Running tests
+
+```bash
+composer test                # both suites
+composer test:unit           # unit suite only (no docker needed)
+composer test:integration    # integration suite only
+composer test:coverage       # HTML coverage at build/coverage/html/index.html
+```
+
+Stop the database when you're done:
+
+```bash
+composer test:down
+```
+
+### Configuration
+
+All defaults are baked in but every value is overridable via env var:
+
+| Variable                | Default              | Notes                                      |
+| ----------------------- | -------------------- | ------------------------------------------ |
+| `WP_TESTS_DB_HOST`      | `127.0.0.1:33076`    | Test database host (port `33076` avoids local MySQL and DDEV) |
+| `WP_TESTS_DB_NAME`      | `wp_phpunit_tests`   |                                            |
+| `WP_TESTS_DB_USER`      | `root`               |                                            |
+| `WP_TESTS_DB_PASSWORD`  | `root`               |                                            |
+| `WP_CORE_DIR`           | `tests/tmp/wordpress`| Where `install-tests.php` extracts WP core |
+| `WP_VERSION`            | `latest`             | Pin to e.g. `6.4` to test against an older release |
+
+The docker-compose stack and the GitHub Actions workflow share the same env contract — the only difference is the host (`127.0.0.1:33076` locally vs. `127.0.0.1:3306` in CI).
+
 ## Documentation
 
 For more information, please refer to the [official documentation](https://extended.wp.rs/dependency-injection).

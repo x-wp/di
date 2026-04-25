@@ -6,3 +6,9 @@ vendor
 .dolt/
 *.db
 .beads-credential-key
+
+# Test harness
+build/
+tests/tmp/
+.phpunit.cache/
+.phpunit.result.cache

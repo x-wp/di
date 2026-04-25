@@ -1,0 +1,25 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: xwp-di-test-db
+    ports:
+      - "33076:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: wp_phpunit_tests
+      MYSQL_USER: wp
+      MYSQL_PASSWORD: wp
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - xwp_di_test_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  xwp_di_test_db:
