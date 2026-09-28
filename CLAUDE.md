@@ -1,38 +1,47 @@
 # AI Agent Instructions
 
+`AGENTS.md` and `CLAUDE.md` carry the same repository instructions. Keep them identical when editing either file; verify with `cmp AGENTS.md CLAUDE.md`.
+
 ## Repo
 
-`x-wp/di`: WordPress DI library for PHP `>=8.0`. Builds PHP-DI containers and registers WP hooks/callbacks via PHP 8 attributes on modules/handlers. Current checkout is the lightweight `master` runtime, not the alpha/parser beta architecture. Preserve public compatibility unless explicitly told otherwise.
+`x-wp/di`: WordPress DI library for PHP `>=8.1 <8.5` with PHP-DI `^7.1` (see `composer.json`). Registers WP hooks/callbacks via PHP attributes on modules/handlers. These instructions describe the `beta` architecture, where the definition migration is in progress. Check the current branch and source before assuming a migration step is complete. Preserve public compatibility unless explicitly told otherwise.
 
 ## Map
 
-- `src/App_*`, `src/Invoker.php`, `src/Handler_Factory.php`: container/bootstrap/invocation core.
-- `src/Decorators/`: attrs: `Module`, `Handler`, `Action`, `Filter`, `REST_*`, `Ajax_*`, `CLI_*`, `Infuse`.
-- `src/Definition/`: PHP-DI definition helpers, including `XWP\DI\module()` and `filtered()`.
-- `src/Injector/`: hook/module refs and executor helpers.
-- `src/Core/`: classmapped WP-facing bases (`Context`, `REST_Controller`, `CLI_Namespace`).
+- `src/App.php`, `src/App_*`: application lifecycle, factory, and container builder.
+- `src/Container.php`, `src/Compiled_Container.php`, `src/Invoker.php`: dependency containers and handler/hook orchestration.
+- `src/Hook/`: `Parser`, `Factory`, and `Compiler` for hook metadata, runtime objects, and caching.
+- `src/Decorators/`: attributes: `Module`, `Handler`, `Action`, `Filter`, `Dynamic_*`, `REST_*`, `Ajax_*`, `CLI_*`, `Infuse`.
+- `src/Definition/`: module, handler, callback, and service definitions; `Helper/` contains the helper behind `XWP\DI\module()`.
+- `src/Core/Modules/Internal_Root_Module.php`: internal root composition and base container definitions.
+- `src/Global/`: classmapped WP-facing classes (`XWP_Context`, `XWP_REST_Controller`, `XWP_CLI_Namespace`).
 - `src/Functions/`: Composer-loaded public helpers.
 - `src/Interfaces/`, `src/Traits/`, `src/Utils/Reflection.php`: contracts/shared/reflection support.
-- `tests/`: PHPUnit unit + WP integration tests. `test/fixtures/shared/`: dev fixture namespace `XWP\DI\T\`.
+- `tests/Unit/`, `tests/Integration/`: PHPUnit unit and WP integration tests, namespace `Tests\XWP\DI\`.
+- `test/fixtures/shared/`: dev fixture namespace `XWP\DIT\`. `test/fixtures/di-plugin/`: WP integration plugin.
 - `examples/`: public usage samples. Treat `src/` as source of truth.
-- `docs/state-*.md`: branch comparison notes only.
+- `docs/migration-*.md`, `docs/definition-split-plan.md`: migration plans and historical snapshots; verify implementation claims against `src/` and tests.
 
 ## Rules
 
-- Architecture: `xwp_load_app()`/`xwp_create_app()` -> `App_Factory` -> `App_Builder` -> `xwp_register_module()` -> `Invoker`/`Handler_Factory` -> decorators/interfaces -> WP hooks.
+- Bootstrap: `xwp_create_app()` -> `App_Factory` -> `App_Builder` -> container -> `App`. `xwp_app()` also returns `App`.
+- Startup: `xwp_load_app()` schedules creation and `App::run()` on a WP hook. `App::run()` registers the root module through the container and `Invoker`; `Hook\Factory` resolves runtime handlers/callbacks. Keep creation and startup timing distinct.
 - Public API: decorators, helper functions, container IDs/tokens, definition helpers, and hook semantics are externally consumed.
 - Style: follow nearby code, WP + Oblak rules, `array(...)`, guard clauses, typed props, union types, named args, template/array-shape phpdoc, `class-string` annotations.
-- Names: namespace `XWP\\DI\\*`; keep WP-style underscores and snake_case. Do not normalize names.
-- Risk: `Decorators/Hook.php`, `Decorators/Handler.php`, `Decorators/Module.php`, `Invoker.php`, `Handler_Factory.php`, `App_*`, `Definition/*`, dynamic tags, container keys, WP context/init timing.
+- Names: namespace `XWP\DI\*`, except the classmapped global classes; keep existing WP-style underscores, snake_case, and PHP-DI method names. Do not normalize names.
+- Risk: `Decorators/Hook.php`, `Decorators/Handler.php`, `Decorators/Module.php`, `Hook/*`, `Invoker.php`, `App.php`, `App_*`, `Container.php`, `Compiled_Container.php`, `Definition/*`, dynamic tags, container keys, cache formats, WP context/init timing.
 - Avoid: broad refactors, opportunistic renames, mass `array(...)` -> `[]`, deleting suppressions without proof, breaking helper names/tokens.
-- Avoid beta assumptions: do not reintroduce alpha-only `src/Hook/Parser`, `Hook\Factory`, `Hook\Compiler`, custom `Container`, `Compiled_Container`, or `Container::run()` unless requested.
+- Avoid branch assumptions: the parser/compiler and custom containers are part of this checkout. Do not restore removed master-only paths or implement future migration architecture unless requested.
 
 ## Workflow
 
 - Read nearby producer and consumer paths before edits, especially for hooks/decorators/container definitions.
+- Inspect `git status` before editing; preserve unrelated changes and existing stashes. Stage only files belonging to the task.
 - Prefer the smallest backward-compatible change that matches local style.
 - For behavior changes, run focused tests/static checks plus impacted fixture/example checks. For docs, verify against repo state.
-- Useful commands: `vendor/bin/phpunit`, `vendor/bin/phpstan analyse`, `vendor/bin/phpcs`.
+- Tests: `composer test:unit`, `composer test:integration`, or `composer test` for both. Use explicit PHPUnit suites because `tests/bootstrap.php` selects the WP bootstrap from the command arguments.
+- Integration setup: `composer test:up`, then `composer test:install` (see `tests/wp-tests-config.php` for configuration).
+- Static checks: `vendor/bin/phpstan analyse` and `vendor/bin/phpcs`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
@@ -42,10 +51,10 @@ This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full 
 ### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
+bd ready               # Find available work
+bd show <id>           # View issue details
 bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd close <id>          # Complete work
 ```
 
 ### Rules
@@ -56,28 +65,20 @@ bd close <id>         # Complete work
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+1. **File follow-up issues** for remaining work.
+2. **Run relevant quality gates** for code changes; verify documentation against the repo and compare both instruction files.
+3. **Update issue status**: close finished work and update in-progress items.
+4. **Commit task changes and sync**. On branches other than `master`, push is mandatory:
 
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY - Unless on **MASTER** branch:
    ```bash
    git pull --rebase
    bd dolt push
-   git push  # Must not run on master
-   git status  # MUST show "up to date with origin"
+   git push
+   git status  # Must show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds, except on MASTER branch
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-- 
+   Do not push `master`. This repository authorizes commit/sync/push on other branches, overriding the conservative default from `bd prime`. Preserve unrelated work when rebasing.
+5. **Clean up task-created temporary state** and prune stale remote references. Do not clear pre-existing stashes or delete unrelated work.
+6. **Verify and hand off**: task changes must be committed and, except on `master`, pushed. Report validation, remaining work, and any blocker. If a push fails, resolve and retry; do not report completion while it remains blocked.
+
 <!-- END BEADS INTEGRATION -->
