@@ -340,7 +340,7 @@ class Filter extends Hook implements Can_Invoke {
         $this->firing = true;
 
         return $this->get_container()->call(
-            array( $this->get_classname(), $this->get_method() ),
+            array( $this->get_handler()->get_target(), $this->get_method() ),
             $this->get_cb_args( $args ),
         );
     }

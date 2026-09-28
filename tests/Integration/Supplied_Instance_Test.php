@@ -14,6 +14,7 @@ use XWP\DI\Hook\Factory;
 use XWP\DI\Invoker;
 use XWP\DIT\Lifecycle\Auto_Supplied_Handler;
 use XWP\DIT\Lifecycle\Plain_Supplied_Handler;
+use XWP\DIT\Lifecycle\Supplied_Dependency;
 use XWP\DIT\Lifecycle\Supplied_Instance_Module;
 use XWP\DIT\Lifecycle\User_Supplied_Handler;
 
@@ -85,6 +86,42 @@ final class Supplied_Instance_Test extends TestCase {
         }
     }
 
+    /** @dataProvider identity_cache_modes */
+    public function test_proxied_callbacks_use_the_bound_target_and_keep_argument_injection( bool $resolve_class, bool $compile, bool $hooks ): void {
+        foreach ( $this->apps( $compile, $hooks ) as $pass => $app ) {
+            $container = $app->container();
+            $metadata = $container->get( Factory::class )->get_handler( User_Supplied_Handler::class );
+            $existing = $resolve_class ? $container->get( User_Supplied_Handler::class ) : null;
+            $supplied = new User_Supplied_Handler( $pass . '-supplied' );
+            $handler = $container->get( Invoker::class )->load_handler( $supplied );
+            self::assertSame( $metadata, $handler );
+            self::assertSame( $supplied, $handler->get_target() );
+            self::assertSame( $supplied, apply_filters( 'xwp_supplied_direct_identity', null ) );
+            $events = Supplied_Instance_Module::$events;
+            $dependency = $container->get( Supplied_Dependency::class );
+
+            self::assertSame( array( $supplied, 'value', $dependency ), apply_filters( 'xwp_supplied_proxy_identity', 'value' ) );
+            do_action( 'xwp_supplied_action_identity', 'action' );
+            self::assertSame( array( $supplied, 'action', $dependency ), Supplied_Instance_Module::$action_identity );
+            self::assertSame( array( 'value:static', $dependency ), apply_filters( 'xwp_supplied_static', 'value' ) );
+            self::assertSame( $events, Supplied_Instance_Module::$events, 'Proxy invocation must not construct another handler or initialize the supplied object.' );
+            if ( $existing ) {
+                self::assertNotSame( $existing, $supplied );
+                self::assertSame( $existing, $container->get( User_Supplied_Handler::class ), 'Invoking the bound target must not replace an existing class entry.' );
+            }
+        }
+    }
+
+    public static function identity_cache_modes(): array {
+        $cases = array();
+        foreach ( array( false, true ) as $resolve_class ) {
+            foreach ( array( 'uncached' => array( false, false ), 'hooks' => array( false, true ), 'container' => array( true, false ), 'both' => array( true, true ) ) as $mode => $flags ) {
+                $cases[ ( $resolve_class ? 'resolved ' : 'fresh ' ) . $mode ] = array( $resolve_class, ...$flags );
+            }
+        }
+        return $cases;
+    }
+
     public static function handlers_and_cache_modes(): array {
         $cases = array();
         foreach ( array( 'user' => User_Supplied_Handler::class, 'auto' => Auto_Supplied_Handler::class, 'plain' => Plain_Supplied_Handler::class ) as $name => $class ) {
@@ -129,9 +166,10 @@ final class Supplied_Instance_Test extends TestCase {
     }
 
     private function reset_lifecycle(): void {
-        foreach ( array( 'xwp_supplied_module', 'xwp_supplied_attach', 'xwp_supplied_value', 'xwp_supplied_adopt', 'xwp_supplied_repeat' ) as $hook ) {
+        foreach ( array( 'xwp_supplied_module', 'xwp_supplied_attach', 'xwp_supplied_value', 'xwp_supplied_adopt', 'xwp_supplied_repeat', 'xwp_supplied_direct_identity', 'xwp_supplied_proxy_identity', 'xwp_supplied_action_identity', 'xwp_supplied_static' ) as $hook ) {
             remove_all_filters( $hook );
         }
         Supplied_Instance_Module::$events = array();
+        Supplied_Instance_Module::$action_identity = array();
     }
 }
