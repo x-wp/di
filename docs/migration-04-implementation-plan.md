@@ -56,7 +56,7 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 ### B1.3 — Add `ServiceDefinition` for autowired services and explicit service definitions
 
-- **Why:** Modules declare `services[]`. Today they're plain class names. We want a typed definition that supports autowire vs factory vs value providers.
+- **Why:** Modules declare `services[]`. Today they're plain class names. We want a typed definition that supports autowire vs factory vs value service definitions.
 - **Scope:** `ServiceDefinition` value object + small builder. *Out:* PHP 8.5 closure-as-attribute factories — that's 3.0.
 - **Acceptance:** Round-trip from `ServiceDefinition` to PHP-DI definition object verified.
 - **Depends on:** B1.1.

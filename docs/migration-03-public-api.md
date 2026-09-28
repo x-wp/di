@@ -85,7 +85,7 @@ The four definition helpers already on master 1.x (`option()`, `transient()`, `f
 |---|---|---|
 | `module` | `(string $class): ModuleDefinitionHelper` | Sugar for `new ModuleDefinitionHelper($class)` |
 
-(Future: `provider()`, `factory_provider()`, etc., as 2.x minors. Not in initial 2.0.)
+(Future: `service()`, `factory_service()`, etc., as 2.x minors. Not in initial 2.0.)
 
 ## Interfaces (`XWP\DI\Interfaces\*`)
 
