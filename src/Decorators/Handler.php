@@ -337,7 +337,10 @@ class Handler extends Hook implements Can_Handle {
      * @return bool
      */
     public function can_load(): bool {
-        return parent::can_load() && $this->check_method( array( $this->classname, 'can_initialize' ) );
+        return parent::can_load() && $this->check_method(
+            array( $this->classname, 'can_initialize' ),
+            $this->resolve_params( 'can_initialize' ),
+        );
     }
 
     /**
