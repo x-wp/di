@@ -272,6 +272,7 @@ class Handler extends Hook implements Can_Handle {
 
         $data['args']['hookable']    = $this->hookable;
         $data['args']['strategy']    = $this->strategy;
+        $data['args']['priority']    = $this->prio ?? 10;
         $data['params']['callbacks'] = $this->get_callbacks();
         $data['params']['params']    = \array_combine(
             \array_keys( $this->params ),
