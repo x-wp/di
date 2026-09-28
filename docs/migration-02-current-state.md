@@ -1,99 +1,65 @@
 # Migration 02 — Current State of `beta` and the Gap
 
-> A snapshot of `beta` as of 2026-04-23. What's there, what's the gap to the target architecture, what to keep / rework / throw out.
+> Updated after the plain callback split (S1–S3). This replaces the April 2026 snapshot; use source and beads for subsequent changes.
 
-## Snapshot
+## Implemented structure
 
-`beta` is at commit `2950574` (`fix(Core): Fixed ProxyFactory signature on PHP 8.4+`, 2026-04-16). It is *not* what the older `docs/state-rewrite.md` describes. The `rewrite` branch had `old/` + a `Definition/` layer that beta does not. Beta is a maturation of the **alpha-style** parser/compiler architecture — it never carried the rewrite's NestJS-style direction forward.
+| Area | Current responsibility |
+|---|---|
+| `App`, `App_Factory`, `App_Builder` | Application wrapper, creation, container building, and startup |
+| `Container`, `Compiled_Container` | PHP-DI integration and forwarding to Invoker |
+| `Invoker` | Module/handler lifecycle, initialization strategies, callback attachment |
+| `Hook/Parser`, `Hook/Compiler` | Attribute discovery, metadata definitions, existing hook-cache format |
+| `Hook/Factory` | Resolve metadata, handlers, and callback runtimes |
+| `Hook/Callback` | Registration and execution for exact plain Filter/Action types |
+| `Definition/` and `Definition/Helper/` | Module, handler, callback, and service value objects; module composition helper |
+| `Decorators/` | Attribute declarations, typed callback views, and retained specialized/handler runtime |
+| `tests/Unit`, `tests/Integration` | Definition tests and real WordPress lifecycle/cache/runtime coverage |
 
-What `beta` has on disk:
+There is no central `Hook/Dispatcher`. The [definition split plan](definition-split-plan.md) replaces that proposal with one Callback per callback token.
 
-```
-src/
-  App_Builder.php            ← container builder, configures PHP-DI
-  App_Factory.php            ← singleton factory, app lifecycle
-  Compiled_Container.php     ← abstract base for compiled containers
-  Container.php              ← custom Container, run() bootstrap, __call proxy
-  Invoker.php                ← orchestrates handler registration + dispatch
-  Decorators/                ← Hook, Handler, Module, Filter, Action, REST_*, AJAX_*, CLI_*, Dynamic_*, Infuse
-  Global/                    ← Context, REST_Controller, CLI_Namespace
-  Hook/
-    Parser.php               ← reflects on modules, builds raw arrays
-    Factory.php              ← instantiates handlers/hooks from data
-    Compiler.php             ← serializes parser output to cache file
-  Interfaces/                ← 15 contract interfaces
-  Functions/                 ← public helper functions
-  Traits/                    ← Accessible_Hook_Methods, Hook_Invoke_Methods, Hook_Token_Methods
-  Utils/Reflection.php       ← reflection helpers
-```
+## Completed callback boundary
 
-What `beta` does **not** have:
+Factory converts exact `Filter`/`Action` metadata into a `CallbackDefinition` and `Callback`, both when resolving cached metadata and when discovering callbacks after startup. Callback tokens and cache metadata arrays are unchanged. Discovery still returns decorators for Parser; started-app callback lookup returns stored runtime objects.
 
-- `src/Definition/` directory or any Definition value objects
-- `ModuleDefinitionHelper` / `HookDefinition` interface (these existed on `rewrite`, never made the jump)
-- `Hook/Dispatcher.php` (the runtime layer that should consume compiled definitions)
-- A test directory beyond fixtures
+Plain callback execution state belongs to Callback. Standard hooks retain the bound handler-method callable; proxies use the container Callback's `invoke` method. Reloading callbacks preserves runtime identity and counters.
 
-## The gap to target architecture
+`!self.hook` remains a typed Action/Filter view with live forwarded state. It is distinct from the runtime object. Direct invocation forwards, while WordPress removal uses the runtime callable exposed by `$hook->target`. The [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split) describe both identity changes.
 
-| Target layer | What's on beta | Gap |
-|---|---|---|
-| **Definition (Layer 1)** | Nothing — decorator instances act as definitions | Whole layer must be added. Port `ModuleDefinitionHelper` from `rewrite`, fit to beta's class layout. Add `HookDefinition`, `HandlerDefinition`, `CallbackDefinition`, `ServiceDefinition` value objects. |
-| **Compilation (Layer 2)** | `Hook/Parser`, `Hook/Compiler`, `Hook/Factory` exist and work | `Parser` emits ad-hoc arrays *and* decorator instances — needs to emit Definition objects only. `Compiler` `var_export()`'s decorator instances — needs to emit primitive arrays. |
-| **Dispatch (Layer 3)** | Dispatch logic lives inside `Filter::invoke()`, `Action::invoke()`, etc. Decorators ARE the dispatchers. | Whole layer must be extracted. New `Hook/Dispatcher` class, runtime `invoke()` moves out of decorators. |
-| **Decorators** | Mutable. `with_*()` setters, `invoke()` methods, handler/container references | Make immutable. Strip mutators and runtime methods. Keep them as PHP attribute holders only. |
+Dynamic, AJAX, REST, CLI, and custom decorator subclasses still use their existing runtime. Handler and Module also retain their runtime responsibilities. This bounded transition is intentional; decorator mutation and dispatch methods have not been removed.
 
-## Salvage list (keep as-is)
+## Established lifecycle
 
-These are correct as they stand. Touch only if a refactor forces it.
+Application creation and startup are distinct: helpers return `App`, and `App::run()` starts root-module registration through Invoker. `xwp_load_app()` schedules both operations.
 
-- `App_Factory` — singleton container factory + lifecycle. Works.
-- `App_Builder` — fluent PHP-DI builder. Works.
-- `Container` — custom container with `run()`. Works. The 8.4 ProxyFactory fix was real.
-- `Compiled_Container` — abstract base for compiled output. Works.
-- `Invoker` — orchestrator. Will get *thinner* as Dispatcher takes over runtime, but the orchestration itself stays.
-- All interfaces in `src/Interfaces/`. Stable contracts.
-- All traits in `src/Traits/`. Stable shared logic.
-- `Global/Context`, `Global/REST_Controller`, `Global/CLI_Namespace`. Working WP-facing bases.
-- `Functions/xwp-di-container-fns.php`, `Functions/xwp-di-helper-fns.php`. The public API.
-- `Utils/Reflection`. Stable.
+Module context gates runtime activation through its descendants. Services and static configuration remain available independently of those runtime gates. Initialization conditions are evaluated at the strategy-specific initialization point. LAZY requests initialization during attachment; JIT does so during invocation. Rejected initialization can retry, and successful initialization retains its state. Late scheduling remains the caller's responsibility.
 
-## Rework list (refactor, don't rewrite)
+See [the lifecycle contract](definition-split-plan.md#agreed-lifecycle) and the integration tests for the complete strategy matrix.
 
-- `Hook/Parser` — change output type from raw arrays + decorator instances to typed Definition objects. Internal change; same input (module classnames), different output shape.
-- `Hook/Compiler` — change serialization format from `var_export()`'d objects to primitive arrays. Cache file becomes stable across decorator constructor changes.
-- `Hook/Factory` — light cleanup once Parser produces Definition objects. Stays as the "instantiate runtime hook objects from definitions" service.
-- All decorators in `src/Decorators/` — strip `with_*()` mutators and `invoke()`/`load()`/`can_load()` methods. Keep constructor arguments and getters. Public attribute syntax unchanged for users.
+## Remaining work
 
-## Throw-out list (delete in v2.0)
+| Area | Remaining boundary |
+|---|---|
+| Specialized callbacks (F1–F4) | Port Dynamic, AJAX, REST, and CLI execution into Callback subclasses, preserving their specialized behavior |
+| Handler/module runtime (F5) | Extract definitions and runtime state while retaining the established lifecycle |
+| Decorator cleanup (F6/B3.1) | Remove obsolete runtime methods and mutators after specialized ports and custom-subclass/view compatibility are settled |
+| Parser/Compiler (B2.1/B2.2) | Integrate typed definition output and any cache-schema redesign; the current callback split leaves these formats intact |
+| Module composition (B4.1) | Complete helper-driven integration with discovery; helper/value-object existence alone does not establish it |
+| Verification and release | Continue focused coverage, dogfood a production plugin, and complete release gates |
 
-- `Filter::invoke()`, `Action::invoke()`, `REST_Route::invoke()` — runtime invocation logic. Moves to `Hook/Dispatcher`.
-- `Filter::load()`, `Filter::can_load()` — load/conditional checks. Move to `Hook/Dispatcher`.
-- `Handler::with_*()`, `Filter::with_*()`, etc. — fluent mutation API. Constructors take all data.
-- The `$container_id` / `xwp_app($container_id)` lookup pattern — Dispatcher receives the container by constructor injection, not global lookup.
-- Whatever remains of the `parse_legacy_config()` shim in `App_Factory` — v2.0 is a clean break, no v1.x config compat.
+These are separate slices, not authorization to start all of them. Beads tracks their execution status.
 
-## Frenzy detection signals to watch for during the migration
+## Preserve during later ports
 
-These are the patterns that produced the previous rewrites. If any appears mid-slice, file a follow-up bead and do not extend the current slice:
+- `App` owns startup; do not move lifecycle orchestration into the container.
+- Invoker remains the coordinator, with strategy-specific ordering.
+- Callback tokens identify runtime objects; do not recreate them when reloading callback lists.
+- Parser still needs metadata during discovery, even when Factory stores a runtime under the token.
+- Specialized and custom subclasses must keep working until their migration is explicitly handled.
+- No blanket zero-reflection claim: uncached discovery, autowiring, and Callback's omitted-argument-count fallback can reflect at runtime.
 
-- A new public class that nobody asked for.
-- A second copy of a thing that was supposed to replace the first.
-- A new lifecycle hook that is not a WordPress hook.
-- An "internal" abstraction with one consumer.
-- A NestJS feature being ported because it would be cool, not because a slice needs it.
-- A "while I'm in here" cleanup that grows past two files.
+## Validation
 
-## Open architectural questions (resolve during slices, not now)
+The completed split is covered by `Callback_Runtime_Test`, `Callback_Wiring_Test`, `Self_Hook_Test`, and the existing lifecycle suites. Wiring coverage includes runtime discovery, preloading, hook caches, compiled containers, cold/warm passes, and legacy subclass controls. Example bootstrap and source static checks are part of code-change validation.
 
-- **Dispatcher, one per app or one per dispatch event?** Probably one per app, lifetime tied to the container.
-- **Do we keep `Invoker` as an orchestration class or fold its responsibilities into `Container::run()`?** Keep it. It works and it's a reasonable seam.
-- **Does the compiled cache file become a class or stay a return-array?** Stay a return-array. Less magic, easier to inspect, no opcache class-shape concerns.
-- **Does the new `Hook/Dispatcher` register itself with the container as a service, or is it constructed at bootstrap time?** Constructed at bootstrap. It's the entrypoint, not a service.
-
-## Verification before any slice merges
-
-- The existing examples under `examples/` must still bootstrap successfully.
-- The hook cache file must be deterministic across runs (same input → same output).
-- A handler with at least one `#[Filter]`, one `#[Action]`, one `#[REST_Route]` must register and fire correctly.
-- The dogfood plugin port (slice B6.1) must run end-to-end before tagging GA.
+Run `composer test:unit`, `composer test:integration`, or `composer test` with their explicit suites. Documentation-only changes are checked against source and links; they do not imply a new test run. Dogfood and release acceptance remain separate from these development checks.

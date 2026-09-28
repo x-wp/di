@@ -1,6 +1,6 @@
 # Migration 04 — Implementation Plan (Slice Breakdown)
 
-> The 14 slices that take `beta` from where it is to `2.0.0` GA. Each slice maps to one beads issue.
+> Original phase labels retained for reference. The callback split below supersedes the original Phase 3 ordering; beads records execution status.
 
 ## Reading this document
 
@@ -15,6 +15,12 @@ Each slice has:
 
 The actual `bd create` commands and dependency wiring happen at the end of this file's companion plan execution. The labels here are stable references; bead IDs (`beads-XXX`) are assigned by `bd create`.
 
+## Callback split update
+
+The [definition split plan](definition-split-plan.md) is the implementation authority for lifecycle and runtime extraction. L1–L2 established lifecycle behavior; S1 added inert callback-data conversion; S2 added `Hook\Callback` and a typed forwarding view; S3 connected plain Filter/Action tokens in Factory and Invoker. S4 synchronizes these documents. The completed plain split did not require a Parser/Compiler cache-format change or prior removal of decorator mutators.
+
+F1–F4 (Dynamic, AJAX, REST, CLI), F5 (handler/module extraction), and F6 (decorator cleanup after compatibility decisions) remain follow-up slices. Their designs are not implied by this documentation update. B3.2 remains broader than the completed plain-callback work.
+
 ## Phase 0 — Foundations
 
 ### B0.1 — Lock public API surface for 2.0
@@ -26,7 +32,7 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 ### B0.2 — Set CI matrix for PHP 8.1–8.4, drop upper bound in composer
 
-- **Why:** Current `composer.json` has `<8.5` ceiling on master and unclear range on beta. PHP 8.1 native is the floor. No upper bound — we don't want to time-bomb the install.
+- **Why:** Current beta `composer.json` requires `>=8.1 <8.5`; removing that ceiling is still separate planned work. PHP 8.1 native is the floor. No upper bound — we don't want to time-bomb the install.
 - **Scope:** `composer.json` PHP constraint becomes `>=8.1`. CI workflow runs jobs for PHP 8.1, 8.2, 8.3, 8.4. *Out:* tooling/lint setup beyond what CI needs.
 - **Acceptance:** `composer install` works on PHP 8.1, 8.2, 8.3, 8.4. CI matrix passes for all four.
 - **Depends on:** —
@@ -49,7 +55,7 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 ### B1.2 — Add `HandlerDefinition` and `CallbackDefinition` value objects
 
-- **Why:** Cover the metadata that currently lives mutably on `Decorators\Handler` and `Decorators\Filter`. These are the input to the dispatcher.
+- **Why:** Cover the metadata that currently lives mutably on `Decorators\Handler` and `Decorators\Filter`. These describe inputs to runtime objects; CallbackDefinition now feeds the plain Callback runtime.
 - **Scope:** Two immutable value objects. Constructor takes all data. Getters only — no setters, no with_*().  *Out:* using them in Parser yet.
 - **Acceptance:** Unit tests for construction, equality, getter coverage.
 - **Depends on:** B1.1.
@@ -84,21 +90,22 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 - **Acceptance:** Round-trip test: parse → compile → read → equals original. Cache file is human-readable. Diff between two runs over identical input shows no spurious changes.
 - **Depends on:** B2.1.
 
-## Phase 3 — Decorator + dispatcher split
+## Phase 3 — Definition and runtime split
 
-### B3.1 — Remove `with_*()` mutators from decorators; make them immutable
+### B3.1 — Remove obsolete decorator runtime and mutators after the ports
 
-- **Why:** Decorators must be metadata only. No mutation between attribute construction and use.
-- **Scope:** Strip `with_handler()`, `with_method()`, `with_target()`, etc. from `Hook`, `Handler`, `Filter`, `Action`, `Module`, REST/AJAX/CLI variants. Constructor signatures grow to accept all data up front; the Parser provides everything when constructing. Public attribute syntax for users does NOT change. *Out:* removing `invoke()` — that's B3.2.
-- **Acceptance:** Grep confirms no `with_*()` methods on decorator classes. All uses redirected to constructor arguments.
-- **Depends on:** B2.1.
+- **Why:** Attribute declarations should describe metadata independently of live execution state.
+- **Scope:** F6 of the [split plan](definition-split-plan.md). Remove obsolete mutation/dispatch behavior only after specialized callback and handler/module ports. Preserve public attribute syntax. Settle custom-subclass migration and typed-view dependencies before removing inherited methods.
+- **Acceptance:** Remaining decorator behavior is justified by the agreed compatibility policy; runtime ownership is separate and consumer migrations are documented. Current beta still contains `with_*()`, `invoke()`, `load()`, and `can_load()` paths.
+- **Depends on:** F1–F5 and the extension/view compatibility decision. Parser changes alone do not make this cleanup safe.
 
-### B3.2 — Extract `Hook/Dispatcher`: move `invoke()` out of `Filter`
+### B3.2 — Extract per-callback runtime behind stable tokens
 
-- **Why:** The decorator should not be the WP callback. The dispatcher should.
-- **Scope:** New `src/Hook/Dispatcher.php` class. Consumes the compiled definition graph. `bind_all()` registers `add_filter()` / `add_action()` callbacks. Each callback is a method on the Dispatcher (or a closure created by it), not on the decorator. Move `invoke()`, `load()`, `can_load()`, context checks, init strategies from `Filter`/`Action`/`Handler` into `Dispatcher`. *Out:* changing what user code looks like.
-- **Acceptance:** A handler with one `#[Filter]`, one `#[Action]`, one `#[REST_Route]` registers and fires through Dispatcher. Decorators have no `invoke()` method left.
-- **Depends on:** B3.1, B2.2.
+- **Why:** Each callback needs one execution owner and a stable WordPress callable identity. This replaces the central `Hook/Dispatcher` and generated-closure sketch.
+- **Implemented:** S1–S3 provide `CallbackDefinition::from_data()`, `Hook\Callback`, the memoized typed `!self.hook` view, and exact Filter/Action routing in Factory and Invoker. Standard hooks retain handler-method callables; proxies register the Callback's `invoke`. Cached and runtime producers preserve tokens and metadata format.
+- **Remaining scope:** F1–F4 port specialized callbacks; F5 extracts handler/module runtime while preserving the L1–L2 lifecycle contract. Invoker remains the coordinator.
+- **Acceptance:** Each port has focused behavior tests plus cache and integration coverage. Custom subclasses continue working until their migration is handled. Removing decorator runtime is the final F6/B3.1 step, not a prerequisite for plain callback routing.
+- **Dependencies:** Completed plain extraction used S1, L1–L2, callable-priority fixes, and the agreed forwarding-view contract. B2.1/B2.2 remain separate definition-graph/compiler work.
 
 ## Phase 4 — Module composition
 
@@ -111,11 +118,11 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 ## Phase 5 — Verification
 
-### B5.1 — Unit test coverage for Definition layer + Dispatcher
+### B5.1 — Definition and runtime verification
 
 - **Why:** Without tests we cannot lock anything; the lock contract assumes regression detection works.
-- **Scope:** Tests for every public method on every Definition class. End-to-end tests for: bootstrap a fixture app, fire a hook, observe the side effect. Tests for Dispatcher's bind/invoke/init-strategy paths. *Out:* full WordPress integration test suite — too large for v2.0.
-- **Acceptance:** `composer test` passes. PHPUnit reports >80% line coverage for `src/Definition/` and `src/Hook/Dispatcher.php`.
+- **Scope:** Definition unit tests and WordPress integration tests for bootstrap, attachment, invocation, initialization strategies, and caches. The current suites already cover the plain callback split and lifecycle; each specialized port extends them.
+- **Acceptance:** `composer test` passes using the explicit unit/integration suites, with relevant static checks and example validation. The original >80% coverage target applies to `src/Definition/` and the extracted runtime classes, including `src/Hook/Callback.php`; it is a release target, not a claim that coverage has been measured or reached.
 - **Depends on:** B3.2, B4.1.
 
 ## Phase 6 — Dogfood + ship
@@ -134,19 +141,20 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 - **Acceptance:** Tag pushed. CHANGELOG entry. Migration guide for v1.x → v2.0 published.
 - **Depends on:** B6.1.
 
-## Dependency graph
+## Dependency ordering
 
+The original B3.1 → B3.2 dependency is superseded for the callback split:
+
+```text
+L1–L2 + S1 + priority/view decisions → S2 → S3 → S4
+                                           ├→ F1–F4 specialized callback ports ─┐
+                                           └→ F5 handler/module extraction ────┼→ F6 / B3.1
+                                                        compatibility policy ─┘
+B1 definitions → B2.1 Parser → B2.2 Compiler (separate work)
+Completed runtime ports + B4.1 composition → B5.1 → B6.1 → B6.2
 ```
-B0.1 ─┬─→ B1.1 ─┬─→ B1.2 ─┬─→ B1.4 ─→ B4.1 ─┐
-      │         ├─→ B1.3 ─┘                  │
-      │         │                            │
-      │         └─→ B2.1 ─→ B2.2 ─→ B3.1 ─→ B3.2 ─→ B5.1 ─→ B6.1 ─→ B6.2
-      │                                                      ↑
-B0.2 ─┘ (parallel, no blockers)                              │
-B0.3 ─┘ (parallel, ideally early)                            │
-                                                             │
-                                            B4.1 ────────────┘
-```
+
+The original B labels remain useful for the broader migration. Use the split-plan slices and beads for the actual execution sequence; the completed S1–S3 work does not mean all of B3.2 is finished.
 
 ## Slice sizing guideline
 
@@ -163,7 +171,8 @@ bd ready                                 # see what's unblocked
 bd update <bead-id> --claim              # claim the slice
 # ... work ...
 bd close <bead-id>                       # close when acceptance met
-git add . && git commit && git push      # ship the work
+git add <task-files> && git commit        # preserve unrelated changes
+# Follow AGENTS.md for rebase, beads sync, and branch push.
 ```
 
 `B0.1`, `B0.2`, and `B0.3` have no dependencies. They are the entry points.

@@ -17,9 +17,9 @@ The lifecycle conclusions below extend the original callback-only plan. The modu
   - The WordPress callable stays stable, so `remove_filter()` keeps working. Dispatcher closures would break it.
   - Per-callback state (`fired`, `firing`, `loaded`) has an owner.
   - The object *is* the container entry for the callback token. Nothing new has to be looked up.
-- Slice S4 updates migration-01 and migration-04 to point here.
+- Migration-01 and migration-04 now describe this per-callback runtime and its staged extraction sequence (S4).
 - Lifecycle slices L1–L2 precede the callback runtime work. They establish the strategy contract and clarify the existing orchestration before behavior moves out of decorators.
-- The migration-00 rule against parallel runtimes conflicts with this plan's transitional subclass runtime. S4 must reconcile that rule with the bounded transition and F6 removal requirements.
+- Migration-00 permits this bounded transition: specialized/custom decorator runtime remains until the F1–F5 ports and F6 compatibility requirements are met.
 
 ## Agreed lifecycle
 
@@ -323,7 +323,7 @@ It is an exact-class match, so every subclass stays on the legacy path.
 `Callback` objects are only ever created by the `Factory::make` factory at resolution time, or by `set()` at runtime. No objects end up inside definitions, so the compiled container is unaffected.
 
 **Transitional duplication.**
-`Filter` keeps its runtime methods because the subclasses still use them. For plain `Filter`/`Action` those methods become dead paths. They are deleted in F6 (B3.1).
+`Filter` keeps its runtime methods because subclasses still use them, and its typed compatibility view forwards calls to Callback. Removing legacy execution code and any remaining mutators is F6 (B3.1), after the view and custom-subclass dependencies are settled.
 
 ## Compatibility checklist
 

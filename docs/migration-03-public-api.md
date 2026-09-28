@@ -50,7 +50,7 @@ Anything *not* in this document is `@internal`. Internal classes can change with
 
 ## Decorators (`XWP\DI\Decorators\*`)
 
-All are PHP attributes. All are immutable after construction in v2.0.
+All are PHP attributes. Metadata-only declarations are the intended end state. Current beta decorators retain internal mutators and legacy runtime behavior for specialized subclasses; plain Filter/Action tokens resolve to `Hook\Callback`. The typed `!self.hook` view is described in the [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
 
 | Decorator | Target | Constructor (key arguments) |
 |---|---|---|
@@ -99,20 +99,20 @@ Interface names are part of the public surface. Individual methods marked `@inte
 | `Can_Hook` | A method-level hook descriptor. |
 | `Can_Import` | A module that can import other modules. |
 | `Can_Invoke` | A callback descriptor. |
-| `Can_Initialize` | A handler that needs an `on_initialize()` callback. |
+| `Can_Initialize` | A handler with a `can_initialize()` condition. |
 | `Has_Context` | Anything that validates against execution context (REST/CLI/etc.). |
 | `On_Initialize` | Lifecycle hook for handler initialization. |
 | `Can_Route` | A REST route descriptor. |
 | `Can_Handle_Ajax`, `Can_Handle_CLI`, `Can_Handle_REST` | Specialization markers. |
 | `Async_Module`, `Extendable_Module`, `Extension_Module` | Module composition markers. |
-| `Can_Execute` | Runtime executable contract (used by Dispatcher internals). |
+| `Can_Execute` | Runtime executable contract for CLI decorators during the transition. |
 
 ## Constants
 
 | Constant | Range | Role |
 |---|---|---|
 | `CTX_GLOBAL`, `CTX_FRONTEND`, `CTX_ADMIN`, `CTX_AJAX`, `CTX_REST`, `CTX_CLI`, `CTX_CRON` | bitmask | Execution context flags |
-| `INIT_AUTO`, `INIT_EARLY`, `INIT_LAZY`, `INIT_JIT`, `INIT_NOW`, `INIT_USER` | enum-style int | Handler initialization strategies |
+| `INIT_AUTO`, `INIT_EARLY`, `INIT_LAZY`, `INIT_JIT`, `INIT_NOW`, `INIT_USER` | string constants | Handler initialization strategies |
 | `INV_STANDARD`, `INV_PROXIED`, `INV_SAFELY`, `INV_LOOPED`, `INV_ONCE` | bitmask | Invocation flags |
 
 These flags exist on master 1.x. v2.0 keeps them. The exact bit values are part of the locked surface.
@@ -173,7 +173,7 @@ Anything not in the tables above. Highlights:
 
 - `App_Factory`, `App_Builder` — bootstrap mechanism, not for direct use
 - `Invoker` — orchestrator, not for direct use
-- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook\Dispatcher` — internal pipeline
+- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook\Callback` — internal pipeline and callback runtime
 - `Compiled_Container` — generated, not for human consumption
 - `Utils\Reflection`, `Traits\*`, `XWP_Context`, `XWP_CLI_Namespace`
 - `Decorators\Hook` and inherited base-class behavior on decorators — extend at your own risk; signatures may change in minors

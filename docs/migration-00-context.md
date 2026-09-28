@@ -14,15 +14,17 @@ Three layers, three responsibilities, no fusion:
 
 1. **Definition** — pure value objects that describe modules, hooks, handlers, services. No reflection, no WordPress, no runtime state.
 2. **Compilation** — a build pass that walks the module tree, reflects once, and produces a definition graph. Output is serializable plain data.
-3. **Dispatch** — a runtime that consumes the compiled graph, registers WordPress hooks, and handles invocation. Zero reflection at request time.
+3. **Runtime** — callback runtimes consume definitions, register WordPress hooks, and handle invocation; Invoker coordinates the module/handler lifecycle. Reducing request-time reflection is a goal, not a completed guarantee.
 
-Public surface stays familiar: decorators on classes, `xwp_load_app()` to bootstrap, `xwp_app()` to fetch the container. What changes is what happens behind those calls.
+Public surface stays familiar: decorators on classes and `xwp_load_app()` to schedule startup. `xwp_create_app()` and `xwp_app()` return an `App` wrapper; `container()` exposes its container and `run()` starts the lifecycle.
+
+The plain Filter/Action split is implemented as one `Hook\Callback` per callback token. Specialized callbacks and handler/module runtime extraction remain pending. The [definition split plan](definition-split-plan.md) governs this transition and supersedes the original central Dispatcher sketch.
 
 ## What v2.0 is *not*
 
 - Not a port of NestJS's runtime. We're taking the *ergonomics* (declarative modules, attribute-driven wiring, definition helpers) and grafting them onto WordPress's existing execution model. We are not building a parallel pipeline of guards/interceptors/pipes that competes with WP hooks.
 - Not backwards-compatible with v1.x master. v1.x plugins stay on v1.x; v2.0 is opt-in. No `old/` adapter, no v1.x decorator shims.
-- Not a place to land PHP 8.5 features. PHP 8.1 floor, no upper bound. Closures-in-attributes, factory providers as attribute arguments, and similar 8.5-only features are 3.0 territory.
+- Not a place to land PHP 8.5 features. The current Composer range is `>=8.1 <8.5`; removing the upper bound is a separate planned change. Closures-in-attributes, factory providers as attribute arguments, and similar 8.5-only features are 3.0 territory.
 
 ## What's deferred to 3.0
 
@@ -45,7 +47,7 @@ v2.0 has failed twice — once as the master "coke-induced epiphany," once as th
 2. **Dogfood before ship.** One real production plugin must be ported to 2.0 and run successfully before tagging GA. Until that port is clean, the API isn't done.
 3. **3.0 is a parking lot, not a roadmap.** Items deferred above are filed and forgotten. We don't design for them in 2.0.
 4. **Frenzy detection.** If a slice grows past its scope, it gets a follow-up bead. We do not extend the in-flight slice.
-5. **No two-architectures-at-once.** If a thing is being replaced, the old version is removed in the same slice that introduces the new version. No parallel implementations carrying maintenance cost.
+5. **Bounded transitions only.** The callback split temporarily retains decorator runtime for specialized/custom subclasses and the typed `!self.hook` view. Exact-class Factory routing gives each plain callback one runtime owner. F1–F5 port the remaining runtimes; F6 removes obsolete decorator behavior after extension and view compatibility are settled. This exception is scoped by the [split plan](definition-split-plan.md#follow-ups-designed-later-not-in-this-plan), not permission for permanent parallel architectures.
 
 ## Audience
 

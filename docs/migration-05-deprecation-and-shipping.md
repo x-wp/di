@@ -42,7 +42,7 @@ These are the steps a plugin author follows to migrate from `1.x` to `2.x`. Refe
 3. **Bootstrap config**: same `xwp_load_app($config)` call. Most config keys carry over. Confirm `app_module` points to a `#[Module]`-decorated class.
 4. **Module class**: still decorated with `#[Module(imports: [...], handlers: [...])]`. Optionally migrate to `ModuleDefinitionHelper` composition; not required.
 5. **Handlers**: still `#[Handler(...)]`-decorated classes. No code changes for normal cases.
-6. **Hooks**: `#[Filter]` / `#[Action]` / `#[REST_Route]` / etc. carry over. Constructor arguments are unchanged for users. (Internally they're now immutable — that's invisible.)
+6. **Hooks**: `#[Filter]` / `#[Action]` / `#[REST_Route]` / etc. carry over. Constructor arguments are unchanged for users. (Metadata-only decorators remain the goal; internal mutators still exist during the beta transition.)
 7. **Container access**: `xwp_app('app_id')` carries over.
 8. **Removed APIs**: see "Breaking changes" below.
 
@@ -63,8 +63,9 @@ Direct `$hook->invoke( ...$args )` calls still forward to the runtime. Standard 
 
 These are the things that *will* break unless the plugin code is updated. The list is intentionally short.
 
-### Removed
-- `Decorator->with_*()` fluent mutators (e.g. `$filter->with_handler($h)`). Decorators are immutable in 2.0. If consumer code touched these, it was already reaching into internals. Replacement: don't.
+### Planned removals and implemented changes
+
+- Removing decorator `with_*()` mutators is still pending F6/B3.1. They remain in beta for specialized runtime and view compatibility. Consumer migration must be settled before removal; this document does not claim it has happened.
 - `xwp_app(null)` accidental usage now throws. Pass the app ID explicitly.
 - The legacy config-key compat shim in `App_Factory` is gone. Use the documented config keys.
 - Plain proxied Filter/Action registrations now use `Callback::invoke()`. The typed `!self.hook` view still supports direct invocation; WordPress removal must use the runtime callable as described above. Specialized subclasses have not yet moved to `Callback`.
