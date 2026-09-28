@@ -217,10 +217,6 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         return $this->namespace;
     }
 
-    protected function add_command(): bool {
-        return WP_CLI::add_command( $this->namespace, \XWP_CLI_Namespace::class, array( 'shortdesc' => $this->description ) );
-    }
-
     /**
      * Load the CLI namespace and commands.
      *
@@ -236,5 +232,13 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
         );
 
         return parent::load();
+    }
+
+    protected function add_command(): bool {
+        return WP_CLI::add_command(
+            $this->namespace,
+            \XWP_CLI_Namespace::class,
+            array( 'shortdesc' => $this->description ),
+        );
     }
 }

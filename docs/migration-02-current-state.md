@@ -1,6 +1,6 @@
 # Migration 02 — Current State of `beta` and the Gap
 
-> Updated after the plain callback split (S1–S3). This replaces the April 2026 snapshot; use source and beads for subsequent changes.
+> Updated after the built-in callback and handler/module ports (S1–S3, F1–F5). This replaces the April 2026 snapshot; use source and beads for subsequent changes.
 
 ## Implemented structure
 
@@ -11,9 +11,11 @@
 | `Invoker` | Module/handler lifecycle, initialization strategies, callback attachment |
 | `Hook/Parser`, `Hook/Compiler` | Attribute discovery, metadata definitions, existing hook-cache format |
 | `Hook/Factory` | Resolve metadata, handlers, and callback runtimes |
-| `Hook/Callback` | Registration and execution for exact plain Filter/Action types |
+| `Hook/Callback` and specialized subclasses | Registration and execution for exact built-in callback types |
+| `Hook/Handler`, `Hook/Module`, and specialized handlers | Handler initialization and module composition state |
 | `Definition/` and `Definition/Helper/` | Module, handler, callback, and service value objects; module composition helper |
-| `Decorators/` | Attribute declarations, typed callback views, and retained specialized/handler runtime |
+| `Decorators/` | Attribute declarations, typed callback views, and custom-subclass compatibility |
+| `Compatibility/` | Shared legacy wiring and dispatch implementation; inherited mutators remain |
 | `tests/Unit`, `tests/Integration` | Definition tests and real WordPress lifecycle/cache/runtime coverage |
 
 There is no central `Hook/Dispatcher`. The [definition split plan](definition-split-plan.md) replaces that proposal with one Callback per callback token.
@@ -26,7 +28,7 @@ Plain callback execution state belongs to Callback. Standard hooks retain the bo
 
 `!self.hook` remains a typed Action/Filter view with live forwarded state. It is distinct from the runtime object. Direct invocation forwards, while WordPress removal uses the runtime callable exposed by `$hook->target`. The [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split) describe both identity changes.
 
-Dynamic, AJAX, REST, CLI, and custom decorator subclasses still use their existing runtime. Handler and Module also retain their runtime responsibilities. This bounded transition is intentional; decorator mutation and dispatch methods have not been removed.
+F1–F4 extend this boundary to exact Dynamic, AJAX, REST, and CLI callbacks; see [specialized runtime details](specialized-callback-runtime.md). F5 adds separate [handler and module runtimes](handler-module-runtime.md), including specialized handlers. Custom decorator subclasses retain their existing path. F6 preparation isolates inherited implementation in `Compatibility/`; it does not remove mutation or dispatch APIs or make attributes immutable. See [the remaining compatibility boundary](decorator-compatibility.md).
 
 ## Established lifecycle
 
@@ -40,9 +42,7 @@ See [the lifecycle contract](definition-split-plan.md#agreed-lifecycle) and the 
 
 | Area | Remaining boundary |
 |---|---|
-| Specialized callbacks (F1–F4) | Port Dynamic, AJAX, REST, and CLI execution into Callback subclasses, preserving their specialized behavior |
-| Handler/module runtime (F5) | Extract definitions and runtime state while retaining the established lifecycle |
-| Decorator cleanup (F6/B3.1) | Remove obsolete runtime methods and mutators after specialized ports and custom-subclass/view compatibility are settled |
+| Decorator cleanup (F6/B3.1) | Complete API removal after custom-subclass/view migration is settled; compatibility implementation is isolated |
 | Parser/Compiler (B2.1/B2.2) | Integrate typed definition output and any cache-schema redesign; the current callback split leaves these formats intact |
 | Module composition (B4.1) | Complete helper-driven integration with discovery; helper/value-object existence alone does not establish it |
 | Verification and release | Continue focused coverage, dogfood a production plugin, and complete release gates |

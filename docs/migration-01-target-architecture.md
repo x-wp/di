@@ -4,7 +4,7 @@
 
 ## Implemented boundary
 
-The [definition split plan](definition-split-plan.md) supersedes the original central `Hook\Dispatcher` proposal. There is one `Hook\Callback` runtime per plain Filter/Action callback token. `Invoker` remains the module and handler lifecycle coordinator.
+The [definition split plan](definition-split-plan.md) supersedes the original central `Hook\Dispatcher` proposal. There is one `Hook\Callback` runtime (or specialized subclass) per built-in callback token, and separate `Hook\Handler` runtimes for built-in handler and module tokens. `Invoker` remains the module and handler lifecycle coordinator.
 
 ```text
 PHP attributes on modules, handlers, and methods
@@ -19,8 +19,8 @@ Hook\Parser + reflection ──→ Hook\Compiler / hook-definition.php
                     │
        ┌────────────┴─────────────────────┐
        ▼                                  ▼
-Exact Filter / Action              Specialized/custom decorators,
-CallbackDefinition → Callback     Handler and Module runtime
+Exact built-in attributes          Custom decorator subclasses
+Definitions → Hook runtimes        Compatibility runtime
        │                                  │
        └────────── Invoker attaches ──────┘
                     │
@@ -28,13 +28,13 @@ CallbackDefinition → Callback     Handler and Module runtime
              WordPress hooks
 ```
 
-This is the current transition, not the completed metadata-only architecture. Specialized callback ports, handler/module extraction, and decorator cleanup remain F1–F6 in the split plan. Parser/Compiler definition-graph changes are separate work.
+This is the current transition, not the completed metadata-only architecture. F1–F5 callback and handler/module ports are implemented. F6 inherited API removal remains open; compatibility implementation is isolated in `src/Compatibility/`. Parser/Compiler definition-graph changes are separate work.
 
 ## Layer 1: Definitions (`src/Definition/`)
 
 `ModuleDefinition`, `HandlerDefinition`, `CallbackDefinition`, and `ServiceDefinition` exist as value objects. They hold metadata without runtime containers, handler instances, or invocation counters.
 
-`CallbackDefinition::from_data()` converts the existing plain Filter/Action `get_data()` array. It preserves the callback token, raw priority, tag modifiers, condition, invocation flags, and explicit parameters. It does not execute conditions or resolve runtime values. Factory uses this conversion in both cached and uncached paths.
+`CallbackDefinition::from_data()` converts existing built-in callback `get_data()` arrays. It preserves the callback token, raw priority, tag modifiers, condition, invocation flags, and explicit parameters. It does not execute conditions or resolve runtime values. Factory uses this conversion in both cached and uncached paths.
 
 The helper contract lives in `XWP\DI\Definition\Helper`, not directly in `XWP\DI\Definition`:
 
@@ -60,7 +60,7 @@ A fully typed Parser output and redesigned primitive cache schema remain B2.1/B2
 
 ### Factory
 
-Factory converts exact `Filter` and `Action` types into `Callback` objects when a container is available. All subclasses retain their existing decorator runtime. A containerless Factory can still reconstruct decorator metadata.
+Factory converts exact built-in callbacks into `Callback` or specialized runtime subclasses when a container is available. It also builds handler and module runtimes from definitions. Custom attribute subclasses retain their existing decorator runtime. A containerless Factory can still reconstruct decorator metadata.
 
 `resolve_callbacks()` returns decorators for discovery and serialization. Once the application has started, `get_callbacks()` returns the stored runtime objects. `load_callbacks()` accepts existing runtimes without applying decorator mutators, and repeated saves preserve existing token entries and their state.
 
@@ -88,9 +88,9 @@ Module services and static configuration are collected independently of runtime 
 
 ## Decorators: retained now, reduced later
 
-The intended end state is metadata-only attribute declarations. Current decorators still have runtime methods and internal `with_*()` mutators because specialized/custom subclasses and the typed forwarding view depend on them.
+The intended end state is metadata-only attribute declarations. Current decorators still have runtime methods and internal `with_*()` mutators because custom subclasses, discovery wiring, and typed forwarding views depend on them. Their shared implementation lives in internal `Compatibility` adapters.
 
-F1–F4 port Dynamic, AJAX, REST, and CLI callbacks. F5 extracts handler/module runtime. F6 then removes obsolete decorator behavior only after the custom-subclass migration policy and typed-view dependencies are settled. Removing those methods now would break the supported transition.
+F1–F4 have ported Dynamic, AJAX, REST, and CLI callbacks. F5 has extracted handler/module runtime. F6 removes obsolete decorator behavior only after the custom-subclass migration policy and typed-view dependencies are settled. Removing those methods now would break the supported transition.
 
 ## What the split provides
 

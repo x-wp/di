@@ -9,3 +9,5 @@ Discovery and cache serialization still use decorator metadata. `Hook\Factory` c
 The established lifecycle stays intact: application construction does not start the root module; `App::run()` registers it; `Invoker` schedules initialization, callback attachment, and module composition. Context checks, initialization retries, Infuse resolution, asynchronous configuration, and supplied-instance identity retain their previous behavior. Runtime objects keep initialization and callback state; definitions hold metadata.
 
 Use `get_definition()` on a runtime handler to inspect its initial metadata. Runtime callback discovery and supplied-instance binding do not mutate that definition.
+
+The handler runtime shares lifecycle implementation with legacy decorators through internal `Compatibility` adapters. It does not inherit from an attribute class. Inherited decorator mutators remain available for existing discovery and custom-subclass paths; [F6 API removal remains open](decorator-compatibility.md).

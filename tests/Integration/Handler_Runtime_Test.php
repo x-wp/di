@@ -25,6 +25,7 @@ final class Handler_Runtime_Test extends TestCase {
     public function test_definition_constructor_and_adapter_metadata_roundtrip(): void {
         $definition = new HandlerDefinition( Handler_Runtime_Target::class, 'init', 27, strategy: Handler_Attribute::INIT_LAZY );
         $runtime = new Handler( $definition, $this->container() );
+        self::assertNotInstanceOf( \XWP\DI\Decorators\Hook::class, $runtime );
         $runtime->with_params( array( 'can_initialize' => array( 'service.token' ) ) )->with_callbacks( array( 'callback.token' ) );
         $copy = HandlerDefinition::from_data( $runtime->get_data() );
         self::assertSame( 'init', $copy->get_tag() );

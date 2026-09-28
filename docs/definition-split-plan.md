@@ -8,7 +8,9 @@ This plan targets the `beta` architecture present in this checkout, including `H
 
 The lifecycle conclusions below extend the original callback-only plan. The module context, initialization-condition, and late-registration policies were settled on 2026-09-28. They preserve the existing runtime contract; callback runtime extraction remains separate work.
 
-`Hook\Callback` and its typed forwarding view are implemented (S2, `di-q15`). Factory and Invoker now route exact `Filter` and `Action` types through that runtime (S3, `di-70n`); specialized and custom subclasses keep their decorator runtime. `Callback_Runtime_Test` covers the runtime directly, while `Callback_Wiring_Test` and `Self_Hook_Test` cover routing and view identity with cold/warm caches and compiled containers.
+`Hook\Callback` and its typed forwarding view are implemented (S2, `di-q15`). Factory and Invoker now route exact `Filter` and `Action` types through that runtime (S3, `di-70n`); F1–F4 now also route exact built-in specialized callbacks to runtime subclasses. F5 provides handler/module runtimes behind the existing tokens. Custom subclasses keep their decorator runtime. `Callback_Runtime_Test` covers the runtime directly, while `Callback_Wiring_Test` and `Self_Hook_Test` cover routing and view identity with cold/warm caches and compiled containers.
+
+F6 preparation isolates shared legacy implementation in `Compatibility/`. Inherited runtime methods and mutators remain; strict API removal is still open. See [decorator compatibility](decorator-compatibility.md). The original S1–S3 scope and implementation sketches below are retained as historical context; [current state](migration-02-current-state.md) describes the completed F1–F5 ports.
 
 ## Relation to the migration docs
 

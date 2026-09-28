@@ -24,7 +24,10 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
     }
 
     public function load(): bool {
-        CLI_Namespaces::register( $this->get_namespace(), $this->definition->get_options()['description'] ?? '' );
+        CLI_Namespaces::register(
+            $this->get_namespace(),
+            $this->definition->get_options()['description'] ?? '',
+        );
         return parent::load();
     }
 }

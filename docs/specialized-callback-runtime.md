@@ -17,4 +17,4 @@ AJAX metadata now retains injected parameters. REST metadata retains its invocat
 
 REST responses preserve their existing dispatch semantics: WordPress handles route permissions, response errors propagate, and hook invocation flags do not gate responses. The runtime tracks response attempts and clears its firing state on success and failure.
 
-Verification covers dynamic mappings and providers, AJAX request extraction and nonce/capability guards, REST schemas/guards/responses, CLI formatting and real WP-CLI registration, typed views, and cold/warm hook caches and compiled containers. Handler/module runtime extraction and removal of legacy decorator methods remain outside these ports.
+Verification covers dynamic mappings and providers, AJAX request extraction and nonce/capability guards, REST schemas/guards/responses, CLI formatting and real WP-CLI registration, typed views, and cold/warm hook caches and compiled containers. F5 subsequently adds [handler/module runtimes](handler-module-runtime.md). Removal of inherited decorator methods remains pending; [compatibility isolation](decorator-compatibility.md) is preparatory work.

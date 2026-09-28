@@ -5,8 +5,16 @@
 - Plain `Filter` and `Action` callback tokens now resolve to `Hook\Callback`,
   built from `CallbackDefinition`. Runtime state and invocation belong to that
   object; hook tokens, cache metadata, and initialization timing are preserved.
-  Specialized and custom decorator subclasses retain their existing runtime.
-- `!self.hook` remains a typed Action/Filter view with live forwarded state and
+  Dynamic, AJAX, REST, and CLI built-ins use specialized Callback runtimes;
+  custom decorator subclasses retain their compatibility runtime.
+- Built-in handlers and modules now resolve to separate `Hook` runtimes using
+  the existing `Can_Handle` interfaces and token identity. Definitions preserve
+  unresolved metadata; Invoker retains lifecycle orchestration. See
+  [handler migration details](docs/handler-module-runtime.md).
+- Legacy decorator wiring and dispatch are isolated in internal `Compatibility`
+  adapters. Inherited mutators and custom override behavior remain available;
+  immutable decorators and API removal are still pending F6.
+- `!self.hook` remains a typed decorator view with live forwarded state and
   direct invocation. It is no longer the object returned by callback-token lookup.
   Remove its WordPress listener using `$hook->target`, or the container Callback's
   `invoke` callable for proxies; `array( $hook, 'invoke' )` names the separate view.

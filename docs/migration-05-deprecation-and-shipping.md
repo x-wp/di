@@ -50,9 +50,9 @@ The expected migration cost for a typical plugin is one afternoon: bump composer
 
 ## Current beta callback split
 
-Plain `#[Filter]` and `#[Action]` callback tokens now resolve to `XWP\DI\Hook\Callback`. The injected `!self.hook` value remains a typed `Filter` or `Action` view that forwards live state and calls to that runtime. Specialized and custom decorator subclasses retain their existing runtime during this transition; see the [definition split plan](definition-split-plan.md).
+Plain `#[Filter]` and `#[Action]` callback tokens now resolve to `XWP\DI\Hook\Callback`. The injected `!self.hook` value remains a typed `Filter` or `Action` view that forwards live state and calls to that runtime. Exact Dynamic, AJAX, REST, and CLI callbacks use specialized Callback runtimes and matching typed views; custom decorator subclasses retain their existing runtime. See [specialized callback details](specialized-callback-runtime.md). Built-in handler/module tokens also resolve to separate runtimes implementing the existing `Can_Handle` interfaces; see [handler migration details](handler-module-runtime.md).
 
-Two object-identity assumptions change for plain callbacks:
+Two object-identity assumptions change for built-in callback views:
 
 - `$hook === $container->get( $hook->get_token() )` is false: the view and runtime are separate objects.
 - `remove_filter( $hook->tag, array( $hook, 'invoke' ), $hook->get_priority() )` no longer names the registered proxy. Use `$hook->target`, or `array( $container->get( $hook->get_token() ), 'invoke' )` for a proxied callback. The same rule applies to `remove_action()`.
@@ -65,10 +65,10 @@ These are the things that *will* break unless the plugin code is updated. The li
 
 ### Planned removals and implemented changes
 
-- Removing decorator `with_*()` mutators is still pending F6/B3.1. They remain in beta for specialized runtime and view compatibility. Consumer migration must be settled before removal; this document does not claim it has happened.
+- Removing decorator `with_*()` mutators is still pending F6/B3.1. They remain in beta through `Compatibility` adapters for custom subclasses, discovery wiring, and typed views. Consumer migration must be settled before removal; this document does not claim it has happened.
 - `xwp_app(null)` accidental usage now throws. Pass the app ID explicitly.
 - The legacy config-key compat shim in `App_Factory` is gone. Use the documented config keys.
-- Plain proxied Filter/Action registrations now use `Callback::invoke()`. The typed `!self.hook` view still supports direct invocation; WordPress removal must use the runtime callable as described above. Specialized subclasses have not yet moved to `Callback`.
+- Plain proxied Filter/Action registrations now use `Callback::invoke()`. The typed `!self.hook` view still supports direct invocation; WordPress removal must use the runtime callable as described above. Exact built-in specialized callbacks also use Callback subclasses; custom subclasses retain the compatibility path.
 
 ### Tightened
 - PHP requirement: `>=8.1`.

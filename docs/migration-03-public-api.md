@@ -42,7 +42,7 @@ Anything *not* in this document is `@internal`. Internal classes can change with
 
 | Function | Signature | Role |
 |---|---|---|
-| `xwp_create_hook_handler` | `(object $instance, string $app): Can_Handle` | Build a handler decorator from a live instance. |
+| `xwp_create_hook_handler` | `(object $instance, string $app): Can_Handle` | Build a handler runtime from a live instance. |
 | `xwp_load_hook_handler` | `(object $instance, string $app): Can_Handle` | Same as `create_hook_handler` but loads it. |
 | `xwp_load_handler_cbs` | `(Can_Handle $handler, array $callbacks): Can_Handle` | Attach pre-built callbacks to a handler. |
 | `xwp_register_hook_handler` | `(Can_Handle $handler): void` | Push a handler to the invoker. |
@@ -50,7 +50,7 @@ Anything *not* in this document is `@internal`. Internal classes can change with
 
 ## Decorators (`XWP\DI\Decorators\*`)
 
-All are PHP attributes. Metadata-only declarations are the intended end state. Current beta decorators retain internal mutators and legacy runtime behavior for specialized subclasses; plain Filter/Action tokens resolve to `Hook\Callback`. The typed `!self.hook` view is described in the [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
+All are PHP attributes. Metadata-only declarations are the intended end state. Current beta decorators retain internal mutators and legacy runtime behavior for custom subclasses through `Compatibility` adapters. Exact built-in callbacks and handlers resolve to separate `Hook` runtimes. This preparatory cleanup does not make attributes immutable. The typed `!self.hook` view is described in the [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
 
 | Decorator | Target | Constructor (key arguments) |
 |---|---|---|
@@ -173,7 +173,7 @@ Anything not in the tables above. Highlights:
 
 - `App_Factory`, `App_Builder` — bootstrap mechanism, not for direct use
 - `Invoker` — orchestrator, not for direct use
-- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook\Callback` — internal pipeline and callback runtime
+- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook` runtime classes, and `Compatibility\*` — internal pipeline, execution, and legacy adapters
 - `Compiled_Container` — generated, not for human consumption
 - `Utils\Reflection`, `Traits\*`, `XWP_Context`, `XWP_CLI_Namespace`
 - `Decorators\Hook` and inherited base-class behavior on decorators — extend at your own risk; signatures may change in minors

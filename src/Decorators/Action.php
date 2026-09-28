@@ -22,21 +22,5 @@ use XWP\DI\Interfaces\Can_Invoke;
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Action extends Filter {
-    protected function get_type(): string {
-        return 'action';
-    }
-
-    /**
-     * Invoke the action callback.
-     *
-     * @internal Runtime dispatch detail. Dispatcher replaces this in v2.0.
-     *
-     * @param  mixed ...$args Hook arguments.
-     * @return mixed
-     */
-    public function invoke( mixed ...$args ): mixed {
-        parent::invoke( ...$args );
-
-        return null;
-    }
+    use \XWP\DI\Compatibility\Action_Methods;
 }
