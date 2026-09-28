@@ -66,7 +66,8 @@ final class Handler_Context_Test extends TestCase {
             if ( Handler::CTX_FRONTEND === $context ) {
                 self::assertSame( $discoveries, Context_Module::$discoveries, 'Excluded handlers must not discover or resolve runtime callbacks.' );
                 foreach ( $this->handlers() as $class => $hook ) {
-                    self::assertArrayNotHasKey( $class, $invoker->get_handlers() );
+                    self::assertArrayHasKey( $class, $invoker->get_handlers() );
+                    self::assertFalse( $invoker->get_handlers()[ $class ], 'Excluded handlers remain known but uninitialized.' );
                     self::assertFalse( has_action( $hook ) );
                     self::assertFalse( has_action( 'Hook-' . $class . '_' . Handler::INIT_LAZY . '_init' ) );
                     self::assertFalse( has_action( 'Hook-' . $class . '_' . Handler::INIT_JIT . '_init' ) );
@@ -107,7 +108,9 @@ final class Handler_Context_Test extends TestCase {
         $handler = $invoker->load_handler( $instance );
 
         self::assertSame( $instance, $handler->get_target() );
-        self::assertArrayNotHasKey( User_Context_Handler::class, $invoker->get_handlers() );
+        self::assertArrayHasKey( User_Context_Handler::class, $invoker->get_handlers() );
+        self::assertTrue( $handler->is_loaded() );
+        self::assertSame( $handler->get_init_hook(), $invoker->get_handlers()[ User_Context_Handler::class ] );
         self::assertSame( 0, Context_Module::$discoveries );
         self::assertFalse( has_filter( 'xwp_context_value' ) );
         self::assertSame( array(), Context_Module::$events );

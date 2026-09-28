@@ -142,6 +142,8 @@ class Invoker {
         $h = $this->get_handler( $classname );
 
         if ( ! $h->check_context() ) {
+            $this->add_handler( $h );
+
             return $h;
         }
 
