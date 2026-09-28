@@ -11,7 +11,7 @@ use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Decorators\Module;
 
-#[Module( hook: 'xwp_retry_module', handlers: array( Early_Retry_Handler::class, Now_Retry_Handler::class, Lazy_Retry_Handler::class, Jit_Retry_Handler::class ) )]
+#[Module( hook: 'xwp_retry_module', handlers: array( Early_Retry_Handler::class, Now_Retry_Handler::class, Lazy_Retry_Handler::class, Second_Lazy_Retry_Handler::class, Jit_Retry_Handler::class ) )]
 final class Retry_Module {
     public static array $events = array();
     public static bool $ready = false;
@@ -60,6 +60,11 @@ final class Now_Retry_Handler {
 
 #[Handler( tag: 'xwp_retry_attach', context: Handler::CTX_FRONTEND, strategy: Handler::INIT_LAZY )]
 final class Lazy_Retry_Handler {
+    use Retry_Lifecycle;
+}
+
+#[Handler( tag: 'xwp_retry_attach', priority: 20, context: Handler::CTX_FRONTEND, strategy: Handler::INIT_LAZY )]
+final class Second_Lazy_Retry_Handler {
     use Retry_Lifecycle;
 }
 

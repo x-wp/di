@@ -266,14 +266,19 @@ class Invoker {
      */
     private function queue_lazy_handler( Can_Handle $h ): static {
         if ( $h->is_lazy() ) {
-            \add_action(
-                $h->get_lazy_tag(),
-                function () use ( $h ) {
-                    $this->init_handler( $h );
-                },
-                $h->get_priority(),
-                0,
-            );
+            $tag        = $h->get_lazy_tag();
+            $priority   = $h->get_priority();
+            $initialize = function () use ( $h, $tag, $priority, &$initialize ) {
+                $this->init_handler( $h );
+
+                if ( ! $h->is_loaded() ) {
+                    return;
+                }
+
+                \remove_action( $tag, $initialize, $priority );
+            };
+
+            \add_action( $tag, $initialize, $priority, 0 );
         }
 
         return $this;

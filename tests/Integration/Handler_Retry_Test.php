@@ -16,6 +16,7 @@ use XWP\DIT\Lifecycle\Jit_Retry_Handler;
 use XWP\DIT\Lifecycle\Lazy_Retry_Handler;
 use XWP\DIT\Lifecycle\Now_Retry_Handler;
 use XWP\DIT\Lifecycle\Retry_Module;
+use XWP\DIT\Lifecycle\Second_Lazy_Retry_Handler;
 
 final class Handler_Retry_Test extends TestCase {
     private string $cache_dir;
@@ -197,6 +198,75 @@ final class Handler_Retry_Test extends TestCase {
         }
     }
 
+    /** @dataProvider cache_modes */
+    public function test_lazy_initialization_removes_only_its_own_listener( bool $compile, bool $hooks ): void {
+        foreach ( $this->apps( $compile, $hooks ) as $app ) {
+            Retry_Module::$ready = true;
+            $invoker = $app->container()->get( Invoker::class );
+            $first = $invoker->register_handler( Lazy_Retry_Handler::class );
+            $second = $invoker->register_handler( Second_Lazy_Retry_Handler::class );
+            $scheduled = 0;
+            $observed = 0;
+            add_action( 'xwp_retry_attach', static function () use ( &$scheduled ): void { ++$scheduled; }, 99 );
+            add_action( $first->get_lazy_tag(), static function () use ( &$observed ): void { ++$observed; }, 99 );
+            $listeners = $this->listener_count( 'xwp_retry_attach' );
+            self::assertSame( 2, $this->listener_count( $first->get_lazy_tag() ) );
+
+            do_action( 'xwp_retry_attach' );
+
+            self::assertTrue( $first->is_loaded() );
+            self::assertTrue( $second->is_loaded() );
+            self::assertSame( 1, $scheduled, 'Other callbacks on the scheduling hook must still run.' );
+            self::assertSame( 1, $observed, 'Other listeners on the lazy tag must survive initialization.' );
+            self::assertSame( $listeners, $this->listener_count( 'xwp_retry_attach' ) );
+            self::assertSame( 1, $this->listener_count( $first->get_lazy_tag() ) );
+            self::assertFalse( has_action( $second->get_lazy_tag() ) );
+            self::assertSame( $first->get_lazy_tag(), $first->get_init_hook() );
+            self::assertSame( $second->get_lazy_tag(), $second->get_init_hook() );
+            self::assertSame( array( 'condition', 'construct', 'initialize', 'condition', 'construct', 'initialize' ), Retry_Module::$events );
+
+            do_action( $first->get_lazy_tag() );
+            do_action( 'xwp_retry_attach' );
+            self::assertSame( 2, $scheduled );
+            self::assertSame( 2, $observed );
+            self::assertSame( 'value:handled:handled', apply_filters( 'xwp_retry_value', 'value' ) );
+            self::assertSame( array( 'condition', 'construct', 'initialize', 'condition', 'construct', 'initialize', 'invoke', 'invoke' ), Retry_Module::$events );
+        }
+    }
+
+    /** @dataProvider deferred_strategies_and_cache_modes */
+    public function test_lazy_listener_survives_rejection_until_initialization_succeeds( string $class, bool $compile, bool $hooks ): void {
+        foreach ( $this->apps( $compile, $hooks ) as $app ) {
+            $handler = $app->container()->get( Invoker::class )->register_handler( $class );
+            do_action( 'xwp_retry_attach' );
+            if ( Jit_Retry_Handler::class === $class ) {
+                self::assertSame( 'value', apply_filters( 'xwp_retry_value', 'value' ) );
+            }
+            self::assertSame( array( 'condition' ), Retry_Module::$events );
+            self::assertSame( 1, $this->listener_count( $handler->get_lazy_tag() ) );
+            self::assertFalse( $handler->is_loaded() );
+
+            Retry_Module::$ready = true;
+            if ( Lazy_Retry_Handler::class === $class ) {
+                do_action( 'xwp_retry_attach' );
+            }
+            self::assertSame( 'value:handled', apply_filters( 'xwp_retry_value', 'value' ) );
+            self::assertFalse( has_action( $handler->get_lazy_tag() ), 'Successful LAZY and JIT initialization must remove the init listener.' );
+            self::assertSame( $handler->get_lazy_tag(), $handler->get_init_hook() );
+            self::assertSame( array( 'condition', 'condition', 'construct', 'initialize', 'invoke' ), Retry_Module::$events );
+        }
+    }
+
+    public static function deferred_strategies_and_cache_modes(): array {
+        $cases = array();
+        foreach ( array( 'lazy' => Lazy_Retry_Handler::class, 'jit' => Jit_Retry_Handler::class ) as $strategy => $class ) {
+            foreach ( self::cache_modes() as $mode => $flags ) {
+                $cases[ $strategy . ' ' . $mode ] = array( $class, ...$flags );
+            }
+        }
+        return $cases;
+    }
+
     public static function cache_modes(): array {
         return array(
             'uncached' => array( false, false ),
@@ -250,6 +320,7 @@ final class Handler_Retry_Test extends TestCase {
             remove_all_filters( $hook );
         }
         remove_all_actions( 'Hook-' . Lazy_Retry_Handler::class . '_' . Handler::INIT_LAZY . '_init' );
+        remove_all_actions( 'Hook-' . Second_Lazy_Retry_Handler::class . '_' . Handler::INIT_LAZY . '_init' );
         remove_all_actions( 'Hook-' . Jit_Retry_Handler::class . '_' . Handler::INIT_JIT . '_init' );
         Retry_Module::$events = array();
         Retry_Module::$ready = false;

@@ -397,8 +397,6 @@ class Handler extends Hook implements Can_Handle {
     protected function initialize(): static {
         if ( $this->is_lazy() && \doing_action( $this->get_tag() ) ) {
             $init_hook = $this->get_lazy_tag();
-
-            \remove_all_actions( $this->get_tag() );
         }
 
         $this->instance ??= $this->instantiate();
