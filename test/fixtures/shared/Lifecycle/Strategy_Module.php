@@ -11,9 +11,10 @@ use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Decorators\Module;
 
-#[Module( hook: 'xwp_strategy_module', handlers: array( Lazy_Handler::class, Jit_Handler::class ) )]
+#[Module( hook: 'xwp_strategy_module', handlers: array( Lazy_Handler::class, Jit_Handler::class, Empty_Lazy_Handler::class ) )]
 final class Strategy_Module {
     public static array $events = array();
+    public static bool $allow_initialization = true;
 }
 
 trait Records_Lifecycle {
@@ -23,7 +24,7 @@ trait Records_Lifecycle {
 
     public static function can_initialize(): bool {
         Strategy_Module::$events[] = 'condition';
-        return true;
+        return Strategy_Module::$allow_initialization;
     }
 
     public function on_initialize(): void {
@@ -51,4 +52,9 @@ final class Jit_Handler {
         Strategy_Module::$events[] = 'invoke';
         return $value . ':handled';
     }
+}
+
+#[Handler( tag: 'xwp_strategy_attach_empty', strategy: Handler::INIT_LAZY )]
+final class Empty_Lazy_Handler {
+    use Records_Lifecycle;
 }

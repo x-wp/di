@@ -10,6 +10,8 @@ namespace Tests\XWP\DI\Integration;
 use XWP\DI\App;
 use XWP\DI\App_Builder;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Invoker;
+use XWP\DIT\Lifecycle\Empty_Lazy_Handler;
 use XWP\DIT\Lifecycle\Jit_Handler;
 use XWP\DIT\Lifecycle\Lazy_Handler;
 use XWP\DIT\Lifecycle\Strategy_Module;
@@ -22,11 +24,13 @@ final class Handler_Lifecycle_Test extends TestCase {
         $this->cache_dir = sys_get_temp_dir() . '/xwp-strategy-' . uniqid();
         mkdir( $this->cache_dir );
         Strategy_Module::$events = array();
+        Strategy_Module::$allow_initialization = true;
     }
 
     public function tear_down(): void {
         $this->remove_lifecycle_hooks();
         Strategy_Module::$events = array();
+        Strategy_Module::$allow_initialization = true;
         foreach ( glob( $this->cache_dir . '/*' ) as $file ) {
             unlink( $file );
         }
@@ -80,6 +84,86 @@ final class Handler_Lifecycle_Test extends TestCase {
         }
     }
 
+    /** @dataProvider hook_cache_modes */
+    public function test_jit_retries_rejected_initialization_on_the_next_invocation( bool $cache_hooks ): void {
+        $config = $this->config( $cache_hooks );
+
+        foreach ( array( 'cold', 'warm' ) as $pass ) {
+            Strategy_Module::$events = array();
+            Strategy_Module::$allow_initialization = false;
+            $app = App_Builder::configure( $config )->build()->get( App::class );
+            $app->run();
+            do_action( 'xwp_strategy_module' );
+            do_action( 'xwp_strategy_attach_jit' );
+
+            $handler = $app->container()->get( 'Hook-' . Jit_Handler::class );
+            self::assertSame( array(), Strategy_Module::$events, $pass . ': attachment must not evaluate initialization conditions' );
+            self::assertTrue( has_filter( 'xwp_strategy_value_jit' ) );
+            self::assertFalse( $handler->is_loaded() );
+            self::assertNull( $handler->get_target() );
+
+            self::assertSame( 'rejected', apply_filters( 'xwp_strategy_value_jit', 'rejected' ) );
+            self::assertSame( array( 'condition' ), Strategy_Module::$events, $pass . ': rejection must not construct or invoke the handler' );
+            self::assertFalse( $handler->is_loaded() );
+            self::assertNull( $handler->get_target() );
+            self::assertTrue( has_filter( 'xwp_strategy_value_jit' ), $pass . ': rejection must leave the callback attached for retry' );
+
+            Strategy_Module::$allow_initialization = true;
+            self::assertSame( 'accepted:handled', apply_filters( 'xwp_strategy_value_jit', 'accepted' ) );
+            self::assertSame( array( 'condition', 'condition', 'construct', 'initialize', 'invoke' ), Strategy_Module::$events );
+            self::assertTrue( $handler->is_loaded() );
+            $instance = $handler->get_target();
+            self::assertInstanceOf( Jit_Handler::class, $instance );
+
+            Strategy_Module::$allow_initialization = false;
+            self::assertSame( 'again:handled', apply_filters( 'xwp_strategy_value_jit', 'again' ) );
+            self::assertSame(
+                array( 'condition', 'condition', 'construct', 'initialize', 'invoke', 'invoke' ),
+                Strategy_Module::$events,
+                $pass . ': successful initialization must be retained without rechecking the initialization condition',
+            );
+            self::assertSame( $instance, $handler->get_target() );
+
+            self::assertSame( $cache_hooks, file_exists( $this->cache_dir . '/hook-definition.php' ) );
+            $this->remove_lifecycle_hooks();
+        }
+    }
+
+    /** @dataProvider hook_cache_modes */
+    public function test_lazy_handler_without_callbacks_never_attempts_initialization_on_attachment( bool $cache_hooks ): void {
+        $config = $this->config( $cache_hooks );
+
+        foreach ( array( 'cold', 'warm' ) as $pass ) {
+            Strategy_Module::$events = array();
+            $app = App_Builder::configure( $config )->build()->get( App::class );
+            $app->run();
+            do_action( 'xwp_strategy_module' );
+
+            self::assertArrayHasKey( Empty_Lazy_Handler::class, $app->container()->get( Invoker::class )->get_handlers() );
+            self::assertTrue( has_action( 'xwp_strategy_attach_empty' ) );
+            self::assertSame( array(), Strategy_Module::$events, $pass . ': registration must not request initialization' );
+
+            do_action( 'xwp_strategy_attach_empty' );
+            do_action( 'xwp_strategy_attach_empty' );
+
+            $handler = $app->container()->get( 'Hook-' . Empty_Lazy_Handler::class );
+            self::assertSame( array(), $handler->get_callbacks() );
+            self::assertSame( array(), Strategy_Module::$events, $pass . ': no callbacks means no condition evaluation or initialization' );
+            self::assertFalse( $handler->is_loaded() );
+            self::assertNull( $handler->get_target() );
+
+            self::assertSame( $cache_hooks, file_exists( $this->cache_dir . '/hook-definition.php' ) );
+            $this->remove_lifecycle_hooks();
+        }
+    }
+
+    public static function hook_cache_modes(): array {
+        return array(
+            'uncached' => array( false ),
+            'cached' => array( true ),
+        );
+    }
+
     public static function strategies_and_cache_modes(): array {
         return array(
             'lazy uncached' => array( 'lazy', false ),
@@ -90,11 +174,12 @@ final class Handler_Lifecycle_Test extends TestCase {
     }
 
     private function remove_lifecycle_hooks(): void {
-        foreach ( array( 'xwp_strategy_module', 'xwp_strategy_attach_lazy', 'xwp_strategy_attach_jit', 'xwp_strategy_value_lazy', 'xwp_strategy_value_jit' ) as $hook ) {
+        foreach ( array( 'xwp_strategy_module', 'xwp_strategy_attach_lazy', 'xwp_strategy_attach_jit', 'xwp_strategy_attach_empty', 'xwp_strategy_value_lazy', 'xwp_strategy_value_jit' ) as $hook ) {
             remove_all_filters( $hook );
         }
         remove_all_actions( 'Hook-' . Lazy_Handler::class . '_' . Handler::INIT_LAZY . '_init' );
         remove_all_actions( 'Hook-' . Jit_Handler::class . '_' . Handler::INIT_JIT . '_init' );
+        remove_all_actions( 'Hook-' . Empty_Lazy_Handler::class . '_' . Handler::INIT_LAZY . '_init' );
     }
 
     private function config( bool $cache_hooks ): array {
