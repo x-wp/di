@@ -79,12 +79,12 @@ trait Hook_Invoke_Methods {
      */
     protected function resolve_priority( null|Closure|string|int|array $prio ): int {
         return match ( true ) {
-            \is_numeric( $prio )  => \intval( $prio ),
-            \defined( $prio )     => \constant( $prio ),
-            \is_array( $prio )    => $this->call_priority( $prio ),
-            \is_callable( $prio ) => $this->call_priority( $prio ),
-            \is_string( $prio )   => $this->filter_priority( $prio ),
-            default               => 10,
+            \is_numeric( $prio )                     => \intval( $prio ),
+            \is_string( $prio ) && \defined( $prio ) => \constant( $prio ),
+            \is_array( $prio )                       => $this->call_priority( $prio ),
+            \is_callable( $prio )                    => $this->call_priority( $prio ),
+            \is_string( $prio )                      => $this->filter_priority( $prio ),
+            default                                  => 10,
         };
     }
 
@@ -103,9 +103,9 @@ trait Hook_Invoke_Methods {
     /**
      * Get the hook priority by calling the priority callback.
      *
-     * @param string|array{class-string,string} $args Priority callback.
+     * @param Closure|string|array{class-string,string} $args Priority callback.
      */
-    private function call_priority( array|string $args ): int {
+    private function call_priority( Closure|array|string $args ): int {
         return $this->get_container()->call( $args, array( $this->tag ) );
     }
 }
