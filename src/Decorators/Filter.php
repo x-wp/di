@@ -226,7 +226,7 @@ class Filter extends Hook implements Can_Invoke {
             return true;
         }
 
-        if ( ! $this->init_handler( Can_Handle::INIT_LAZY ) ) {
+        if ( ! $this->init_handler( Can_Handle::INIT_LAZY ) || ! $this->can_load() ) {
             return false;
         }
 
@@ -285,17 +285,19 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     protected function init_handler( string $strategy ): bool {
-        if ( $this->get_handler()->is_loaded() ) {
+        $handler = $this->get_handler();
+
+        if ( $handler->is_loaded() ) {
             return true;
         }
 
-        if ( $strategy !== $this->get_handler()->get_strategy() ) {
-            return $this->can_load();
+        if ( $strategy !== $handler->get_strategy() ) {
+            return $handler->is_lazy();
         }
 
-        \do_action( "{$this->get_handler()->get_token()}_{$strategy}_init", $this->get_handler() );
+        \do_action( "{$handler->get_token()}_{$strategy}_init", $handler );
 
-        return $this->get_handler()->is_loaded();
+        return $handler->is_loaded();
     }
 
     protected function cb_valid( int $current ): bool {
