@@ -48,6 +48,17 @@ These are the steps a plugin author follows to migrate from `1.x` to `2.x`. Refe
 
 The expected migration cost for a typical plugin is one afternoon: bump composer, run tests, fix anything that hits a removed `@internal` API.
 
+## Current beta callback split
+
+Plain `#[Filter]` and `#[Action]` callback tokens now resolve to `XWP\DI\Hook\Callback`. The injected `!self.hook` value remains a typed `Filter` or `Action` view that forwards live state and calls to that runtime. Specialized and custom decorator subclasses retain their existing runtime during this transition; see the [definition split plan](definition-split-plan.md).
+
+Two object-identity assumptions change for plain callbacks:
+
+- `$hook === $container->get( $hook->get_token() )` is false: the view and runtime are separate objects.
+- `remove_filter( $hook->tag, array( $hook, 'invoke' ), $hook->get_priority() )` no longer names the registered proxy. Use `$hook->target`, or `array( $container->get( $hook->get_token() ), 'invoke' )` for a proxied callback. The same rule applies to `remove_action()`.
+
+Direct `$hook->invoke( ...$args )` calls still forward to the runtime. Standard callbacks still register the handler-instance method and retain that removal identity. Hook tokens, cached metadata arrays, and handler initialization timing are unchanged.
+
 ## Breaking changes from 1.x to 2.0
 
 These are the things that *will* break unless the plugin code is updated. The list is intentionally short.
@@ -56,7 +67,7 @@ These are the things that *will* break unless the plugin code is updated. The li
 - `Decorator->with_*()` fluent mutators (e.g. `$filter->with_handler($h)`). Decorators are immutable in 2.0. If consumer code touched these, it was already reaching into internals. Replacement: don't.
 - `xwp_app(null)` accidental usage now throws. Pass the app ID explicitly.
 - The legacy config-key compat shim in `App_Factory` is gone. Use the documented config keys.
-- `Filter::invoke()` / `Action::invoke()` / etc. as runtime callables are no longer the WP callbacks. The Dispatcher is. Consumer code calling `$filter->invoke(...)` directly will fail. (No legitimate plugin should be doing this, but flag it.)
+- Plain proxied Filter/Action registrations now use `Callback::invoke()`. The typed `!self.hook` view still supports direct invocation; WordPress removal must use the runtime callable as described above. Specialized subclasses have not yet moved to `Callback`.
 
 ### Tightened
 - PHP requirement: `>=8.1`.

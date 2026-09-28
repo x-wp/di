@@ -1,6 +1,6 @@
 <?php
 /**
- * Characterize the decorator supplied by !self.hook before runtime extraction.
+ * Verify the typed !self.hook view over the routed callback runtime.
  *
  * @package XWP\DI\Tests
  */
@@ -12,6 +12,7 @@ use XWP\DI\App_Builder;
 use XWP\DI\Compiled_Container;
 use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Filter;
+use XWP\DI\Hook\Callback;
 use XWP\DIT\Lifecycle\Self_Hook_Handler;
 use XWP\DIT\Lifecycle\Self_Hook_Module;
 
@@ -39,7 +40,7 @@ final class Self_Hook_Test extends TestCase {
         foreach ( $this->apps( $compile, $hooks ) as $app ) {
             $callbacks = $this->callbacks( $app );
             $filter = $callbacks['xwp_self_filter'];
-            self::assertSame( Filter::class, $filter::class );
+            self::assertSame( Callback::class, $filter::class );
             self::assertSame( 17, $filter->get_priority() );
             self::assertSame( 1, $filter->get_num_args() );
             self::assertSame( 'xwp_self_filter', $filter->tag );
@@ -55,8 +56,10 @@ final class Self_Hook_Test extends TestCase {
             self::assertSame( 'first:filtered', apply_filters( 'xwp_self_filter', 'first' ) );
             self::assertSame( 'second:filtered', apply_filters( 'xwp_self_filter', 'second' ) );
             foreach ( Self_Hook_Module::$observations as $count => $observed ) {
-                self::assertSame( $filter, $observed['hook'] );
-                self::assertSame( $app->container()->get( $filter->get_token() ), $observed['hook'] );
+                self::assertSame( Filter::class, $observed['hook']::class );
+                self::assertNotSame( $filter, $observed['hook'] );
+                self::assertSame( Self_Hook_Module::$observations[0]['hook'], $observed['hook'] );
+                self::assertSame( $filter, $app->container()->get( $observed['hook']->get_token() ) );
                 self::assertSame( 'xwp_self_filter', $observed['tag'] );
                 self::assertSame( 'filter_value', $observed['method'] );
                 self::assertSame( $count, $observed['fired'] );
@@ -69,8 +72,8 @@ final class Self_Hook_Test extends TestCase {
 
             $first = $callbacks['xwp_self_action_first'];
             $second = $callbacks['xwp_self_action_second'];
-            self::assertSame( Action::class, $first::class );
-            self::assertSame( Action::class, $second::class );
+            self::assertSame( Callback::class, $first::class );
+            self::assertSame( Callback::class, $second::class );
             self::assertNotSame( $first, $second, 'Repeated attributes on one method have separate runtime identities.' );
             self::assertNotSame( $first->get_token(), $second->get_token() );
             do_action( 'xwp_self_action_first' );
@@ -79,7 +82,8 @@ final class Self_Hook_Test extends TestCase {
             do_action( 'xwp_self_action_second' );
             foreach ( array( $first, $second ) as $index => $action ) {
                 $observed = Self_Hook_Module::$observations[ $index + 2 ];
-                self::assertSame( $action, $observed['hook'] );
+                self::assertSame( Action::class, $observed['hook']::class );
+                self::assertNotSame( $action, $observed['hook'] );
                 self::assertSame( $action, $app->container()->get( $action->get_token() ) );
                 self::assertSame( $action->get_tag(), $observed['tag'] );
                 self::assertSame( 'action', $observed['method'] );
@@ -102,6 +106,11 @@ final class Self_Hook_Test extends TestCase {
                     'self' => array( $hook, 'invoke' ),
                     'token' => array( $app->container()->get( $hook->get_token() ), 'invoke' ),
                 };
+                if ( 'self' === $form ) {
+                    self::assertFalse( remove_filter( $hook->tag, $target, $hook->get_priority() ) );
+                    self::assertSame( $hook->get_priority(), has_filter( $hook->tag, $hook->target ) );
+                    $target = $hook->target;
+                }
                 self::assertTrue( remove_filter( $hook->tag, $target, $hook->get_priority() ) );
             };
             self::assertSame( 'first:filtered', apply_filters( 'xwp_self_filter', 'first' ) );
@@ -142,7 +151,10 @@ final class Self_Hook_Test extends TestCase {
                 self::assertSame( 'self.hook fixture failure', $exception->getMessage() );
             }
             $observed = Self_Hook_Module::$observations[1];
-            self::assertSame( $failed, $observed['hook'] );
+            self::assertNotSame( $failed, $observed['hook'] );
+            self::assertSame( $failed, $app->container()->get( $observed['hook']->get_token() ) );
+            self::assertSame( 1, $observed['hook']->fired );
+            self::assertFalse( $observed['hook']->firing );
             self::assertSame( 0, $observed['fired'] );
             self::assertTrue( $observed['firing'] );
             self::assertSame( 1, $failed->fired, 'An invocation that throws still increments fired in finally.' );

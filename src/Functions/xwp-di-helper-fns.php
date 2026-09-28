@@ -6,6 +6,7 @@
  * @subpackage Dependency Injection
  */
 
+use XWP\DI\Hook\Callback;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
 
@@ -62,8 +63,8 @@ function xwp_load_hook_handler( object $instance, string $app ): Can_Handle {
  *
  * @template TObj of object
  *
- * @param  Can_Handle<TObj>                             $handler Handler instance.
- * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
+ * @param  Can_Handle<TObj>                                                             $handler Handler instance.
+ * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
  * @return Can_Handle<TObj>
  */
 function xwp_load_handler_cbs( Can_Handle $handler, array $callbacks ): Can_Handle {

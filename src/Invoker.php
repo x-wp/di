@@ -8,6 +8,7 @@
 
 namespace XWP\DI;
 
+use XWP\DI\Hook\Callback;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Import;
@@ -449,9 +450,9 @@ class Invoker {
      *
      * @template T of object
      *
-     * @param  Can_Invoke<T,Can_Handle<T>> $cb Callback instance.
+     * @param  Can_Invoke<T,Can_Handle<T>>|Callback<T,Can_Handle<T>> $cb Callback instance.
      */
-    private function add_callback( Can_Invoke $cb ): void {
+    private function add_callback( Can_Invoke|Callback $cb ): void {
         $id = "{$cb->get_method()}:{$cb->get_tag()}";
         $cn = $cb->get_classname();
 

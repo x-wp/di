@@ -17,7 +17,7 @@ use XWP\DI\Interfaces\Can_Initialize;
  * This is a module which is conditionally initialized.
  */
 #[Module(
-    tag:'plugins_loaded',
+    hook: 'plugins_loaded',
     priority: 10,
     handlers: array(
 		Handlers\Account_EP_Handler::class,

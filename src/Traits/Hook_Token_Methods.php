@@ -11,6 +11,8 @@ namespace XWP\DI\Traits;
 use ReflectionClass;
 use ReflectionMethod;
 use Reflector;
+use XWP\DI\Hook\Callback;
+use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Hook;
 
 /**
@@ -24,12 +26,13 @@ trait Hook_Token_Methods {
      *
      * @template T of object
      *
-     * @param  T|class-string<T>|Can_Hook<T,Reflector>|ReflectionClass<T>|ReflectionMethod $instance Instance to get the target for.
+     * @param  T|class-string<T>|Can_Hook<T,Reflector>|Callback<T,Can_Handle<T>>|ReflectionClass<T>|ReflectionMethod $instance Instance to get the target for.
      * @return class-string<T>
      */
     public function get_target( object|string $instance ): string {
         return match ( true ) {
             $instance instanceof Can_Hook         => $instance->get_classname(),
+            $instance instanceof Callback         => $instance->get_classname(),
             $instance instanceof ReflectionClass  => $instance->getName(),
             $instance instanceof ReflectionMethod => $instance->class,
             \is_string( $instance )               => $instance,
@@ -42,7 +45,7 @@ trait Hook_Token_Methods {
      *
      * @template T of object
      *
-     * @param  class-string<T>|T|Can_Hook<T,Reflector>|ReflectionClass<T> $hook Hook classname, instance, or reflection.
+     * @param  class-string<T>|T|Can_Hook<T,Reflector>|Callback<T,Can_Handle<T>>|ReflectionClass<T> $hook Hook classname, instance, or reflection.
      * @return string
      */
     public function get_token( string|object $hook ): string {

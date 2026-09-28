@@ -8,7 +8,7 @@ This plan targets the `beta` architecture present in this checkout, including `H
 
 The lifecycle conclusions below extend the original callback-only plan. The module context, initialization-condition, and late-registration policies were settled on 2026-09-28. They preserve the existing runtime contract; callback runtime extraction remains separate work.
 
-`Hook\Callback` and its typed forwarding view are now available as a standalone runtime (S2, `di-q15`). `Callback_Runtime_Test` constructs it directly. Factory and Invoker still use the existing decorators; token routing and cache-mode wiring tests remain S3.
+`Hook\Callback` and its typed forwarding view are implemented (S2, `di-q15`). Factory and Invoker now route exact `Filter` and `Action` types through that runtime (S3, `di-70n`); specialized and custom subclasses keep their decorator runtime. `Callback_Runtime_Test` covers the runtime directly, while `Callback_Wiring_Test` and `Self_Hook_Test` cover routing and view identity with cold/warm caches and compiled containers.
 
 ## Relation to the migration docs
 
@@ -61,8 +61,8 @@ The cascade describes registration through the module tree. The container remain
 | Discover | Read declarations and obtain handler/callback metadata; cacheable | `Parser`, `Factory::resolve_callbacks()`, `Invoker::register_methods()` |
 | Register handler | Admit a handler into the app runtime once and arrange its strategy | `Invoker::register_handler()` and `add_handler()` |
 | Initialize handler | Check initialization conditions, resolve its instance, configure it, and run `on_initialize()` | `Invoker::init_handler()` and `Handler::load()` |
-| Attach callbacks | Register callables with WordPress | `Invoker::invoke_methods()` and `Filter::load()` |
-| Invoke callback | Execute the handler method when its hook fires | Direct method callable or `Filter::invoke()` |
+| Attach callbacks | Register callables with WordPress | `Invoker::invoke_methods()`, `Callback::load()`; legacy subclasses use `Filter::load()` |
+| Invoke callback | Execute the handler method when its hook fires | Direct method callable, `Callback::invoke()`, or legacy subclass runtime |
 
 `register_handler()` is the strategy coordinator. Its existing `match` already expresses different lifecycle paths and should remain explicit. Registration can immediately cause initialization for `EARLY` or `NOW`; it does not imply that every strategy creates an instance.
 
@@ -134,10 +134,12 @@ Callbacks reach the container along two producer paths, and are consumed in one 
 **Producer A: cached / preloaded.**
 [Parser::add_hook()](../src/Hook/Parser.php) stores `$hook->get_data()` under `{token}[params]` and registers `{token}` as
 `\DI\factory( array( Factory::class, 'make' ) )->parameter( 'hook', \DI\get( '{token}[params]' ) )`.
-[Factory::make()](../src/Hook/Factory.php) rebuilds the decorator from that array: `new $hook['type']( ...$hook['args'] )`, then `with_data( $hook['params'] )`.
+[Factory::make()](../src/Hook/Factory.php) converts plain Filter/Action arrays with `CallbackDefinition::from_data()` and creates a `Callback`. Other types retain decorator reconstruction: `new $hook['type']( ...$hook['args'] )`, then `with_data( $hook['params'] )`.
+
+A Factory without a container can still reconstruct decorator metadata; runtime conversion requires a container. This preserves the metadata-only construction path.
 
 **Producer B: runtime (hook cache off, or user-registered instances).**
-`Invoker::register_methods()` → `Factory::resolve_callbacks()` → `resolve_method_callbacks()` → `save_hook()` → `$container->set( $token, $decorator )`.
+`Invoker::register_methods()` → `Factory::resolve_callbacks()` → `resolve_method_callbacks()` → `save_hook()`. Plain callbacks are converted through `make()` and stored under their token; other decorators are stored directly. Discovery still returns decorator metadata. Once the app has started, `get_callbacks()` returns the stored objects, including when it first discovers an uncached handler's methods. Existing token entries are retained when callbacks are loaded again.
 
 **Consumer.**
 The handler only keeps tokens (`with_callbacks( $tokens )`).
@@ -263,7 +265,7 @@ The `!self.hook` view keeps working for the public example [Product_Page_Handler
 
 #### Characterized behavior before extraction
 
-`Self_Hook_Test` covers the current implementation with cold/warm hook caches and compiled containers:
+Before extraction, `Self_Hook_Test` established the following behavior with cold/warm hook caches and compiled containers:
 
 - The injected object is the exact `Filter` or `Action` stored under its callback token. Repeated attributes on one handler method have separate objects, tokens, and counters.
 - `tag` is resolved at runtime, including modifiers; `method` identifies the handler method. The container, handler metadata, priority, accepted argument count, and attachment hook remain accessible through the decorator.
@@ -271,7 +273,7 @@ The `!self.hook` view keeps working for the public example [Product_Page_Handler
 - For a proxied callback, `target` is the actual registered callable. Removal currently works with `$hook->target`, `array( $hook, 'invoke' )`, and `array( $container->get( $hook->get_token() ), 'invoke' )` because all three refer to the same object.
 - Removing the WordPress listener does not reset `loaded`. Calling `load()` again returns true without reattaching it. Direct `invoke()` remains callable after removal and updates the same live state.
 
-These tests characterize the existing runtime; equality with the container entry and the explicit view-object removal form need intentional test updates when the approved extraction contract is implemented.
+S3 updated the same-object and explicit view-object removal assertions to the accepted boundary below. The other state, invocation, and removal guarantees remain covered.
 
 #### Selected direction and proposed delegation
 
@@ -292,7 +294,7 @@ Add an internal owner link only to the runtime-backed plain decorator view. Lega
 
 The two removal forms that name the runtime remain available: `$hook->target` and `array( $container->get( $hook->get_token() ), 'invoke' )`. A direct `$hook->invoke()` call forwards normally, but this does not give `array( $hook, 'invoke' )` the owner's WordPress callable identity.
 
-**Accepted compatibility boundary (2026-09-29):** the user confirmed `!self.hook` has not been used in production and authorized the forwarding-view approach, including target-based removal. After extraction, `array( $hook, 'invoke' )` is not a supported WordPress removal identity for the separate view; use `$hook->target` or the container runtime's callable. Direct view invocation still forwards. Document these two identity changes in the migration notes when S3 switches the token routing. `Callback_Runtime_Test` now verifies this boundary on the standalone runtime; `Self_Hook_Test` continues to characterize the legacy Factory path until S3.
+**Accepted compatibility boundary (2026-09-29):** the user confirmed `!self.hook` has not been used in production and authorized the forwarding-view approach, including target-based removal. `array( $hook, 'invoke' )` is not a supported WordPress removal identity for the separate view; use `$hook->target` or the container runtime's callable. Direct view invocation still forwards. `Callback_Runtime_Test` verifies this boundary directly; `Self_Hook_Test` verifies it through Factory routing. These identity changes are recorded in [the migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
 
 ### 4. Wiring
 
@@ -431,7 +433,7 @@ Each implementation slice is one bead and one PR. Beads tracks execution status;
   - `Factory::make()` and `Factory::save_hook()` routing.
   - Type widening in `Factory` and `Invoker`.
   - Safe handling of existing runtime callbacks through `get_callbacks()` / `load_callbacks()` without decorator-only mutation or callback identity changes.
-- **Files:** `src/Hook/Factory.php`, `src/Invoker.php`, `tests/Integration/*`.
+- **Files:** `src/Hook/Factory.php`, `src/Invoker.php`, `src/Traits/Hook_Token_Methods.php`, callback collection annotations in `src/Functions/xwp-di-helper-fns.php`, `tests/Integration/*` and fixtures. The example's `WC_Module` uses the required `hook:` constructor argument.
 - **Acceptance:**
   - Every compatibility checklist item has a test, with hook cache both on and off.
   - `$container->get( $token ) instanceof Callback` for plain callbacks; subclass tokens still resolve to their decorators.

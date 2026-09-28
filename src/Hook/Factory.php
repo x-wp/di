@@ -12,7 +12,10 @@ use DI\Definition\Exception\InvalidDefinition;
 use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
+use XWP\DI\Decorators\Action;
+use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Hook;
 use XWP\DI\Interfaces\Can_Import;
@@ -51,9 +54,13 @@ class Factory {
      * @template TTgt of Can_Hook
      *
      * @param  array{type: class-string<TTgt>, args: array<string,mixed>, params: array<string,mixed>} $hook Hook data.
-     * @return TTgt<object,\Reflector>
+     * @return TTgt<object,\Reflector>|Callback<object,Can_Handle<object>>
      */
-    public function make( array $hook ): Can_Hook {
+    public function make( array $hook ): Can_Hook|Callback {
+        if ( $this->ctr() && $this->is_plain_callback( $hook['type'] ) ) {
+            return new Callback( CallbackDefinition::from_data( $hook ), $this->ctr() );
+        }
+
         return ( new $hook['type']( ...$hook['args'] ) )
             ->with_data( $hook['params'] )->with_container( $this->ctr() );
     }
@@ -128,9 +135,9 @@ class Factory {
      * @template TObj of object
      *
      * @param  class-string<TObj> $hook Hook classname.
-     * @return Can_Invoke<TObj,Can_Handle<TObj>>
+     * @return Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>
      */
-    public function get_hook( string $hook ): Can_Invoke {
+    public function get_hook( string $hook ): Can_Invoke|Callback {
         return $this->get( $hook );
     }
 
@@ -140,13 +147,17 @@ class Factory {
      * @template TObj of object
      *
      * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>>
      *
      * @throws InvalidDefinition If the container is not set.
      */
     public function get_callbacks( Can_Handle $handler ): array {
         if ( null === $handler->get_callbacks() ) {
-            return $this->resolve_callbacks( $handler );
+            $callbacks = $this->resolve_callbacks( $handler );
+
+            return $this->started()
+                ? \array_map( fn( $cb ) => $this->ctr()->get( $cb->get_token() ), $callbacks )
+                : $callbacks;
         }
 
         if ( ! $this->started() ) {
@@ -216,8 +227,8 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj>                             $handler Handler instance.
-     * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
+     * @param  Can_Handle<TObj>                                                             $handler Handler instance.
+     * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
      * @return Can_Handle<TObj>
      */
     public function load_callbacks( Can_Handle $handler, array $callbacks ): Can_Handle {
@@ -317,28 +328,35 @@ class Factory {
     }
 
     /**
-     * Save a handler to the container.
+     * Save a hook while retaining decorator metadata for discovery.
      *
-     * If the handler is not in the container, it will be saved.
+     * Existing token entries retain their runtime identity and invocation state.
 
-     * @template TObj of Can_Hook
-     * @phpstan-pure
+     * @template TObj of Can_Hook|Callback
      *
-     * @param  TObj $hook Handler instance.
+     * @param  TObj $hook Hook instance.
      * @return TObj
      */
-    protected function save_hook( Can_Hook $hook ): Can_Hook {
+    protected function save_hook( Can_Hook|Callback $hook ): Can_Hook|Callback {
         if ( ! $this->started() ) {
             return $hook;
         }
 
-        $hook = $hook->with_container( $this->ctr() );
+        if ( $hook instanceof Can_Hook ) {
+            $hook = $hook->with_container( $this->ctr() );
+        }
 
         $token = $hook->get_token();
 
-        if ( ! $this->ctr()->has( $token ) ) {
-            $this->ctr()->set( $token, $hook );
+        if ( $this->ctr()->has( $token ) ) {
+            return $hook;
         }
+
+        $runtime = $hook instanceof Filter && $this->is_plain_callback( $hook::class )
+            ? $this->make( $hook->get_data() )
+            : $hook;
+
+        $this->ctr()->set( $token, $runtime );
 
         return $hook;
     }
@@ -349,12 +367,22 @@ class Factory {
      * @template TObj of object
      *
      * @param  TObj|class-string<TObj> $hook Hook classname.
-     * @return null|Can_Handle<TObj>|Can_Import<TObj>|Can_Invoke<TObj,Can_Handle<TObj>>
+     * @return null|Can_Handle<TObj>|Can_Import<TObj>|Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>
      */
-    private function get( string|object $hook ): ?Can_Hook {
+    private function get( string|object $hook ): Can_Hook|Callback|null {
         return $this->started() && $this->ctr()->has( $this->get_token( $hook ) )
             ? $this->ctr()->get( $this->get_token( $hook ) )
             : null;
+    }
+
+    /**
+     * Keep specialized decorators on their existing runtime path.
+     *
+     * @param  class-string $type Decorator class.
+     * @return bool
+     */
+    private function is_plain_callback( string $type ): bool {
+        return \in_array( $type, array( Filter::class, Action::class ), true );
     }
 
     /**
