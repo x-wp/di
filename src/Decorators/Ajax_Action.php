@@ -137,6 +137,17 @@ class Ajax_Action extends Action {
      * @return array<int,string>
      */
     public function get_modifiers( ?string $hook = null ): array {
+        if ( $this->runtime instanceof \XWP\DI\Hook\Ajax_Callback ) {
+            /**
+             * Specialized runtime owner.
+             *
+             * @var \XWP\DI\Hook\Ajax_Callback<T,H> $runtime
+             */
+            $runtime = $this->runtime;
+
+            return $runtime->get_modifiers( $hook );
+        }
+
         return array(
             $hook ?? \next( $this->hooks ),
             $this->get_prefix(),
@@ -161,6 +172,7 @@ class Ajax_Action extends Action {
                     'conditional' => $this->conditional,
                     'method'      => $this->verb,
                     'nonce'       => $this->nonce,
+                    'params'      => $this->params,
                     'prefix'      => $this->prefix,
                     'priority'    => $this->prio,
                     'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
@@ -183,6 +195,10 @@ class Ajax_Action extends Action {
      * @return bool
      */
     public function can_load(): bool {
+        if ( $this->runtime ) {
+            return $this->runtime->can_load();
+        }
+
         return parent::can_load() && $this->handler->loaded;
     }
 

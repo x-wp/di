@@ -117,6 +117,10 @@ class Dynamic_Filter extends Filter {
      * @return bool
      */
     public function load_hook( ?string $tag = null ): bool {
+        if ( $this->runtime ) {
+            return $this->runtime->load();
+        }
+
         $res = true;
 
         foreach ( $this->parse_vars( $this->raw_vars ) as $var => $param ) {

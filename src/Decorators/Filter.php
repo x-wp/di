@@ -31,7 +31,7 @@ class Filter extends Hook implements Can_Invoke {
      *
      * @var Callback<T,H>|null
      */
-    private ?Callback $runtime = null;
+    protected ?Callback $runtime = null;
 
     /**
      * The handler.

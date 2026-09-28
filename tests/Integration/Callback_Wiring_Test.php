@@ -10,7 +10,7 @@ namespace Tests\XWP\DI\Integration;
 use XWP\DI\App;
 use XWP\DI\App_Builder;
 use XWP\DI\Compiled_Container;
-use XWP\DI\Decorators\Dynamic_Filter;
+use XWP\DI\Hook\Dynamic_Callback;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Hook\Callback;
@@ -47,7 +47,7 @@ final class Callback_Wiring_Test extends TestCase {
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
             $callbacks = $factory->get_callbacks( $handler );
             self::assertCount( 4, $callbacks );
-            $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Filter::class, 'custom' => Custom_Wiring_Filter::class );
+            $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Callback::class, 'custom' => Custom_Wiring_Filter::class );
             foreach ( $callbacks as $callback ) {
                 self::assertSame( $types[ $callback->get_method() ], $callback::class );
                 self::assertSame( $callback, $factory->get_hook( $callback->get_token() ) );

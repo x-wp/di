@@ -1,100 +1,102 @@
 <?php //phpcs:disable Squiz.Commenting.FunctionComment.Missing, Universal.Operators.DisallowShortTernary.Found
+/**
+ * CLI callback runtime.
+ *
+ * @package eXtended WordPress
+ * @subpackage Dependency Injection
+ */
 
-namespace XWP\DI\Decorators;
+namespace XWP\DI\Hook;
 
 use Closure;
 use WP_CLI;
-use XWP\DI\Interfaces\Can_Execute;
-use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Handle_CLI;
+use XWP\DI\Container;
+use XWP\DI\Definition\CallbackDefinition;
+use XWP\DI\Interfaces\Can_Invoke;
 
 use function WP_CLI\Utils\get_flag_value;
 
 /**
- * Decorator for defining CLI commands.
+ * Registers commands and resolves command arguments through the container.
  *
  * @template T of object
- * @extends Action<T,Can_Handle_CLI<T>>
- * @implements Can_Execute<T,Can_Handle_CLI<T>>
+ * @template H of \XWP\DI\Interfaces\Can_Handle_CLI<T>
+ * @extends Callback<T,H>
+ * @internal
  */
-#[\Attribute( \Attribute::TARGET_METHOD )]
-class CLI_Command extends Action implements Can_Execute {
-    protected const ARG_TYPE = array( 'positional', 'assoc', 'flag' );
-
+class CLI_Callback extends Callback {
     /**
-     * Subcommand.
+     * Subcommand name.
      *
      * @var string
      */
     protected string $subcommand;
 
-
     /**
-     * Command arguments.
+     * Command argument specifications, resolved during registration.
      *
      * @var array<mixed>
      */
     protected array $cmd_args;
 
     /**
-     * Undocumented function
+     * Short command description.
      *
-     * @param string                                             $command       Command name.
-     * @param array<mixed>                                       $args          Command arguments.
-     * @param array<string,string>                               $params        Injection parameters.
-     * @param string                                             $summary       Short description.
-     * @param string|array<string|array<string>>                 $description   Long description.
-     * @param string|null                                        $when          When to invoke the command.
-     * @param bool|null                                          $deferred      Whether to defer adding the command.
-     * @param null|Closure|string|array{0:class-string,1:string} $before Function to call before invoking the command.
-     * @param null|Closure|string|array{0:class-string,1:string} $after  Function to call after invoking the command.
+     * @var string
      */
-    public function __construct(
-        string $command,
-        array $args = array(),
-        array $params = array(),
-        protected string $summary = '',
-        protected string|array $description = array(),
-        protected ?string $when = null,
-        protected ?bool $deferred = null,
-        protected null|Closure|string|array $before = null,
-        protected null|Closure|string|array $after = null,
-    ) {
-        $this->subcommand = $command;
-        $this->cmd_args   = $args;
-
-        parent::__construct(
-            tag: 'cli_init',
-            context: self::CTX_CLI,
-            invoke: self::INV_PROXIED,
-            params: $params,
-        );
-    }
+    protected string $summary;
 
     /**
-     * Get compiler data for this CLI command.
+     * Long command description.
      *
-     * @internal Hook parser/compiler detail.
-     *
-     * @return array<string,mixed>
+     * @var string|array<string|array<string>>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'after'       => $this->after,
-                    'args'        => $this->cmd_args,
-                    'before'      => $this->before,
-                    'command'     => $this->subcommand,
-                    'deferred'    => $this->deferred,
-                    'description' => $this->description,
-                    'params'      => $this->params,
-                    'summary'     => $this->summary,
-                    'when'        => $this->when,
-                ),
-            ),
-        );
+    protected string|array $description;
+
+    /**
+     * Command execution hook.
+     *
+     * @var string|null
+     */
+    protected ?string $when;
+    /**
+     * Deferred registration setting.
+     *
+     * @var bool|null
+     */
+    protected ?bool $deferred;
+
+    /**
+     * Before invocation callback.
+     *
+     * @var null|Closure|string|array{0:class-string,1:string}
+     */
+    protected null|Closure|string|array $before;
+
+    /**
+     * After invocation callback.
+     *
+     * @var null|Closure|string|array{0:class-string,1:string}
+     */
+    protected null|Closure|string|array $after;
+
+    /**
+     * Constructor.
+     *
+     * @param CallbackDefinition $definition Callback metadata.
+     * @param Container          $container Runtime container.
+     */
+    public function __construct( CallbackDefinition $definition, Container $container ) {
+        parent::__construct( $definition, $container );
+        $options           = $definition->get_options();
+        $this->subcommand  = $options['command'];
+        $this->cmd_args    = $options['args'];
+        $this->summary     = $options['summary'];
+        $this->description = $options['description'];
+        $this->when        = $options['when'];
+        $this->deferred    = $options['deferred'];
+        $this->before      = $options['before'];
+        $this->after       = $options['after'];
     }
 
     /**
@@ -105,10 +107,6 @@ class CLI_Command extends Action implements Can_Execute {
      * @return ?Closure
      */
     public function get_before_invoke(): ?Closure {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_before_invoke();
-        }
-
         return $this->get_invoke( $this->before );
     }
 
@@ -120,36 +118,18 @@ class CLI_Command extends Action implements Can_Execute {
      * @return ?Closure
      */
     public function get_after_invoke(): ?Closure {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_after_invoke();
-        }
-
         return $this->get_invoke( $this->after );
     }
 
     public function get_command(): string {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_command();
-        }
-
         return \sprintf( '%s %s', $this->get_handler()->get_namespace(), $this->get_subcommand() );
     }
 
     public function get_subcommand(): string {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_subcommand();
-        }
-
         return $this->subcommand;
     }
 
-    // The legacy formatting path remains available for custom subclasses.
-    // phpcs:ignore SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     public function get_longdesc(): ?string {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_longdesc();
-        }
-
         $desc = array();
 
         foreach ( (array) $this->description as $line ) {
@@ -165,18 +145,10 @@ class CLI_Command extends Action implements Can_Execute {
     }
 
     public function get_priority(): int {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_priority();
-        }
-
         return $this->get_handler()->get_priority();
     }
 
     public function get_shortdesc(): ?string {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            return $this->runtime->get_shortdesc();
-        }
-
         return $this->summary ?: null;
     }
 
@@ -189,15 +161,10 @@ class CLI_Command extends Action implements Can_Execute {
      * @param  array<string,mixed> $assoc      Associative arguments.
      */
     public function run_cmd( array $positional, array $assoc ): void {
-        if ( $this->runtime instanceof \XWP\DI\Hook\CLI_Callback ) {
-            $this->runtime->run_cmd( $positional, $assoc );
-            return;
-        }
-
         $args = \array_merge(
             $this->format_pos_args( $positional ),
             array( 'flags' => $this->format_flag_args( $assoc ) ),
-            \array_map( array( $this, 'get_cb_arg' ), $this->params ),
+            \array_map( array( $this, 'get_cb_arg' ), $this->definition->get_params() ),
         );
 
         $this->get_container()->call( array( $this->get_handler()->get_target(), $this->get_method() ), $args );
@@ -252,7 +219,7 @@ class CLI_Command extends Action implements Can_Execute {
      * @return array{0:T, 1: string}|Closure
      */
     protected function get_callback(): array|Closure {
-        return $this->cb_valid( self::INV_STANDARD )
+        return $this->cb_valid( Can_Invoke::INV_STANDARD )
             ? array( $this->get_handler()->get_target(), $this->get_method() )
             : array( $this, 'run_cmd' );
     }

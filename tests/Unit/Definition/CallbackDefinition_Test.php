@@ -90,14 +90,16 @@ final class CallbackDefinition_Test extends TestCase {
         }
     }
 
-    public function test_rejects_specialized_callbacks_instead_of_losing_their_type(): void {
+    public function test_preserves_specialized_callback_metadata(): void {
         $hook = ( new Dynamic_Filter( 'the_%s_title', array( 'app.id' ) ) )->with_classname( Callback_Handler_Fixture::class )->with_reflector(
             new \ReflectionMethod( Callback_Handler_Fixture::class, 'filter_value' ),
         );
 
-        $this->expectException( \InvalidArgumentException::class );
-
-        CallbackDefinition::from_data( $hook->get_data() );
+        $definition = CallbackDefinition::from_data( $hook->get_data() );
+        self::assertSame( $hook->get_token(), $definition->get_id() );
+        self::assertSame( Dynamic_Filter::class, $definition->get_decorator() );
+        self::assertSame( $hook->get_data()['args'], $definition->get_options() );
+        self::assertSame( Filter::INV_PROXIED, $definition->get_invoke() );
     }
 
     public function test_exposes_constructor_metadata(): void {

@@ -136,11 +136,16 @@ class REST_Route extends Action implements Can_Route {
      * @return array<string,mixed>
      */
     public function get_data(): array {
+        $data                       = parent::get_data();
+        $data['params']['tag']      = $this->tag;
+        $data['params']['priority'] = $this->prio;
+
         return \array_merge(
-            parent::get_data(),
+            $data,
             array(
                 'args' => array(
                     'guard'   => $this->route_guard,
+                    'invoke'  => $this->invoke,
                     'methods' => $this->methods,
                     'params'  => $this->params,
                     'route'   => $this->endpoint,
@@ -151,12 +156,20 @@ class REST_Route extends Action implements Can_Route {
     }
 
     public function get_route(): string {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->get_route();
+        }
+
         return $this->endpoint
             ? "/{$this->get_handler()->get_basename()}/{$this->endpoint}"
             : "/{$this->get_handler()->get_basename()}";
     }
 
     public function get_guard(): string|array {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->get_guard();
+        }
+
         return \method_exists( $this->get_handler()->get_classname(), $this->route_guard )
             ? array( $this->get_handler()->get_target(), $this->route_guard )
             : $this->route_guard;
@@ -170,6 +183,10 @@ class REST_Route extends Action implements Can_Route {
      * @return Closure|array{0: T, 1: string}
      */
     public function get_callback(): array|Closure {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->get_callback();
+        }
+
         return $this->cb_valid( self::INV_STANDARD )
             ? array( $this->get_handler()->get_target(), $this->get_method() )
             : fn( ...$args ) => $this->fire_hook( ...$args );
@@ -181,6 +198,10 @@ class REST_Route extends Action implements Can_Route {
      * @return array<string,mixed>
      */
     public function get_vars(): array {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->get_vars();
+        }
+
         if ( \is_array( $this->route_args ) ) {
             return $this->route_args;
         }
@@ -189,6 +210,10 @@ class REST_Route extends Action implements Can_Route {
     }
 
     public function get_methods(): string {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->get_methods();
+        }
+
         return $this->methods;
     }
 
@@ -201,6 +226,10 @@ class REST_Route extends Action implements Can_Route {
      * @return mixed
      */
     public function invoke( mixed ...$args ): mixed {
+        if ( $this->runtime instanceof \XWP\DI\Hook\REST_Callback ) {
+            return $this->runtime->invoke( ...$args );
+        }
+
         return \register_rest_route(
             $this->get_handler()->get_namespace(),
             $this->get_route(),

@@ -103,6 +103,15 @@ final class Callback_Runtime_Test extends TestCase {
         return array( 'filter' => array( Filter::class, 'filter_view' ), 'action' => array( Action::class, 'action_view' ) );
     }
 
+    public function test_plain_view_normalizes_null_priority_metadata(): void {
+        $data = ( new Filter( 'xwp_runtime', params: array( '!self.hook' ), invoke: Filter::INV_PROXIED ) )
+            ->with_classname( Callback_Runtime_Target::class )->with_method( 'filter_view' )->get_data();
+        $data['args']['priority'] = null;
+        $callback = new Callback( CallbackDefinition::from_data( $data ), $this->container );
+        self::assertSame( 'a:changed', $callback->invoke( 'a' ) );
+        self::assertSame( 10, $this->target->views[0]->get_priority() );
+    }
+
     public function test_repeated_definitions_keep_independent_views_and_counters(): void {
         $first = $this->make_callback( 'filter_view', array( 'params' => array( '!self.hook' ) ) );
         $second = $this->make_callback( 'filter_view', array( 'tag' => 'xwp_runtime_second', 'params' => array( '!self.hook' ) ) );

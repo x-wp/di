@@ -11,7 +11,6 @@ namespace XWP\DI\Hook;
 use Automattic\Jetpack\Constants;
 use ReflectionMethod;
 use XWP\DI\Container;
-use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Interfaces\Can_Handle;
@@ -380,21 +379,36 @@ class Callback {
             return $this->view;
         }
 
-        $type = 'action' === $this->get_type() ? Action::class : Filter::class;
+        /**
+         * Original decorator type, retaining this runtime's handler type.
+         *
+         * @var class-string<Filter<T,H>> $type
+         */
+        $type = $this->definition->get_decorator();
 
-        $this->view = ( new $type(
-            tag: $this->tag,
-            priority: $this->definition->get_priority() ?? 10,
-            context: $this->get_context(),
-            conditional: $this->definition->get_conditional(),
-            modifiers: $this->definition->get_modifiers(),
-            invoke: $this->definition->get_invoke(),
-            args: $this->definition->get_accepted_args(),
-            params: $this->definition->get_params(),
-        ) )->with_classname( $this->get_classname() )
+        $options = $this->definition->get_options() ?: array(
+            'args'        => $this->definition->get_accepted_args(),
+            'conditional' => $this->definition->get_conditional(),
+            'context'     => $this->get_context(),
+            'invoke'      => $this->definition->get_invoke(),
+            'modifiers'   => $this->definition->get_modifiers(),
+            'params'      => $this->definition->get_params(),
+            'priority'    => $this->definition->get_priority() ?? 10,
+            'tag'         => $this->tag,
+        );
+
+        if ( \array_key_exists( 'priority', $options ) ) {
+            $options['priority'] ??= 10;
+        }
+
+        $this->view = ( new $type( ...$options ) )->with_classname( $this->get_classname() )
             ->with_method( $this->get_method() )
             ->with_container( $this->container )
             ->with_runtime( $this );
+
+        if ( $this->view instanceof \XWP\DI\Decorators\REST_Route ) {
+            $this->view->with_tag( $this->tag )->with_priority( $this->get_priority() );
+        }
 
         return $this->view;
     }

@@ -13,8 +13,13 @@ use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
 use XWP\DI\Decorators\Action;
+use XWP\DI\Decorators\Ajax_Action;
+use XWP\DI\Decorators\CLI_Command;
+use XWP\DI\Decorators\Dynamic_Action;
+use XWP\DI\Decorators\Dynamic_Filter;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Decorators\REST_Route;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Hook;
@@ -57,8 +62,19 @@ class Factory {
      * @return TTgt<object,\Reflector>|Callback<object,Can_Handle<object>>
      */
     public function make( array $hook ): Can_Hook|Callback {
-        if ( $this->ctr() && $this->is_plain_callback( $hook['type'] ) ) {
-            return new Callback( CallbackDefinition::from_data( $hook ), $this->ctr() );
+        if ( $this->ctr() && $this->runtime_class( $hook['type'] ) ) {
+            if ( REST_Route::class === $hook['type'] ) {
+                // Older cache entries omit the handler-specific registration tag.
+                $handler         = $this->ctr()->get( 'Hook-' . $hook['params']['classname'] );
+                $hook['params'] += array(
+                    'priority' => $handler->get_priority() + 1,
+                    'tag'      => $handler->get_rest_hook(),
+                );
+            }
+
+            $runtime = $this->runtime_class( $hook['type'] );
+
+            return new $runtime( CallbackDefinition::from_data( $hook ), $this->ctr() );
         }
 
         return ( new $hook['type']( ...$hook['args'] ) )
@@ -352,7 +368,7 @@ class Factory {
             return $hook;
         }
 
-        $runtime = $hook instanceof Filter && $this->is_plain_callback( $hook::class )
+        $runtime = $hook instanceof Filter && $this->runtime_class( $hook::class )
             ? $this->make( $hook->get_data() )
             : $hook;
 
@@ -376,13 +392,20 @@ class Factory {
     }
 
     /**
-     * Keep specialized decorators on their existing runtime path.
+     * Route exact built-in types, retaining custom decorator runtime behavior.
      *
      * @param  class-string $type Decorator class.
-     * @return bool
+     * @return class-string<Callback<object,Can_Handle<object>>>|null
      */
-    private function is_plain_callback( string $type ): bool {
-        return \in_array( $type, array( Filter::class, Action::class ), true );
+    private function runtime_class( string $type ): ?string {
+        return match ( $type ) {
+            Filter::class, Action::class => Callback::class,
+            Dynamic_Filter::class, Dynamic_Action::class => Dynamic_Callback::class,
+            REST_Route::class => REST_Callback::class,
+            CLI_Command::class => CLI_Callback::class,
+            Ajax_Action::class => Ajax_Callback::class,
+            default => null,
+        };
     }
 
     /**

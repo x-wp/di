@@ -9,7 +9,12 @@
 namespace XWP\DI\Definition;
 
 use XWP\DI\Decorators\Action;
+use XWP\DI\Decorators\Ajax_Action;
+use XWP\DI\Decorators\CLI_Command;
+use XWP\DI\Decorators\Dynamic_Action;
+use XWP\DI\Decorators\Dynamic_Filter;
 use XWP\DI\Decorators\Filter;
+use XWP\DI\Decorators\REST_Route;
 
 /**
  * Describes callback metadata independently from runtime decorators.
@@ -18,37 +23,53 @@ use XWP\DI\Decorators\Filter;
  */
 final class CallbackDefinition {
     /**
-     * Convert plain callback metadata without resolving runtime values.
+     * Convert built-in callback metadata without resolving runtime values.
      *
-     * @param array<string,mixed> $data Metadata emitted by Filter::get_data() or Action::get_data().
-     * @phpstan-param array{
-     *   type: class-string,
-     *   args: array{
-     *     tag: string,
-     *     priority: null|\Closure|string|int|array{0:class-string,1:string},
-     *     args: int|null,
-     *     context: int,
-     *     invoke: int,
-     *     params: array<int,string>,
-     *     modifiers: array<int,string>|string|false,
-     *     conditional: null|string|\Closure|array{0:class-string,1:string}
-     *   },
-     *   params: array{classname: class-string, method: string}
-     * } $data
+     * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Decorator metadata.
      * @return self
      *
-     * @throws \InvalidArgumentException If the callback is not a plain filter or action.
+     * @throws \InvalidArgumentException If the callback is a custom decorator.
      */
     public static function from_data( array $data ): self {
         $type = match ( $data['type'] ) {
-            Filter::class => 'filter',
-            Action::class => 'action',
+            Filter::class, Dynamic_Filter::class => 'filter',
+            Action::class, Dynamic_Action::class, Ajax_Action::class, REST_Route::class, CLI_Command::class => 'action',
             default       => throw new \InvalidArgumentException(
-                'Only plain Filter and Action metadata is supported.',
+                'Only built-in callback metadata is supported.',
             ),
         };
 
-        $args   = $data['args'];
+        $options = $data['args'];
+        if ( Ajax_Action::class === $data['type'] ) {
+            $data['args'] += array(
+                'args'    => 0,
+                'context' => Filter::CTX_AJAX,
+                'tag'     => '%s_%s_%s',
+            );
+        }
+        if ( REST_Route::class === $data['type'] ) {
+            $data['args'] += array(
+                'context'  => Filter::CTX_REST,
+                'priority' => $data['params']['priority'] ?? 10,
+                'tag'      => $data['params']['tag'] ?? 'rest_api_init',
+            );
+        }
+        if ( CLI_Command::class === $data['type'] ) {
+            $data['args']['args'] = null;
+            $data['args']        += array(
+                'context' => Filter::CTX_CLI,
+                'tag'     => 'cli_init',
+            );
+        }
+        $args   = $data['args'] + array(
+            'args'        => null,
+            'conditional' => null,
+            'context'     => Filter::CTX_GLOBAL,
+            'invoke'      => Filter::INV_PROXIED,
+            'modifiers'   => false,
+            'params'      => array(),
+            'priority'    => 10,
+        );
         $params = $data['params'];
         $base   = \trim( $params['classname'], '-' );
         $suffix = \ltrim( "{$params['method']}[{$args['tag']}]", '-' );
@@ -66,6 +87,8 @@ final class CallbackDefinition {
             params: $args['params'],
             modifiers: $args['modifiers'],
             conditional: $args['conditional'],
+            decorator: $data['type'],
+            options: $options,
         );
     }
 
@@ -84,6 +107,8 @@ final class CallbackDefinition {
      * @param array<int,string>                                          $params        Extra callback params.
      * @param array<int,string>|string|false                             $modifiers     Dynamic tag modifiers.
      * @param null|string|\Closure|array{0:class-string,1:string}        $conditional   Conditional callback metadata.
+     * @param class-string|null $decorator Original decorator type.
+     * @param array<string,mixed> $options Original specialized constructor arguments.
      */
     public function __construct(
         private string $id,
@@ -98,6 +123,8 @@ final class CallbackDefinition {
         private array $params = array(),
         private array|string|bool $modifiers = false,
         private null|string|\Closure|array $conditional = null,
+        private ?string $decorator = null,
+        private array $options = array(),
     ) {
     }
 
@@ -174,6 +201,24 @@ final class CallbackDefinition {
         return $this->conditional;
     }
 
+    /**
+     * Get the exact built-in decorator type for a compatibility view.
+     *
+     * @return class-string<Filter<object,\XWP\DI\Interfaces\Can_Handle<object>>>
+     */
+    public function get_decorator(): string {
+        return $this->decorator ?? ( 'action' === $this->type ? Action::class : Filter::class );
+    }
+
+    /**
+     * Get unresolved specialized constructor arguments.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_options(): array {
+        return $this->options;
+    }
+
     public function equals( self $definition ): bool {
         return $this->to_array() === $definition->to_array();
     }
@@ -188,11 +233,13 @@ final class CallbackDefinition {
             'accepted_args' => $this->accepted_args,
             'conditional'   => $this->conditional,
             'context'       => $this->context,
+            'decorator'     => $this->get_decorator(),
             'handler'       => $this->handler,
             'id'            => $this->id,
             'invoke'        => $this->invoke,
             'method'        => $this->method,
             'modifiers'     => $this->modifiers,
+            'options'       => $this->options,
             'params'        => $this->params,
             'priority'      => $this->priority,
             'tag'           => $this->tag,
