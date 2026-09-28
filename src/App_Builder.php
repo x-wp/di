@@ -1,4 +1,4 @@
-<?php //phpcs:disable WordPress.NamingConventions.ValidVariableName, Squiz.PHP.CommentedOutCode.Found, Squiz.Commenting.InlineComment.InvalidEndChar
+<?php //phpcs:disable WordPress.NamingConventions.ValidVariableName, Squiz.PHP.CommentedOutCode.Found, Squiz.Commenting.InlineComment.InvalidEndChar, Generic.Commenting.DocComment.MissingShort
 /**
  * Builder class file.
  *
@@ -81,7 +81,7 @@ class App_Builder extends ContainerBuilder {
 
         $this->ensureCacheDirExists( $directory );
 
-        // @phpstan-ignore return.type
+        /** @disregard P1006 */ // @phpstan-ignore return.type
         return parent::enableCompilation( $directory, $containerClass, $containerParentClass );
     }
 

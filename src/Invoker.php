@@ -156,21 +156,6 @@ class Invoker {
     }
 
     /**
-     * Initialize the framework root immediately, preserving imported hook timing.
-     *
-     * @param class-string $classname Root module class.
-     */
-    public function register_root( string $classname ): void {
-        $root = $this->get_module( $classname );
-
-        $this
-            ->add_handler( $root )
-            ->init_handler( $root )
-            ->register_methods( $root )
-            ->invoke_methods( $root );
-    }
-
-    /**
      * Add a handler.
      *
      * @template T of object
@@ -413,6 +398,6 @@ class Invoker {
             return false;
         }
 
-        return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( XWP_DI_DEBUG_APP, $this->app_id() );
+        return ! \defined( 'XWP_DI_DEBUG_APP' ) || \str_contains( \XWP_DI_DEBUG_APP, $this->app_id() );
     }
 }

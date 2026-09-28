@@ -323,6 +323,7 @@ class Parser {
             imports: $this->root->get_imports(),
             handlers: $this->root->get_handlers(),
             services: $this->root->get_services(),
+            strategy: Module::INIT_NOW,
         ) )->with_reflector( new \ReflectionClass( $this->root->get_metatype() ) );
 
         $this->parse_handler( $root, $preload );

@@ -1,4 +1,4 @@
-<?php //phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
+<?php //phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped, Generic.Commenting.DocComment.MissingShort
 /**
  * Factory class file.
  *
@@ -67,6 +67,7 @@ class Factory {
      * @return Can_Import<TObj>
      */
     public function get_module( string $module ): Can_Import {
+        /** @disregard P1006 */
         return $this->get_handler( $module );
     }
 
@@ -207,6 +208,37 @@ class Factory {
     }
 
     /**
+     * Load callbacks for a handler.
+     *
+     * @template TObj of object
+     *
+     * @param  Can_Handle<TObj>                             $handler Handler instance.
+     * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
+     * @return Can_Handle<TObj>
+     */
+    public function load_callbacks( Can_Handle $handler, array $callbacks ): Can_Handle {
+        $tokens = array();
+
+        foreach ( $callbacks as $cb ) {
+            $tokens[] = $this->save_hook( $cb )->get_token();
+        }
+
+        return $handler->with_callbacks( $tokens );
+    }
+
+    /**
+     * Get a hook by classname
+     *
+     * @template TObj of object
+     *
+     * @param  class-string<TObj>|TObj $hook Hook classname.
+     * @return bool
+     */
+    public function has_hook( string|object $hook ): bool {
+        return $this->ctr()?->has( $this->get_token( $hook ) ) ?? false;
+    }
+
+    /**
      * Create a new handler instance.
      *
      * @template TObj of object
@@ -260,37 +292,6 @@ class Factory {
         }
 
         return $callbacks;
-    }
-
-    /**
-     * Load callbacks for a handler.
-     *
-     * @template TObj of object
-     *
-     * @param  Can_Handle<TObj>                             $handler Handler instance.
-     * @param  array<int,Can_Invoke<TObj,Can_Handle<TObj>>> $callbacks Callbacks to load.
-     * @return Can_Handle<TObj>
-     */
-    public function load_callbacks( Can_Handle $handler, array $callbacks ): Can_Handle {
-        $tokens = array();
-
-        foreach ( $callbacks as $cb ) {
-            $tokens[] = $this->save_hook( $cb )->get_token();
-        }
-
-        return $handler->with_callbacks( $tokens );
-    }
-
-    /**
-     * Get a hook by classname
-     *
-     * @template TObj of object
-     *
-     * @param  class-string<TObj>|TObj $hook Hook classname.
-     * @return bool
-     */
-    public function has_hook( string|object $hook ): bool {
-        return $this->ctr()?->has( $this->get_token( $hook ) ) ?? false;
     }
 
     /**

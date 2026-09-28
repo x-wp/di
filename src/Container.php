@@ -77,19 +77,6 @@ class Container extends DI_Container {
     }
 
     /**
-     * Delegate startup to the XWP application.
-     *
-     * @return static
-     *
-     * @throws \RuntimeException If the application is already started.
-     */
-    public function run(): static {
-        $this->get( App::class )->run();
-
-        return $this;
-    }
-
-    /**
      * Register a handler or a module.
      *
      * @template T of object

@@ -69,12 +69,19 @@ function xwp_app( string $container_id ): App {
  * @return true
  */
 function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN ): bool {
+    static $apps = 1;
+
+    $hook_prio = PHP_INT_MIN === $priority && 'plugins_loaded' === $hook
+        ? PHP_INT_MIN + $apps++
+        : $priority;
+
     return add_action(
         $hook,
         static function () use ( $app ): void {
             xwp_create_app( $app )->run();
         },
-        $priority,
+        $hook_prio,
+        999,
     );
 }
 

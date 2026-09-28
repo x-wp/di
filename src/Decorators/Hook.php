@@ -248,7 +248,11 @@ abstract class Hook implements Can_Hook {
      *
      * @internal Hook parser/compiler detail.
      *
-     * @return array<string,mixed>
+     * @return array{
+     *   args: array<string,mixed>,
+     *   type: class-string<static>,
+     *   params: array{classname: class-string<THndlr>},
+     * }
      */
     public function get_data(): array {
         return array(

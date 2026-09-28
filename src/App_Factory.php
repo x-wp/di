@@ -92,7 +92,7 @@ final class App_Factory {
      */
     protected function __construct() {
         $this->app_debug = \defined( 'XWP_DI_DEBUG_APP' )
-            ? \xwp_str_to_arr( XWP_DI_DEBUG_APP )
+            ? \xwp_str_to_arr( \XWP_DI_DEBUG_APP )
             : array();
         /**
          * Fired when the app factory is initialized.
@@ -280,7 +280,7 @@ final class App_Factory {
      * @return bool
      */
     private function call_decompile( string $id, bool $now = false ): bool {
-        $config = $this->apps[ $id ]->container()->get( 'app.cache' );
+        $config = $this->apps[ $id ]->get( 'app.cache' );
 
         if ( ! $config['app'] && ! $config['hooks'] ) {
             return false;

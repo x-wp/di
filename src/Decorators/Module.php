@@ -67,11 +67,22 @@ class Module extends Handler implements Can_Import {
             'args'     => $args,
             'context'  => $context,
             'priority' => $priority,
-            'strategy' => self::INIT_AUTO,
+            'strategy' => $args['strategy'] ?? self::INIT_AUTO,
             'tag'      => $hook,
         );
 
         parent::__construct( ...$params );
+    }
+
+    /**
+     * Set the module initialization strategy.
+     *
+     * @param  string $strategy Initialization strategy.
+     * @return static
+     */
+    public function with_strategy( string $strategy ): static {
+        $this->strategy = $strategy;
+        return $this;
     }
 
     public function get_imports(): array {
@@ -101,15 +112,20 @@ class Module extends Handler implements Can_Import {
      */
     public function get_data(): array {
         $data = parent::get_data();
+        $keys = array( 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' );
 
         $data['args'] = \array_merge(
-            \xwp_array_diff_assoc( $data['args'], 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' ),
+            \xwp_array_diff_assoc( $data['args'], $keys, ),
             array(
                 'handlers' => $this->handlers,
                 'hook'     => $this->tag,
                 'imports'  => $this->imports,
             ),
         );
+
+        if ( self::INIT_AUTO !== $this->get_strategy() ) {
+            $data['args']['strategy'] = $this->get_strategy();
+        }
 
         return $data;
     }

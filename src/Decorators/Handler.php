@@ -155,7 +155,7 @@ class Handler extends Hook implements Can_Handle {
      *
      * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      *
-     * @param  Reflector $r Reflector instance.
+     * @param  ReflectionClass<T> $r Reflector instance.
      * @return static
      */
     public function with_reflector( Reflector $r ): static {
@@ -261,7 +261,11 @@ class Handler extends Hook implements Can_Handle {
      *
      * @internal Hook parser/compiler detail.
      *
-     * @return array<string,mixed>
+     * @return array{
+     *   args: array<string,mixed>,
+     *   type: class-string<static>,
+     *   params: array{classname: class-string<T>},
+     * }
      */
     public function get_data(): array {
         $data = parent::get_data();

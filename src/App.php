@@ -57,7 +57,7 @@ class App {
      * @throws \RuntimeException If the application is already started.
      */
     public function run(): static {
-        if ( $this->started ) {
+        if ( $this->started() ) {
             throw new \RuntimeException( 'Application already started.' );
         }
 
@@ -70,11 +70,7 @@ class App {
          */
         $root_module = $this->ctr->get( $this->ctr->has( 'app.root' ) ? 'app.root' : 'app.module' );
 
-        if ( $this->ctr->has( 'app.root' ) ) {
-            $this->ctr->get( Invoker::class )->register_root( $root_module );
-        } else {
-            $this->ctr->get( Invoker::class )->register_handler( $root_module );
-        }
+        $this->ctr->register_handler( $root_module );
 
         \do_action( "xwp_{$this->ctr->get('app.uuid')}_app_start" );
 
