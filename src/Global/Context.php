@@ -7,6 +7,7 @@
  */
 
 use Automattic\Jetpack\Constants;
+use XWP\DI\Interfaces\Has_Context;
 
 /**
  * Determines execution context.
@@ -18,37 +19,37 @@ final class XWP_Context {
     /**
      * Frontend context.
      */
-    public const Frontend = 1;
+    public const Frontend = Has_Context::CTX_FRONTEND;
 
     /**
      * Admin context.
      */
-    public const Admin = 2;
+    public const Admin = Has_Context::CTX_ADMIN;
 
     /**
      * AJAX context.
      */
-    public const Ajax = 4;
+    public const Ajax = Has_Context::CTX_AJAX;
 
     /**
      * Cron context.
      */
-    public const Cron = 8;
+    public const Cron = Has_Context::CTX_CRON;
 
     /**
      * REST API context.
      */
-    public const REST = 16;
+    public const REST = Has_Context::CTX_REST;
 
     /**
      * WP CLI context.
      */
-    public const CLI = 32;
+    public const CLI = Has_Context::CTX_CLI;
 
     /**
      * Global context.
      */
-    public const Global = 63;
+    public const Global = Has_Context::CTX_GLOBAL;
 
     /**
      * Current context.
@@ -127,7 +128,14 @@ final class XWP_Context {
      * @return bool
      */
     public static function admin_page( string $page, ?string $type = null ): bool {
-        return self::admin() && ( $GLOBALS['pagenow'] ?? '' ) === $page && ( ! $type || ( $GLOBALS['typenow'] ?? '' ) === $type );
+        if ( ! self::admin() ) {
+            return false;
+        }
+
+        $pagenow = $GLOBALS['pagenow'] ?? '';
+        $typenow = $GLOBALS['typenow'] ?? '';
+
+        return $pagenow === $page && ( ! $type || ( $typenow === $type ) );
     }
 
     /**

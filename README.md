@@ -128,6 +128,10 @@ class My_Handler {
 
 You can find the examples in the [examples](https://github.com/x-wp/di/tree/master/examples) directory.
 
+For source-backed examples from existing plugins, see the
+[OblakStudio and WooSync use-case survey](docs/downstream-use-cases.md), covering
+dynamic hooks, deferred loading, conditions, and extension compatibility.
+
 ## Testing
 
 The test harness pairs PHPUnit with `wp-phpunit` and SQLite Database Integration. No Docker or database server is needed for the default workflow. Two suites are wired up:

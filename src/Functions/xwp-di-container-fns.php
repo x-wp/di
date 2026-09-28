@@ -81,7 +81,7 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
             xwp_create_app( $app )->run();
         },
         $hook_prio,
-        999,
+        0,
     );
 }
 

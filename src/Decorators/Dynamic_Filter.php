@@ -9,6 +9,7 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
+use ReflectionMethod;
 use Reflector;
 
 /**
@@ -98,7 +99,7 @@ class Dynamic_Filter extends Filter {
      *
      * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      *
-     * @param  Reflector $r Reflector instance.
+     * @param  ReflectionMethod $r Reflector instance.
      * @return static
      */
     public function with_reflector( Reflector $r ): static {

@@ -193,7 +193,7 @@ class Filter extends Hook implements Can_Invoke {
      *
      * @internal Parser/runtime wiring detail.
      *
-     * @return Reflector
+     * @return ReflectionMethod
      */
     public function get_reflector(): Reflector {
         if ( $this->runtime ) {
@@ -251,7 +251,7 @@ class Filter extends Hook implements Can_Invoke {
      *
      * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
      *
-     * @param  Reflector $r Reflector instance.
+     * @param  ReflectionMethod $r Reflector instance.
      * @return static
      */
     public function with_reflector( Reflector $r ): static {
