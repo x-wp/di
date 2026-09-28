@@ -18,9 +18,10 @@ use XWP\DI\Decorators\CLI_Command;
 use XWP\DI\Decorators\Dynamic_Action;
 use XWP\DI\Decorators\Dynamic_Filter;
 use XWP\DI\Decorators\Filter;
-use XWP\DI\Decorators\Handler;
+use XWP\DI\Decorators\Handler as Handler_Decorator;
 use XWP\DI\Decorators\REST_Route;
 use XWP\DI\Definition\CallbackDefinition;
+use XWP\DI\Definition\HandlerDefinition;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Hook;
 use XWP\DI\Interfaces\Can_Import;
@@ -51,6 +52,8 @@ class Factory {
     public function __construct( protected ?Container $container = null ) {
     }
 
+    // Keep metadata/runtime routing and identity guards together.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
      * General hook creation method.
      *
@@ -59,9 +62,14 @@ class Factory {
      * @template TTgt of Can_Hook
      *
      * @param  array{type: class-string<TTgt>, args: array<string,mixed>, params: array<string,mixed>} $hook Hook data.
-     * @return TTgt<object,\Reflector>|Callback<object,Can_Handle<object>>
+     * @return TTgt<object,\Reflector>|Callback<object,Can_Handle<object>>|Handler<object>
      */
     public function make( array $hook ): Can_Hook|Callback {
+        if ( $this->ctr() && $this->handler_runtime_class( $hook['type'] ) ) {
+            $runtime = $this->handler_runtime_class( $hook['type'] );
+            return new $runtime( HandlerDefinition::from_data( $hook ), $this->ctr() );
+        }
+
         if ( $this->ctr() && $this->runtime_class( $hook['type'] ) ) {
             if ( REST_Route::class === $hook['type'] ) {
                 // Older cache entries omit the handler-specific registration tag.
@@ -80,6 +88,7 @@ class Factory {
         return ( new $hook['type']( ...$hook['args'] ) )
             ->with_data( $hook['params'] )->with_container( $this->ctr() );
     }
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Get a module by classname
@@ -121,7 +130,9 @@ class Factory {
             ?? $this->resolve_handler( $target )
             ?? throw new InvalidDefinition( "Handler not found: {$target}" );
 
-        return $this->save_hook( $handler );
+        $this->save_hook( $handler );
+
+        return $this->get( $handler->get_classname() ) ?? $handler;
     }
 
     /**
@@ -278,7 +289,7 @@ class Factory {
      * @return Can_Handle<TObj>
      */
     protected function new_handler( object $instance ): Can_Handle {
-        $handler = new Handler( strategy: Handler::INIT_USER, hookable: true );
+        $handler = new Handler_Decorator( strategy: Handler_Decorator::INIT_USER, hookable: true );
 
         /**
          * Handler instance.
@@ -340,9 +351,13 @@ class Factory {
             $this->ctr()->set( $handler->get_classname(), $handler->get_target() );
         }
 
-        return $this->save_hook( $handler );
+        $this->save_hook( $handler );
+
+        return $this->get( $handler->get_classname() ) ?? $handler;
     }
 
+    // Keep metadata/runtime routing and identity guards together.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
      * Save a hook while retaining decorator metadata for discovery.
      *
@@ -368,14 +383,21 @@ class Factory {
             return $hook;
         }
 
-        $runtime = $hook instanceof Filter && $this->runtime_class( $hook::class )
+        $runtime = $this->handler_runtime_class(
+            $hook::class,
+        ) || ( $hook instanceof Filter && $this->runtime_class( $hook::class ) )
             ? $this->make( $hook->get_data() )
             : $hook;
+
+        if ( $runtime instanceof Handler && $hook instanceof Can_Handle && $hook->get_target() ) {
+            $runtime->with_target( $hook->get_target() );
+        }
 
         $this->ctr()->set( $token, $runtime );
 
         return $hook;
     }
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Get a hook by classname
@@ -404,6 +426,23 @@ class Factory {
             REST_Route::class => REST_Callback::class,
             CLI_Command::class => CLI_Callback::class,
             Ajax_Action::class => Ajax_Callback::class,
+            default => null,
+        };
+    }
+
+    /**
+     * Keep custom handler subclasses on their existing runtime path.
+     *
+     * @param class-string $type Decorator class.
+     * @return class-string<Handler<object>>|null
+     */
+    private function handler_runtime_class( string $type ): ?string {
+        return match ( $type ) {
+            Handler_Decorator::class => Handler::class,
+            \XWP\DI\Decorators\Module::class => Module::class,
+            \XWP\DI\Decorators\Ajax_Handler::class => Ajax_Handler::class,
+            \XWP\DI\Decorators\REST_Handler::class => REST_Handler::class,
+            \XWP\DI\Decorators\CLI_Handler::class => CLI_Handler::class,
             default => null,
         };
     }

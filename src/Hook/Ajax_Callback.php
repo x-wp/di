@@ -16,7 +16,7 @@ use XWP\DI\Definition\CallbackDefinition;
  * Owns AJAX registration, request arguments, and guards.
  *
  * @template T of object
- * @template H of \XWP\DI\Decorators\Ajax_Handler<T>
+ * @template H of \XWP\DI\Interfaces\Can_Handle_Ajax<T>
  * @extends Callback<T,H>
  * @internal
  */

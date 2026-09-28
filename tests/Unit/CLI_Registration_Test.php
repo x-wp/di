@@ -14,6 +14,40 @@ use XWP\DI\Hook\CLI_Callback;
 use XWP\DI\Hook\Factory;
 
 final class CLI_Registration_Test extends TestCase {
+    public static function registration_orders(): array {
+        return array( 'builtin first' => array( false ), 'custom first' => array( true ) );
+    }
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     * @dataProvider registration_orders
+     */
+    public function test_builtin_and_custom_handlers_share_namespace_registration( bool $custom_first ): void {
+        define( 'WP_CLI', true );
+        define( 'WP_CLI_ROOT', dirname( __DIR__, 2 ) . '/vendor/wp-cli/wp-cli' );
+        require_once WP_CLI_ROOT . '/php/utils.php';
+        require_once WP_CLI_ROOT . '/php/dispatcher.php';
+        $config = new \ReflectionProperty( \WP_CLI::get_runner(), 'config' );
+        $config->setAccessible( true );
+        $config->setValue( \WP_CLI::get_runner(), array( 'debug' => false ) );
+        Functions\when( 'current_action' )->justReturn( 'cli_init' );
+        $container = new Container( array(
+            'app.debug' => false, 'app.id' => 'cli-registration', 'app.env' => 'testing',
+            'app.cache' => array( 'app' => false, 'defs' => false, 'hooks' => false, 'dir' => false ),
+        ) );
+        $additions = 0;
+        \WP_CLI::add_hook( 'before_add_command:shared', static function () use ( &$additions ): void { ++$additions; } );
+        $metadata = ( new CLI_Handler( 'shared' ) )->with_classname( CLI_Registration_Target::class )->get_data();
+        $runtime = ( new Factory( $container ) )->make( $metadata );
+        $runtime->with_target( new CLI_Registration_Target() );
+        $custom = ( new Custom_CLI_Registration_Handler( 'shared' ) )->with_target( new CLI_Registration_Target() );
+        foreach ( $custom_first ? array( $custom, $runtime ) : array( $runtime, $custom ) as $handler ) {
+            $handler->load();
+        }
+        self::assertSame( 1, $additions );
+    }
+
     /**
      * @runInSeparateProcess
      * @preserveGlobalState disabled
@@ -59,4 +93,10 @@ final class CLI_Registration_Test extends TestCase {
 
 final class CLI_Registration_Target {
     public function run( array $flags ): void {}
+}
+
+final class Custom_CLI_Registration_Handler extends CLI_Handler {
+    protected function add_command(): bool {
+        return \WP_CLI::add_command( $this->namespace, \XWP_CLI_Namespace::class, array( 'shortdesc' => 'Custom namespace' ) );
+    }
 }

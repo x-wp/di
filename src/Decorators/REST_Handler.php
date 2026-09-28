@@ -59,6 +59,7 @@ class REST_Handler extends Handler implements Can_Handle_REST {
                 'args' => array(
                     'basename'  => $this->basename,
                     'namespace' => $this->namespace,
+                    'priority'  => $this->prio,
                 ),
             ),
         );

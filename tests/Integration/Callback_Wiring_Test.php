@@ -43,8 +43,10 @@ final class Callback_Wiring_Test extends TestCase {
     public function test_plain_tokens_route_to_runtime_and_subclasses_keep_their_behavior( bool $compile, bool $hooks, bool $preload ): void {
         foreach ( $this->apps( $compile, $hooks, $preload ) as $app ) {
             $container = $app->container();
+            self::assertInstanceOf( \XWP\DI\Hook\Module::class, $container->get( 'Hook-' . Callback_Wiring_Module::class ) );
             $factory = $container->get( Factory::class );
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
+            self::assertSame( \XWP\DI\Hook\Handler::class, $handler::class );
             $callbacks = $factory->get_callbacks( $handler );
             self::assertCount( 4, $callbacks );
             $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Callback::class, 'custom' => Custom_Wiring_Filter::class );
@@ -90,6 +92,7 @@ final class Callback_Wiring_Test extends TestCase {
     public function test_load_callbacks_accepts_a_new_runtime_without_decorator_mutators( bool $compile, bool $hooks, bool $preload ): void {
         foreach ( $this->apps( $compile, $hooks, $preload ) as $app ) {
             $container = $app->container();
+            self::assertInstanceOf( \XWP\DI\Hook\Module::class, $container->get( 'Hook-' . Callback_Wiring_Module::class ) );
             $factory = $container->get( Factory::class );
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
             $decorator = ( new Filter( 'xwp_wiring_added', invoke: Filter::INV_PROXIED, args: 1 ) )
@@ -122,6 +125,7 @@ final class Callback_Wiring_Test extends TestCase {
             $factory = $app->container()->get( Factory::class );
             $handler = $factory->create_handler( new Callback_Provided_Handler() );
             self::assertNull( $handler->get_callbacks() );
+            self::assertSame( \XWP\DI\Hook\Handler::class, $handler::class );
             $callbacks = $factory->get_callbacks( $handler );
             self::assertCount( 1, $callbacks );
             self::assertInstanceOf( Callback::class, $callbacks[0] );

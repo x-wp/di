@@ -54,6 +54,8 @@ final class Specialized_Wiring_Test extends TestCase {
             $factory = $app->container()->get( Factory::class );
             foreach ( array( Specialized_Ajax::class => Ajax_Callback::class, Specialized_REST::class => REST_Callback::class, Specialized_CLI::class => CLI_Callback::class ) as $class => $type ) {
                 $handler = $factory->get_handler( $class );
+                $handler_types = array( Specialized_Ajax::class => \XWP\DI\Hook\Ajax_Handler::class, Specialized_REST::class => \XWP\DI\Hook\REST_Handler::class, Specialized_CLI::class => \XWP\DI\Hook\CLI_Handler::class );
+                self::assertSame( $handler_types[ $class ], $handler::class );
                 $callbacks = $factory->get_callbacks( $handler );
                 self::assertCount( 1, $callbacks );
                 $callback = $callbacks[0];

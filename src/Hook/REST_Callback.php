@@ -17,7 +17,7 @@ use XWP\DI\Interfaces\Can_Invoke;
  * Registers REST routes and dispatches their response callbacks.
  *
  * @template T of \XWP_REST_Controller
- * @template H of \XWP\DI\Decorators\REST_Handler<T>
+ * @template H of \XWP\DI\Interfaces\Can_Handle_REST<T>
  * @extends Callback<T,H>
  * @internal
  */

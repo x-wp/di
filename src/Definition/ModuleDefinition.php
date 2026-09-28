@@ -15,6 +15,21 @@ namespace XWP\DI\Definition;
  */
 final class ModuleDefinition {
     /**
+     * Convert module composition metadata without evaluating configuration.
+     *
+     * @param array{args:array<string,mixed>,params:array<string,mixed>} $data Module metadata.
+     * @return self
+     */
+    public static function from_data( array $data ): self {
+        return new self(
+            $data['params']['classname'],
+            $data['args']['imports'] ?? array(),
+            $data['args']['handlers'] ?? array(),
+            $data['args']['services'] ?? array(),
+        );
+    }
+
+    /**
      * Constructor.
      *
      * @param class-string            $metatype Module class name.

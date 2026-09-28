@@ -6,7 +6,6 @@ use cli\progress\Bar;
 use Closure;
 use WP_CLI;
 use XWP\DI\Interfaces\Can_Handle_CLI;
-use XWP_CLI_Namespace as NSC;
 
 use function WP_CLI\Utils\make_progress_bar;
 
@@ -208,7 +207,7 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
                 'args' => array(
                     'description' => $this->description,
                     'namespace'   => $this->namespace,
-                    'priority'    => $this->get_priority(),
+                    'priority'    => $this->prio,
                 ),
             ),
         );
@@ -219,7 +218,7 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
     }
 
     protected function add_command(): bool {
-        return WP_CLI::add_command( $this->namespace, NSC::class, array( 'shortdesc' => $this->description ) );
+        return WP_CLI::add_command( $this->namespace, \XWP_CLI_Namespace::class, array( 'shortdesc' => $this->description ) );
     }
 
     /**
@@ -230,7 +229,11 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
      * @return bool
      */
     public function load(): bool {
-        static::$roots[ $this->namespace ] ??= $this->add_command();
+        static::$roots[ $this->namespace ] ??= \XWP\DI\Hook\CLI_Namespaces::register(
+            $this->namespace,
+            $this->description,
+            fn() => $this->add_command(),
+        );
 
         return parent::load();
     }

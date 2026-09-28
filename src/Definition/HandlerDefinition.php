@@ -8,7 +8,11 @@
 
 namespace XWP\DI\Definition;
 
+use XWP\DI\Decorators\Ajax_Handler;
+use XWP\DI\Decorators\CLI_Handler;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Decorators\Module;
+use XWP\DI\Decorators\REST_Handler;
 
 /**
  * Describes handler metadata independently from runtime decorators.
@@ -17,26 +21,85 @@ use XWP\DI\Decorators\Handler;
  */
 final class HandlerDefinition {
     /**
+     * Convert built-in handler metadata without evaluating runtime values.
+     *
+     * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Handler metadata.
+     * @return self
+     * @throws \InvalidArgumentException For unsupported custom decorators.
+     */
+    public static function from_data( array $data ): self {
+        $defaults = match ( $data['type'] ) {
+            Handler::class => array(),
+            Module::class => array( 'tag' => $data['args']['hook'] ),
+            Ajax_Handler::class => array(
+                'context'  => Handler::CTX_AJAX,
+                'strategy' => Handler::INIT_LAZY,
+                'tag'      => 'admin_init',
+            ),
+            REST_Handler::class => array(
+                'context' => Handler::CTX_REST,
+                'tag'     => 'rest_api_init',
+            ),
+            CLI_Handler::class => array(
+                'context' => Handler::CTX_CLI,
+                'tag'     => 'cli_init',
+            ),
+            default => throw new \InvalidArgumentException( 'Only built-in handler metadata is supported.' ),
+        };
+        $args = $data['args'] + $defaults + array(
+            'conditional' => null,
+            'context'     => Handler::CTX_GLOBAL,
+            'hookable'    => null,
+            'modifiers'   => false,
+            'priority'    => 10,
+            'strategy'    => Handler::INIT_AUTO,
+            'tag'         => '',
+        );
+        return new self(
+            handler_class: $data['params']['classname'],
+            tag: $args['tag'] ?? '',
+            priority: $args['tag'] ? $args['priority'] : null,
+            context: $args['context'],
+            strategy: $args['strategy'],
+            hookable: $args['hookable'],
+            params: $data['params']['params'] ?? array(),
+            callbacks: $data['params']['callbacks'] ?? null,
+            conditional: $args['conditional'],
+            modifiers: $args['modifiers'],
+            decorator: $data['type'],
+            options: $data['args'],
+        );
+    }
+
+    /**
      * Constructor.
      *
      * @param class-string                       $handler_class Handler class name.
      * @param string                             $tag       Initialization hook tag.
-     * @param int                                $priority  Initialization priority.
+     * @param null|\Closure|string|int|array{0:class-string,1:string} $priority  Initialization priority.
      * @param int                                $context   Context bitmask.
      * @param string                             $strategy  Initialization strategy.
      * @param bool|null                          $hookable  Whether callbacks should be registered.
      * @param array<string,array<int,string>>    $params    Infuse metadata by method name.
      * @param array<int,string>|null             $callbacks Callback definition IDs.
+     * @param null|\Closure|string|array{0:class-string,1:string} $conditional Initialization condition.
+     * @param array<int,string>|string|false $modifiers Tag modifiers.
+     * @param class-string $decorator Original decorator class.
+     * @param array<string,mixed> $options Original constructor arguments.
      */
     public function __construct(
         private string $handler_class,
         private string $tag = '',
-        private int $priority = 10,
+        private null|\Closure|string|int|array $priority = 10,
         private int $context = Handler::CTX_GLOBAL,
         private string $strategy = Handler::INIT_AUTO,
         private ?bool $hookable = null,
         private array $params = array(),
         private ?array $callbacks = null,
+        private null|\Closure|string|array $conditional = null,
+        private array|string|bool $modifiers = false,
+        private string $decorator = Handler::class,
+        private array $options = array(),
     ) {
     }
 
@@ -53,7 +116,12 @@ final class HandlerDefinition {
         return $this->tag;
     }
 
-    public function get_priority(): int {
+    /**
+     * Get the unresolved initialization priority.
+     *
+     * @return null|\Closure|string|int|array{0:class-string,1:string}
+     */
+    public function get_priority(): null|\Closure|string|int|array {
         return $this->priority;
     }
 
@@ -87,6 +155,46 @@ final class HandlerDefinition {
         return $this->callbacks;
     }
 
+    public function get_id(): string {
+        return \trim( 'Hook-' . \trim( $this->handler_class, '-' ) . '::', '-:/' );
+    }
+
+    /**
+     * Get the unresolved initialization condition.
+     *
+     * @return null|\Closure|string|array{0:class-string,1:string}
+     */
+    public function get_conditional(): null|\Closure|string|array {
+        return $this->conditional;
+    }
+
+    /**
+     * Get unresolved tag modifiers.
+     *
+     * @return array<int,string>|string|false
+     */
+    public function get_modifiers(): array|string|bool {
+        return $this->modifiers;
+    }
+
+    /**
+     * Get the original decorator class.
+     *
+     * @return class-string
+     */
+    public function get_decorator(): string {
+        return $this->decorator;
+    }
+
+    /**
+     * Get specialized constructor arguments.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_options(): array {
+        return $this->options;
+    }
+
     public function equals( self $definition ): bool {
         return $this->to_array() === $definition->to_array();
     }
@@ -98,14 +206,18 @@ final class HandlerDefinition {
      */
     private function to_array(): array {
         return array(
-            'callbacks' => $this->callbacks,
-            'class'     => $this->handler_class,
-            'context'   => $this->context,
-            'hookable'  => $this->hookable,
-            'params'    => $this->params,
-            'priority'  => $this->priority,
-            'strategy'  => $this->strategy,
-            'tag'       => $this->tag,
+            'callbacks'   => $this->callbacks,
+            'class'       => $this->handler_class,
+            'conditional' => $this->conditional,
+            'context'     => $this->context,
+            'decorator'   => $this->decorator,
+            'hookable'    => $this->hookable,
+            'modifiers'   => $this->modifiers,
+            'options'     => $this->options,
+            'params'      => $this->params,
+            'priority'    => $this->priority,
+            'strategy'    => $this->strategy,
+            'tag'         => $this->tag,
         );
     }
 }

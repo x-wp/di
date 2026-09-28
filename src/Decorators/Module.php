@@ -120,6 +120,7 @@ class Module extends Handler implements Can_Import {
                 'handlers' => $this->handlers,
                 'hook'     => $this->tag,
                 'imports'  => $this->imports,
+                'services' => $this->services,
             ),
         );
 
