@@ -8,6 +8,7 @@
 
 namespace XWP\DI\Definition;
 
+use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Filter;
 
 /**
@@ -17,6 +18,58 @@ use XWP\DI\Decorators\Filter;
  */
 final class CallbackDefinition {
     /**
+     * Convert plain callback metadata without resolving runtime values.
+     *
+     * @param array<string,mixed> $data Metadata emitted by Filter::get_data() or Action::get_data().
+     * @phpstan-param array{
+     *   type: class-string,
+     *   args: array{
+     *     tag: string,
+     *     priority: null|\Closure|string|int|array{0:class-string,1:string},
+     *     args: int|null,
+     *     context: int,
+     *     invoke: int,
+     *     params: array<int,string>,
+     *     modifiers: array<int,string>|string|false,
+     *     conditional: null|string|\Closure|array{0:class-string,1:string}
+     *   },
+     *   params: array{classname: class-string, method: string}
+     * } $data
+     * @return self
+     *
+     * @throws \InvalidArgumentException If the callback is not a plain filter or action.
+     */
+    public static function from_data( array $data ): self {
+        $type = match ( $data['type'] ) {
+            Filter::class => 'filter',
+            Action::class => 'action',
+            default       => throw new \InvalidArgumentException(
+                'Only plain Filter and Action metadata is supported.',
+            ),
+        };
+
+        $args   = $data['args'];
+        $params = $data['params'];
+        $base   = \trim( $params['classname'], '-' );
+        $suffix = \ltrim( "{$params['method']}[{$args['tag']}]", '-' );
+
+        return new self(
+            id: \trim( "Hook-{$base}::{$suffix}", '-:/' ),
+            handler: $params['classname'],
+            method: $params['method'],
+            type: $type,
+            tag: $args['tag'],
+            priority: $args['priority'],
+            accepted_args: $args['args'],
+            context: $args['context'],
+            invoke: $args['invoke'],
+            params: $args['params'],
+            modifiers: $args['modifiers'],
+            conditional: $args['conditional'],
+        );
+    }
+
+    /**
      * Constructor.
      *
      * @param string                                                     $id            Stable callback ID.
@@ -24,7 +77,7 @@ final class CallbackDefinition {
      * @param string                                                     $method        Handler method name.
      * @param string                                                     $type          Callback type.
      * @param string                                                     $tag           Hook tag.
-     * @param int                                                        $priority      Hook priority.
+     * @param null|\Closure|string|int|array{0:class-string,1:string}     $priority      Raw hook priority.
      * @param int|null                                                   $accepted_args Accepted argument count.
      * @param int                                                        $context       Context bitmask.
      * @param int                                                        $invoke        Invocation bitmask.
@@ -38,7 +91,7 @@ final class CallbackDefinition {
         private string $method,
         private string $type,
         private string $tag,
-        private int $priority = 10,
+        private null|\Closure|string|int|array $priority = 10,
         private ?int $accepted_args = null,
         private int $context = Filter::CTX_GLOBAL,
         private int $invoke = Filter::INV_STANDARD,
@@ -73,7 +126,12 @@ final class CallbackDefinition {
         return $this->tag;
     }
 
-    public function get_priority(): int {
+    /**
+     * Get the unresolved hook priority.
+     *
+     * @return null|\Closure|string|int|array{0:class-string,1:string}
+     */
+    public function get_priority(): null|\Closure|string|int|array {
         return $this->priority;
     }
 
