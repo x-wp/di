@@ -13,8 +13,8 @@ Anything *not* in this document is `@internal`. Internal classes can change with
 | Function | Signature | Role |
 |---|---|---|
 | `xwp_load_app` | `(array $config, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN): bool` | Schedule app creation on a WP hook. Returns true if scheduled. |
-| `xwp_create_app` | `(array $config): Container` | Synchronous app creation. Returns the container. |
-| `xwp_app` | `(string $container_id): Container` | Fetch a registered container by ID. |
+| `xwp_create_app` | `(array $config): App` | Synchronous app creation. Returns the application without starting it. |
+| `xwp_app` | `(string $container_id): App` | Fetch a registered public application by ID. |
 | `xwp_has` | `(string $container_id): bool` | Check whether a container is registered. |
 | `xwp_extend_app` | `(array $extension, string $application): void` | Register an extension/feature flag bundle for an existing app. |
 | `xwp_decompile_app` | `(string $container_id, bool $immediately = false): void` | Clear compiled artifacts for an app (cache invalidation). |
@@ -117,14 +117,43 @@ Interface names are part of the public surface. Individual methods marked `@inte
 
 These flags exist on master 1.x. v2.0 keeps them. The exact bit values are part of the locked surface.
 
+## Application (`XWP\DI\App`)
+
+`App` wraps the dependency container and owns startup and the started state.
+Its `@mixin Container` annotation exposes forwarded container methods to IDEs.
+`xwp_create_app()` builds it synchronously;
+call it only once class autoloading is safe. `xwp_load_app()` registers a closure
+and returns a boolean without loading application classes. By default, that
+closure creates and runs the application at `plugins_loaded`, allowing Jetpack
+Autoloader to finish selecting dependency versions first.
+
+| Method | Signature | Role |
+|---|---|---|
+| `container` | `(): Container` | Access the underlying dependency container. |
+| `run` | `(): static` | Start the module lifecycle and return this application. A second call throws. |
+| `started` | `(): bool` | Has the application been started? |
+| `__call` | `(string $name, array $args): mixed` | Forward container methods, including existing handler helpers. |
+
+`App::class` and `xwp.app` resolve to the same application instance returned by
+the bootstrap helpers. The container retains its own PHP-DI and PSR-11 identity.
+This also applies when container compilation or hook caching is enabled.
+
+The internal `Core\Modules\Internal_Root_Module` provides framework definitions
+and imports the configured user module. It initializes immediately when the app
+runs; the user module and its imports retain their declared hook timing.
+Existing `app.*` entries and user definition precedence are preserved:
+`app.module` still identifies the user module, `app` still resolves its hook
+descriptor, and the new internal `app.root` identifies the framework root.
+`xwp.app.env` aliases `app.env`.
+
 ## Container (`XWP\DI\Container`)
 
 Limited public surface — most methods are `@internal`. Public on `Container`:
 
 | Method | Signature | Role |
 |---|---|---|
-| `run` | `(): Container` | Bootstrap the app — register the root module. |
-| `started` | `(): bool` | Has `run()` been called? |
+| `run` | `(): Container` | Delegate startup to the app and return the container. |
+| `started` | `(): bool` | Read the app's started state. |
 | `register` | `(object $instance): Can_Handle` | Register a runtime handler instance. |
 | `hookOn` | `(object $handler): void` | Attach a handler to its declared hook. |
 

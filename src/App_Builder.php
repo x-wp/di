@@ -11,9 +11,9 @@ namespace XWP\DI;
 use DI\CompiledContainer as Compiled;
 use DI\ContainerBuilder;
 use DI\Definition\Source\DefinitionSource;
-use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use XWP\DI\Core\Modules\Internal_Root_Module;
 use XWP\DI\Hook\Compiler;
 use XWP\DI\Hook\Factory;
 use XWP\DI\Hook\Parser;
@@ -122,43 +122,7 @@ class App_Builder extends ContainerBuilder {
      * @return App_Builder
      */
     public function addBaseDefinition( array $config ): App_Builder {
-        $definition = array(
-            'app'         => \DI\get( 'Hook-' . $config['app_module'] ),
-            'app.cache'   => \DI\value(
-                array(
-                    'app'   => $config['cache_app'],
-                    'defs'  => $config['cache_defs'],
-                    'dir'   => $config['cache_dir'],
-                    'hooks' => $config['cache_hooks'],
-                    'ns'    => $config['app_id'],
-                ),
-            ),
-            'app.debug'   => \DI\value( $config['app_debug'] ),
-            'app.env'     => \DI\factory( 'wp_get_environment_type' ),
-            'app.extend'  => \DI\value( $config['extendable'] ),
-            'app.id'      => \DI\value( $config['app_id'] ),
-            'app.module'  => \DI\value( $config['app_module'] ),
-            'app.type'    => \DI\value( $config['app_type'] ),
-            'app.uuid'    => \DI\factory( 'wp_generate_uuid4' ),
-            'app.ver'     => \DI\value( $config['app_version'] ),
-            'xwp.app.tag' => \DI\factory(
-                static fn( string $tag, ContainerInterface $ctr ) =>
-                        \DI\string( $tag )->resolve( $ctr ),
-            ),
-        );
-
-        if ( $config['app_file'] && 'plugin' === $config['app_type'] ) {
-            $definition['app.file'] = \DI\value( $config['app_file'] );
-            $definition['app.base'] = \DI\factory( 'plugin_basename', )
-                ->parameter( 'file', \DI\get( 'app.file' ) );
-            $definition['app.path'] = \DI\factory( 'plugin_dir_path' )
-                ->parameter( 'file', \DI\get( 'app.file' ) );
-            $definition['app.url']  = \DI\factory( 'plugins_url' )
-                ->parameter( 'path', '' )
-                ->parameter( 'plugin', \DI\get( 'app.base' ) );
-        }
-
-        return parent::addDefinitions( $definition );
+        return parent::addDefinitions( Internal_Root_Module::definitions( $config ) );
     }
 
     /**
@@ -202,7 +166,8 @@ class App_Builder extends ContainerBuilder {
      */
     public function addModuleDefinition( array $config ): App_Builder {
         $parser = ( new Parser( $config['app_module'], $config['app_id'] ) )
-            ->set_extendable( $config['extendable'] );
+            ->set_extendable( $config['extendable'] )
+            ->with_root( Internal_Root_Module::compose( $config['app_module'] ) );
 
         $defns = $this->isHookCacheEnabled()
             ? ( new Compiler( $parser ) )->compile( $config['cache_dir'] )

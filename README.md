@@ -46,8 +46,7 @@ You will need a class which will be used as the entry point for your plugin/them
 use XWP\DI\Decorators\Module;
 
 #[Module(
-    container: 'my-plugin', // Unique identifier for the container
-    hook: 'plugins_loaded', // Hook to initialize the a
+    hook: 'plugins_loaded', // Hook to initialize the module
     priority: 10,           // Hook priority
     imports: array(),       // List of classnames imported by this module
     handlers: array(),      // List of classnames which are used as handlers
@@ -68,20 +67,30 @@ class My_Plugin {
 }
 ```
 
-After defining the module, you can create the application using the `xwp_create_app` function.
+In your plugin bootstrap, schedule creation with `xwp_load_app()`. It returns a
+boolean and defers application class loading until `plugins_loaded`, so Jetpack
+Autoloader can select dependency versions first.
 
 ```php
 <?php
 
-xwp_create_app(
+xwp_load_app(
     array(
-        'id' => 'my-plugin',
-        'module' => My_Plugin::class,
-        'compile' => false,
-    );
+        'app_id'     => 'my-plugin',
+        'app_module' => My_Plugin::class,
+        'app_file'   => __FILE__,
+        'cache_app'  => false,
+    ),
 );
-
 ```
+
+After creation, `xwp_app( 'my-plugin' )` returns the registered `XWP\DI\App`.
+Use `$app->container()` to access its dependency container. Services can inject
+`App` or resolve `xwp.app`; both refer to that same application instance.
+
+For synchronous creation once autoloading is safe, use
+`$app = xwp_create_app( $config )`, followed by `$app->run()`. The internal root
+module supplies framework definitions and imports your configured module.
 
 ### Using handlers and callbacks
 

@@ -14,10 +14,10 @@ use XWP\DI\Interfaces\Extension_Module;
 use XWP\Helper\Traits\Singleton;
 
 /**
- * Create and manage DI containers.
+ * Create and manage applications and their DI containers.
  *
  * @method static bool      has( string $id)                                                 Check if a container exists.
- * @method static Container get( string $id )                                                Get a container instance.
+ * @method static App       get( string $id )                                                Get an application instance.
  * @method static void      uninstall()                                                      Uninstall the container.
  *
  * @internal Bootstrap implementation detail. Use the public xwp_* functions.
@@ -33,9 +33,9 @@ final class App_Factory {
     private static array $decompiled = array();
 
     /**
-     * Array of container instances.
+     * Array of application instances.
      *
-     * @var array<string,Container>
+     * @var array<string,App>
      */
     private array $apps = array();
 
@@ -128,15 +128,15 @@ final class App_Factory {
     }
 
     /**
-     * Create a new container.
+     * Create a new application.
      *
      * @param  array<string,mixed> $config Configuration.
-     * @return Container
+     * @return App
      *
      * @throws \InvalidArgumentException If the app_id is missing.
      * @throws \InvalidArgumentException If the container already exists.
      */
-    public function create( array $config ): Container {
+    public function create( array $config ): App {
         $id = $config['app_id'] ?? $config['id'] ?? throw new \InvalidArgumentException( 'Missing app_id' );
 
         if ( isset( $this->apps[ $id ] ) ) {
@@ -147,7 +147,7 @@ final class App_Factory {
 
         $this->public[ $id ] = $config['public'];
 
-        return $this->apps[ $id ] ??= App_Builder::configure( $config )->build();
+        return $this->apps[ $id ] ??= App_Builder::configure( $config )->build()->get( App::class );
     }
 
     /**
@@ -253,15 +253,15 @@ final class App_Factory {
     }
 
     /**
-     * Get a container instance.
+     * Get an application instance.
      *
      * @param  string $id Container ID.
-     * @return Container
+     * @return App
      *
      * @throws \InvalidArgumentException If the container does not exist.
      * @throws \InvalidArgumentException If the container is not public.
      */
-    private function call_get( string $id ): Container {
+    private function call_get( string $id ): App {
         if ( ! isset( $this->apps[ $id ] ) ) {
             throw new \InvalidArgumentException( \esc_html( "Container {$id} does not exist" ) );
         }
@@ -280,7 +280,7 @@ final class App_Factory {
      * @return bool
      */
     private function call_decompile( string $id, bool $now = false ): bool {
-        $config = $this->apps[ $id ]->get( 'app.cache' );
+        $config = $this->apps[ $id ]->container()->get( 'app.cache' );
 
         if ( ! $config['app'] && ! $config['hooks'] ) {
             return false;

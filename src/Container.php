@@ -31,13 +31,6 @@ class Container extends DI_Container {
     );
 
     /**
-     * Did we start the container.
-     *
-     * @var bool
-     */
-    protected bool $started = false;
-
-    /**
      * Use `$container = new Container()` if you want a container with the default configuration.
      *
      * If you want to customize the container's behavior, you are discouraged to create and pass the
@@ -84,29 +77,14 @@ class Container extends DI_Container {
     }
 
     /**
-     * Run the XWP application.
+     * Delegate startup to the XWP application.
      *
      * @return static
      *
-     * @throws \RuntimeException If the container is already started.
+     * @throws \RuntimeException If the application is already started.
      */
     public function run(): static {
-        if ( $this->started ) {
-            throw new \RuntimeException( 'Container already started.' );
-        }
-
-        $this->started = true;
-
-        /**
-         * Module class name.
-         *
-         * @var class-string<object> $root_module
-         */
-        $root_module = $this->get( 'app.module' );
-
-        $this->get( Invoker::class )->register_handler( $root_module );
-
-        \do_action( "xwp_{$this->get('app.uuid')}_app_start" );
+        $this->get( App::class )->run();
 
         return $this;
     }
@@ -134,11 +112,11 @@ class Container extends DI_Container {
     }
 
     /**
-     * Is the container started.
+     * Check the application's started state.
      *
      * @return bool
      */
     public function started(): bool {
-        return $this->started;
+        return $this->get( App::class )->started();
     }
 }

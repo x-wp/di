@@ -6,6 +6,7 @@
  * @subpackage Dependency Injection
  */
 
+use XWP\DI\App;
 use XWP\DI\Container;
 use XWP\DI\Interfaces\Extension_Module;
 
@@ -20,17 +21,17 @@ function xwp_has( string $container_id ): bool {
 }
 
 /**
- * Get a container by ID.
+ * Get an application by ID.
  *
  * @param  string $container_id Container ID.
- * @return Container
+ * @return App
  */
-function xwp_app( string $container_id ): Container {
+function xwp_app( string $container_id ): App {
     return \XWP\DI\App_Factory::get( $container_id );
 }
 
 /**
- * Create a new app container.
+ * Schedule application creation and startup without autoloading application classes.
  *
  * @template TCtr of Container
  * @param  array{
@@ -78,7 +79,7 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
 }
 
 /**
- * Create a new app container.
+ * Create a new application.
  *
  * @template TCtr of Container
  *
@@ -111,9 +112,9 @@ function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priorit
  *   compile_dir?: string,
  *   proxies?: bool,
  * }  $args Application configuration.
- * @return Container
+ * @return App
  */
-function xwp_create_app( array $args ): Container {
+function xwp_create_app( array $args ): App {
     return \XWP\DI\App_Factory::instance()->create( $args );
 }
 

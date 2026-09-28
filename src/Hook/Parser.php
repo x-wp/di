@@ -11,6 +11,8 @@ namespace XWP\DI\Hook;
 use DI\Definition\Helper\DefinitionHelper;
 use Reflector;
 use XWP\DI\Container;
+use XWP\DI\Decorators\Module;
+use XWP\DI\Definition\ModuleDefinition;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Hook;
 use XWP\DI\Invoker;
@@ -85,6 +87,13 @@ class Parser {
     private Factory $factory;
 
     /**
+     * Optional framework root wrapping the user module.
+     *
+     * @var ModuleDefinition|null
+     */
+    private ?ModuleDefinition $root = null;
+
+    /**
      * Constructor.
      *
      * @param  class-string<TTgt> $module Application module.
@@ -106,6 +115,18 @@ class Parser {
     }
 
     /**
+     * Set the framework root for this application build.
+     *
+     * @param  ModuleDefinition $root Root module composition.
+     * @return static
+     */
+    public function with_root( ModuleDefinition $root ): static {
+        $this->root = $root;
+
+        return $this;
+    }
+
+    /**
      * Load the compiled hook definitions.
      *
      * @param  array<string,array<string,mixed>> $definition Hook definitions.
@@ -116,7 +137,7 @@ class Parser {
         $this->ids    = array();
         $this->cached = true;
 
-        return $this;
+        return $this->parse_root( true );
     }
 
     /**
@@ -134,6 +155,7 @@ class Parser {
         $this->preload = $preload;
 
         return $this
+            ->parse_root( $preload )
             ->parse_module( $this->module, $preload )
             ->extend( $preload );
     }
@@ -278,6 +300,32 @@ class Parser {
                 $this->parse_handler( $this->factory->resolve_handler( $handler ), $preload );
             }
         }
+
+        return $this;
+    }
+
+    /**
+     * Add the configured root, including when loading an older hook cache.
+     *
+     * Root definitions are supplied by the builder before user definitions.
+     * Keep the user module as the anchor for extension definition merging.
+     *
+     * @param  bool $preload Whether to resolve callback metadata now.
+     * @return static
+     */
+    private function parse_root( bool $preload ): static {
+        if ( null === $this->root ) {
+            return $this;
+        }
+
+        $root = ( new Module(
+            hook: 'plugins_loaded',
+            imports: $this->root->get_imports(),
+            handlers: $this->root->get_handlers(),
+            services: $this->root->get_services(),
+        ) )->with_reflector( new \ReflectionClass( $this->root->get_metatype() ) );
+
+        $this->parse_handler( $root, $preload );
 
         return $this;
     }
