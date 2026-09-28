@@ -189,8 +189,12 @@ class Factory {
          * @var Can_Handle<TObj> $handler
          */
         $handler = $this->get( $instance::class )
-            ?? $this->resolve_handler( $instance::class )?->with_target( $instance )
+            ?? $this->resolve_handler( $instance::class )
             ?? $this->new_handler( $instance );
+
+        if ( null === $handler->get_target() ) {
+            $handler->with_target( $instance );
+        }
 
         return $this->save_handler( $handler );
     }
