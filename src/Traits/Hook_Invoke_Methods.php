@@ -9,16 +9,12 @@
 namespace XWP\DI\Traits;
 
 use Closure;
-use Reflector;
 use XWP\DI\Container;
-use XWP\DI\Interfaces\Can_Hook;
 
 /**
  * Shared methods needed for hook invocation.
  *
  * @template TTgt of object
- *
- * @phpstan-require-implements Can_Hook<TTgt,Reflector>
  *
  * @internal Shared runtime implementation detail.
  */

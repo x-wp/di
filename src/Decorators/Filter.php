@@ -12,6 +12,7 @@ use Closure;
 use ReflectionMethod;
 use Reflector;
 use XWP\DI\Container;
+use XWP\DI\Hook\Callback;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
 
@@ -25,6 +26,13 @@ use XWP\DI\Interfaces\Can_Invoke;
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Filter extends Hook implements Can_Invoke {
+    /**
+     * Runtime owner for a typed compatibility view.
+     *
+     * @var Callback<T,H>|null
+     */
+    private ?Callback $runtime = null;
+
     /**
      * The handler.
      *
@@ -78,6 +86,44 @@ class Filter extends Hook implements Can_Invoke {
         parent::__construct( $tag, $priority, $context, $conditional, $modifiers );
     }
 
+    public function __get( string $name ): mixed {
+        return $this->runtime ? $this->runtime->__get( $name ) : parent::__get( $name );
+    }
+
+    /**
+     * Bind a compatibility view to its runtime owner.
+     *
+     * @internal Used only by Callback when resolving !self.hook.
+     *
+     * @param  Callback<T,H> $runtime Runtime owner.
+     * @return static
+     */
+    public function with_runtime( Callback $runtime ): static {
+        $this->runtime = $runtime;
+
+        return $this;
+    }
+
+    public function get_tag(): string {
+        return $this->runtime ? $this->runtime->get_tag() : parent::get_tag();
+    }
+
+    public function get_modifiers(): array|string|bool {
+        return $this->runtime ? $this->runtime->get_modifiers() : parent::get_modifiers();
+    }
+
+    public function get_priority(): int {
+        return $this->runtime ? $this->runtime->get_priority() : parent::get_priority();
+    }
+
+    public function get_init_hook(): string {
+        return $this->runtime ? $this->runtime->get_init_hook() : parent::get_init_hook();
+    }
+
+    public function is_loaded(): bool {
+        return $this->runtime ? $this->runtime->is_loaded() : parent::is_loaded();
+    }
+
     /**
      * Set the handler.
      *
@@ -121,6 +167,10 @@ class Filter extends Hook implements Can_Invoke {
      * @throws \RuntimeException If no container or class name is available.
      */
     public function get_handler(): Can_Handle {
+        if ( $this->runtime ) {
+            return $this->runtime->get_handler();
+        }
+
         if ( isset( $this->handler ) ) {
             return $this->handler;
         }
@@ -146,6 +196,10 @@ class Filter extends Hook implements Can_Invoke {
      * @return Reflector
      */
     public function get_reflector(): Reflector {
+        if ( $this->runtime ) {
+            return $this->runtime->get_reflector();
+        }
+
         if ( isset( $this->reflector ) ) {
             return $this->reflector;
         }
@@ -156,7 +210,9 @@ class Filter extends Hook implements Can_Invoke {
     }
 
     public function get_num_args(): int {
-        return $this->args ??= $this->get_reflector()->getNumberOfParameters();
+        return $this->runtime
+            ? $this->runtime->get_num_args()
+            : ( $this->args ??= $this->get_reflector()->getNumberOfParameters() );
     }
 
     /**
@@ -185,7 +241,9 @@ class Filter extends Hook implements Can_Invoke {
      * @return Container
      */
     public function get_container(): Container {
-        return $this->container ??= $this->get_handler()->get_container();
+        return $this->runtime
+            ? $this->runtime->get_container()
+            : ( $this->container ??= $this->get_handler()->get_container() );
     }
 
     /**
@@ -211,6 +269,10 @@ class Filter extends Hook implements Can_Invoke {
      * @return bool
      */
     public function can_load(): bool {
+        if ( $this->runtime ) {
+            return $this->runtime->can_load();
+        }
+
         return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
     }
 
@@ -222,6 +284,10 @@ class Filter extends Hook implements Can_Invoke {
      * @return bool
      */
     public function load(): bool {
+        if ( $this->runtime ) {
+            return $this->runtime->load();
+        }
+
         if ( $this->loaded ) {
             return true;
         }
@@ -245,6 +311,10 @@ class Filter extends Hook implements Can_Invoke {
      * @return mixed
      */
     public function invoke( mixed ...$args ): mixed {
+        if ( $this->runtime ) {
+            return $this->runtime->invoke( ...$args );
+        }
+
         if (
             ! $this->init_handler( Can_Handle::INIT_JIT ) ||
             ! parent::can_load() ||

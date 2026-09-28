@@ -8,6 +8,8 @@ This plan targets the `beta` architecture present in this checkout, including `H
 
 The lifecycle conclusions below extend the original callback-only plan. The module context, initialization-condition, and late-registration policies were settled on 2026-09-28. They preserve the existing runtime contract; callback runtime extraction remains separate work.
 
+`Hook\Callback` and its typed forwarding view are now available as a standalone runtime (S2, `di-q15`). `Callback_Runtime_Test` constructs it directly. Factory and Invoker still use the existing decorators; token routing and cache-mode wiring tests remain S3.
+
 ## Relation to the migration docs
 
 - Pulls [migration-04](migration-04-implementation-plan.md) **B3.2** forward for plain `Filter` / `Action`. It does not wait on B2.1 (Parser output), B2.2 (Compiler format) or B3.1 (strip `with_*()`).
@@ -290,7 +292,7 @@ Add an internal owner link only to the runtime-backed plain decorator view. Lega
 
 The two removal forms that name the runtime remain available: `$hook->target` and `array( $container->get( $hook->get_token() ), 'invoke' )`. A direct `$hook->invoke()` call forwards normally, but this does not give `array( $hook, 'invoke' )` the owner's WordPress callable identity.
 
-**Accepted compatibility boundary (2026-09-29):** the user confirmed `!self.hook` has not been used in production and authorized the forwarding-view approach, including target-based removal. After extraction, `array( $hook, 'invoke' )` is not a supported WordPress removal identity for the separate view; use `$hook->target` or the container runtime's callable. Direct view invocation still forwards. Document these two identity changes in the migration notes when S3 switches the token routing. The characterization tests and this delegation proposal do not implement the new runtime.
+**Accepted compatibility boundary (2026-09-29):** the user confirmed `!self.hook` has not been used in production and authorized the forwarding-view approach, including target-based removal. After extraction, `array( $hook, 'invoke' )` is not a supported WordPress removal identity for the separate view; use `$hook->target` or the container runtime's callable. Direct view invocation still forwards. Document these two identity changes in the migration notes when S3 switches the token routing. `Callback_Runtime_Test` now verifies this boundary on the standalone runtime; `Self_Hook_Test` continues to characterize the legacy Factory path until S3.
 
 ### 4. Wiring
 
@@ -372,7 +374,7 @@ Each callback item needs a test in S2 or S3. L1–L2 cover the module and handle
   - Cover no-callback LAZY handlers, rejected initialization followed by another opportunity, successful initialization once, duplicate registration, and default current-action/current-priority-plus-one scheduling. Separate current-behavior characterization from regression tests for defects fixed in L2.
   - L2 verifies services/static definitions remain available when module context or initialization conditions reject runtime work; context gates module-owned callbacks, handlers, and nested imports; initialization finishes before child registration; imported modules retain their own scheduling; late registration waits for the next hook occurrence.
   - `Default_Schedule_Test` covers nested-action defaults with cold/warm hook caches and compiled containers. `Module_Lifecycle_Test` covers the module contract and context changes across requests sharing cached definitions. `Handler_Context_Test`, `Handler_Lifecycle_Test`, and `Handler_Retry_Test` cover registration, strategy timing, supplied instances, and rejected initialization.
-  - A `Callback_Test` that drives `Callback` directly (S2).
+  - `Callback_Runtime_Test` drives `Callback` directly (S2): standard and proxied identity, live typed views and removal, context/condition retries, LAZY/JIT timing, once/loop/safe invocation, parameter tokens, priorities, argument counts, and container dependency injection.
   - A wiring test that boots a fixture app with hook cache on and off and walks the checklist (S3).
 - **Fixtures** go under `test/fixtures/shared/`:
   - a handler with plain `#[Filter]`/`#[Action]` covering each `INV_*` flag and `!self.hook`/`!self.handler` params;
@@ -415,10 +417,10 @@ Each implementation slice is one bead and one PR. Beads tracks execution status;
   - `use Hook_Invoke_Methods`, and relax its phpstan annotation.
   - Implement the selected typed forwarding view and owner delegation in Design §3.
   - *Out:* wiring it into `Factory`.
-- **Files:** `src/Hook/Callback.php`, `src/Traits/Hook_Invoke_Methods.php` (annotation adjustment after `di-upr`), any narrowly required decorator-view support, `tests/Integration/Callback_Test.php`, fixtures.
+- **Files:** `src/Hook/Callback.php`, `src/Traits/Hook_Invoke_Methods.php` (annotation adjustment after `di-upr`), narrowly required decorator-view support in `src/Decorators/Filter.php`, `tests/Integration/Callback_Runtime_Test.php`.
 - **Acceptance:**
   - A manually constructed `Callback` passes every behavioral checklist item that does not involve `Factory` or `Invoker`.
-  - The memoized view preserves Action/Filter type hints and live state, delegates runtime operations without a second state machine, and exposes the owner's removable callable through `target`. Update the characterized same-object and explicit view-object removal assertions to the accepted identity boundary in Design §3.
+  - The memoized view preserves Action/Filter type hints and live state, delegates runtime operations without a second state machine, and exposes the owner's removable callable through `target`. Standalone tests verify the accepted identity boundary in Design §3; the legacy characterization assertions change with Factory routing in S3.
   - phpstan and phpcs are clean.
 - **Depends on:** S1, L2, callable-priority fix `di-upr`, and the settled `!self.hook` contract characterized in `di-965`.
 
