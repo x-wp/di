@@ -141,6 +141,10 @@ class Invoker {
     public function register_handler( string $classname ): Can_Handle {
         $h = $this->get_handler( $classname );
 
+        if ( ! $h->check_context() ) {
+            return $h;
+        }
+
         //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
         match ( $h->get_strategy() ) {
             $h::INIT_LAZY,
