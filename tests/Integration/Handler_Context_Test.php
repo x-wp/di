@@ -17,6 +17,7 @@ use XWP\DIT\Lifecycle\Early_Context_Handler;
 use XWP\DIT\Lifecycle\Jit_Context_Handler;
 use XWP\DIT\Lifecycle\Lazy_Context_Handler;
 use XWP\DIT\Lifecycle\Now_Context_Handler;
+use XWP\DIT\Lifecycle\Reentrant_Handler;
 use XWP\DIT\Lifecycle\User_Context_Handler;
 
 final class Handler_Context_Test extends TestCase {
@@ -116,6 +117,64 @@ final class Handler_Context_Test extends TestCase {
         self::assertSame( array(), Context_Module::$events );
     }
 
+    /** @dataProvider cache_modes */
+    public function test_repeated_registration_installs_each_lifecycle_once_after_context_becomes_eligible( bool $compile, bool $hooks ): void {
+        $app = App_Builder::configure( $this->config( $compile, $hooks ) )->build()->get( App::class );
+        $app->run();
+        $invoker = $app->container()->get( Invoker::class );
+        $invoker->register_handler( Context_Module::class );
+        self::assertSame( 1, $this->listener_count( 'xwp_context_module' ), 'Repeated module registration must not add scheduling closures.' );
+        do_action( 'xwp_context_module' );
+
+        $notifications = array();
+        foreach ( $this->handlers() as $class => $hook ) {
+            $notifications[ $class ] = did_action( 'xwp_di_hooks_loaded_' . $class );
+            $invoker->register_handler( $class );
+            self::assertFalse( $invoker->get_handlers()[ $class ] );
+            self::assertSame( 0, $this->listener_count( $hook ) );
+        }
+
+        $this->context->setValue( null, Handler::CTX_ADMIN );
+        foreach ( $this->handlers() as $class => $hook ) {
+            $handler = $invoker->register_handler( $class );
+            self::assertSame( $handler, $invoker->register_handler( $class ) );
+            self::assertSame( $handler, $invoker->register_handler( $class ) );
+            self::assertSame( Now_Context_Handler::class === $class ? 0 : 1, $this->listener_count( $hook ) );
+            if ( $handler->is_lazy() ) {
+                self::assertSame( 1, $this->listener_count( $handler->get_lazy_tag() ) );
+            }
+            do_action( $hook );
+            $invoker->register_handler( $class );
+            self::assertSame( $notifications[ $class ] + 1, did_action( 'xwp_di_hooks_loaded_' . $class ), 'Lifecycle attachment must not repeat after initialization.' );
+        }
+
+        self::assertSame( 'value' . str_repeat( ':handled', 5 ), apply_filters( 'xwp_context_value', 'value' ) );
+        foreach ( $this->handlers() as $class => $hook ) {
+            self::assertSame( array( 'condition', 'construct', 'initialize', 'invoke' ), Context_Module::$events[ $class ] );
+        }
+
+        $notification = 'xwp_di_hooks_loaded_' . User_Context_Handler::class;
+        $before = did_action( $notification );
+        $instance = new User_Context_Handler();
+        $handler = $invoker->load_handler( $instance );
+        self::assertSame( $handler, $invoker->load_handler( $instance ) );
+        self::assertSame( $handler, $invoker->register_handler( User_Context_Handler::class ) );
+        self::assertSame( $before + 1, did_action( $notification ), 'Supplied instances must only attach once.' );
+    }
+
+    public function test_registration_is_guarded_before_initialization_can_reenter(): void {
+        $app = App_Builder::configure( $this->config( false, false ) )->build()->get( App::class );
+        $app->run();
+        $notification = 'xwp_di_hooks_loaded_' . Reentrant_Handler::class;
+        $before = did_action( $notification );
+
+        $handler = $app->container()->get( Invoker::class )->register_handler( Reentrant_Handler::class );
+
+        self::assertTrue( $handler->is_loaded() );
+        self::assertSame( $before + 1, did_action( $notification ), 'Registration from on_initialize must not process the strategy twice.' );
+        self::assertSame( 'value:reentrant', apply_filters( 'xwp_context_reentrant', 'value' ) );
+    }
+
     public static function cache_modes(): array {
         return array(
             'uncached' => array( false, false ),
@@ -138,11 +197,16 @@ final class Handler_Context_Test extends TestCase {
     private function remove_context_hooks(): void {
         remove_all_actions( 'xwp_context_module' );
         remove_all_filters( 'xwp_context_value' );
+        remove_all_filters( 'xwp_context_reentrant' );
         foreach ( $this->handlers() as $class => $hook ) {
             remove_all_actions( $hook );
             remove_all_actions( 'Hook-' . $class . '_' . Handler::INIT_LAZY . '_init' );
             remove_all_actions( 'Hook-' . $class . '_' . Handler::INIT_JIT . '_init' );
         }
+    }
+
+    private function listener_count( string $hook ): int {
+        return array_sum( array_map( 'count', $GLOBALS['wp_filter'][ $hook ]->callbacks ?? array() ) );
     }
 
     private function config( bool $compile, bool $hooks ): array {

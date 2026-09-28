@@ -108,6 +108,9 @@ final class Handler_Lifecycle_Test extends TestCase {
             self::assertNull( $handler->get_target() );
             self::assertTrue( has_filter( 'xwp_strategy_value_jit' ), $pass . ': rejection must leave the callback attached for retry' );
 
+            $app->container()->get( Invoker::class )->register_handler( Jit_Handler::class );
+            self::assertCount( 1, $GLOBALS['wp_filter'][ $handler->get_lazy_tag() ]->callbacks[10], 'Re-registering after rejection must retain one initialization listener.' );
+
             Strategy_Module::$allow_initialization = true;
             self::assertSame( 'accepted:handled', apply_filters( 'xwp_strategy_value_jit', 'accepted' ) );
             self::assertSame( array( 'condition', 'condition', 'construct', 'initialize', 'invoke' ), Strategy_Module::$events );

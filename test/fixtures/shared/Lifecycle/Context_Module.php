@@ -7,6 +7,7 @@
 
 namespace XWP\DIT\Lifecycle;
 
+use XWP\DI\App;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Decorators\Module;
@@ -74,4 +75,16 @@ final class Jit_Context_Handler {
 #[Handler( context: Handler::CTX_ADMIN, strategy: Handler::INIT_USER )]
 final class User_Context_Handler {
     use Context_Lifecycle;
+}
+
+#[Handler( strategy: Handler::INIT_NOW )]
+final class Reentrant_Handler {
+    public function on_initialize( App $app ): void {
+        $app->register_handler( self::class );
+    }
+
+    #[Filter( 'xwp_context_reentrant' )]
+    public function value( string $value ): string {
+        return $value . ':reentrant';
+    }
 }

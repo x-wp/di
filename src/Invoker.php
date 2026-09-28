@@ -29,6 +29,13 @@ class Invoker {
     private array $handlers = array();
 
     /**
+     * Handlers whose lifecycle registration has begun.
+     *
+     * @var array<class-string,true>
+     */
+    private array $registered = array();
+
+    /**
      * Hooks.
      *
      * @var array<class-string,array<string,string>>>
@@ -97,7 +104,7 @@ class Invoker {
     }
 
     /**
-     * Get registered handlers, and their initialization hook.
+     * Get known handlers, and their initialization hook.
      *
      * @return array<class-string,false|string>
      */
@@ -140,21 +147,23 @@ class Invoker {
      */
     public function register_handler( string $classname ): Can_Handle {
         $h = $this->get_handler( $classname );
+        $this->add_handler( $h );
 
-        if ( ! $h->check_context() ) {
-            $this->add_handler( $h );
-
+        if ( ! $h->check_context() || isset( $this->registered[ $h->get_classname() ] ) ) {
             return $h;
         }
+
+        // Prevent registration from re-entering through initialization callbacks.
+        $this->registered[ $h->get_classname() ] = true;
 
         //phpcs:disable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
         match ( $h->get_strategy() ) {
             $h::INIT_LAZY,
-            $h::INIT_JIT   => $this->add_handler( $h )->queue_lazy_handler( $h )->queue_methods( $h ),
-            $h::INIT_EARLY => $this->add_handler( $h )->init_handler( $h )->queue_methods( $h ),
-            $h::INIT_NOW   => $this->add_handler( $h )->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
-            $h::INIT_USER  => $this->add_handler( $h )->register_methods( $h )->invoke_methods( $h ),
-            default        => $this->add_handler( $h )->queue_handler( $h ),
+            $h::INIT_JIT   => $this->queue_lazy_handler( $h )->queue_methods( $h ),
+            $h::INIT_EARLY => $this->init_handler( $h )->queue_methods( $h ),
+            $h::INIT_NOW   => $this->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
+            $h::INIT_USER  => $this->register_methods( $h )->invoke_methods( $h ),
+            default        => $this->queue_handler( $h ),
         };
         //phpcs:enable SlevomatCodingStandard.Functions.RequireMultiLineCall.RequiredMultiLineCall
 
