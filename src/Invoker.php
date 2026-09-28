@@ -36,6 +36,22 @@ class Invoker {
     private array $registered = array();
 
     /**
+     * EARLY/NOW handlers whose initialization was rejected without an exception.
+     *
+     * @var array<class-string,true>
+     */
+    private array $retryable = array();
+
+    /**
+     * Pending EARLY/NOW callback passes: false before the attachment point, true after.
+     *
+     * Entries are removed when attachment begins, including for handlers with no callbacks.
+     *
+     * @var array<class-string,bool>
+     */
+    private array $pending_methods = array();
+
+    /**
      * Hooks.
      *
      * @var array<class-string,array<string,string>>>
@@ -149,7 +165,15 @@ class Invoker {
         $h = $this->get_handler( $classname );
         $this->add_handler( $h );
 
-        if ( ! $h->check_context() || isset( $this->registered[ $h->get_classname() ] ) ) {
+        if ( ! $h->check_context() ) {
+            return $h;
+        }
+
+        if ( isset( $this->registered[ $h->get_classname() ] ) ) {
+            if ( isset( $this->retryable[ $h->get_classname() ] ) ) {
+                $this->init_eager_handler( $h );
+            }
+
             return $h;
         }
 
@@ -160,8 +184,8 @@ class Invoker {
         match ( $h->get_strategy() ) {
             $h::INIT_LAZY,
             $h::INIT_JIT   => $this->queue_lazy_handler( $h )->queue_methods( $h ),
-            $h::INIT_EARLY => $this->init_handler( $h )->queue_methods( $h ),
-            $h::INIT_NOW   => $this->init_handler( $h )->register_methods( $h )->invoke_methods( $h ),
+            $h::INIT_EARLY => $this->init_eager_handler( $h )->queue_methods( $h ),
+            $h::INIT_NOW   => $this->init_eager_handler( $h ),
             $h::INIT_USER  => $this->register_methods( $h )->invoke_methods( $h ),
             default        => $this->queue_handler( $h ),
         };
@@ -275,6 +299,49 @@ class Invoker {
     }
 
     /**
+     * Attempt EARLY/NOW initialization without reinstalling its lifecycle.
+     *
+     * @template T of object
+     * @param  Can_Handle<T> $h Handler to initialize.
+     * @return static
+     */
+    private function init_eager_handler( Can_Handle $h ): static {
+        $classname = $h->get_classname();
+
+        // Only a normal rejection enables another attempt, never re-entry or an exception.
+        unset( $this->retryable[ $classname ] );
+        $this->pending_methods[ $classname ] ??= $h::INIT_NOW === $h->get_strategy();
+
+        $this->init_handler( $h );
+
+        if ( ! $h->is_loaded() ) {
+            $this->retryable[ $classname ] = true;
+            return $this;
+        }
+
+        return $this->attach_pending_methods( $h );
+    }
+
+    /**
+     * Finish one EARLY/NOW callback pass when initialization and scheduling permit it.
+     *
+     * @template T of object
+     * @param  Can_Handle<T> $h Handler whose callbacks are pending.
+     * @return static
+     */
+    private function attach_pending_methods( Can_Handle $h ): static {
+        $classname = $h->get_classname();
+
+        if ( ! ( $this->pending_methods[ $classname ] ?? false ) || ! $h->is_loaded() ) {
+            return $this;
+        }
+
+        unset( $this->pending_methods[ $classname ] );
+
+        return $this->register_methods( $h )->invoke_methods( $h );
+    }
+
+    /**
      * Load module imports.
      *
      * @template T of object
@@ -319,18 +386,29 @@ class Invoker {
      * @return static
      */
     private function queue_methods( Can_Handle $h ): static {
-        if ( $h->is_hookable() ) {
-            \add_action(
-                $h->get_tag(),
-                function () use ( $h ) {
-                    $this
-                    ->register_methods( $h )
-                    ->invoke_methods( $h );
-                },
-                $h->get_priority(),
-                0,
-            );
+        if ( ! $h->is_hookable() ) {
+            return $this;
         }
+
+        \add_action(
+            $h->get_tag(),
+            function () use ( $h ) {
+                if ( $h::INIT_EARLY === $h->get_strategy() ) {
+                    if ( isset( $this->pending_methods[ $h->get_classname() ] ) ) {
+                        $this->pending_methods[ $h->get_classname() ] = true;
+                        $this->attach_pending_methods( $h );
+                    }
+
+                    return;
+                }
+
+                $this
+                ->register_methods( $h )
+                ->invoke_methods( $h );
+            },
+            $h->get_priority(),
+            0,
+        );
 
         return $this;
     }
