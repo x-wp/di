@@ -103,12 +103,12 @@ final class App_Bootstrap_Test extends TestCase {
         $app->run();
     }
 
-    public function test_container_entry_point_uses_the_same_application_lifecycle(): void {
+    public function test_app_start_updates_the_container_lifecycle_state(): void {
         $app = xwp_create_app( $this->config() );
         $container = $app->container();
 
         self::assertFalse( $container->started() );
-        self::assertSame( $container, $container->run() );
+        self::assertSame( $app, $app->run() );
         self::assertTrue( $app->started() );
         self::assertTrue( $container->started() );
 
