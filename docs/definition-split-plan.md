@@ -6,7 +6,7 @@
 
 This plan targets the `beta` architecture present in this checkout, including `Hook\Parser`, `Hook\Factory`, and the definition value objects. Repository notes describing the lightweight `master` runtime do not describe these producer and consumer paths.
 
-The lifecycle conclusions below extend the original callback-only plan. They distinguish agreed behavior from current implementation findings and decisions still needed before implementation. This document records the design; it does not claim that the runtime already implements it.
+The lifecycle conclusions below extend the original callback-only plan. The module context, initialization-condition, and late-registration policies were settled on 2026-09-28. They preserve the existing runtime contract; callback runtime extraction remains separate work.
 
 ## Relation to the migration docs
 
@@ -21,27 +21,36 @@ The lifecycle conclusions below extend the original callback-only plan. They dis
 
 ## Agreed lifecycle
 
-### Modules: unconditional definitions, scheduled execution
+### Modules: unconditional definitions, gated and scheduled execution
 
-Every module contributes its services and definitions to the application regardless of request context. Imports are discovered as part of the complete module graph. Including those declarations does not require constructing every module instance immediately.
+Every module contributes its services and static `configure()` definitions to the application regardless of request context or `can_initialize()` outcome. Imports are discovered as part of the complete module graph. Including those declarations does not require constructing module instances. Definitions returned by `configure_async()` belong to runtime initialization and are not unconditional.
 
-The module's hook and priority determine when its initialization runs and when it triggers its handlers. In this discussion, `module_init` names that lifecycle step; the existing implementation uses `on_initialize()`. This plan does not add a new public initialization method.
+For the default `AUTO` strategy, the module's hook and priority determine when its initialization runs and when it triggers its handlers. The sequence below describes that default; explicitly selected strategies retain the timing described in the strategy contract below. In this discussion, `module_init` names that lifecycle step; the existing implementation uses `on_initialize()`. This plan does not add a new public initialization method.
 
 ```text
 Build application
   └─ Collect module services, definitions, and imports
 
-Module hook + priority
-  └─ Initialize module and finish its initialization callback
-      └─ Apply module context to handler registration
-          └─ Register eligible handlers according to their strategies
+Register module through its parent
+  └─ Check module context; excluded modules stop here
+      └─ Schedule initialization using the module hook + priority
+
+Module initialization point
+  └─ Check context and can_initialize(); rejection stops runtime progress
+      └─ Construct module, configure_async(), finish on_initialize()
+          └─ Register eligible handlers and imported modules
+              └─ Attach the module's own callbacks
 ```
 
-Module context controls whether its handlers enter the runtime lifecycle. It does not remove module services or definitions from the container. This is a change from the current inherited `Handler::can_load()` gate, which can prevent the module itself from initializing; it must be implemented and tested explicitly.
+Module context is a strict runtime gate. An excluded module does not enter lifecycle construction, `configure_async()`, or `on_initialize()`, and does not attach its own callbacks or register handlers/imports. Broader or explicit child contexts cannot override an excluded ancestor. Module services and static definitions remain available in the container. This preserves the existing context gate rather than introducing unconditional module initialization.
 
 Handler context and initialization conditions remain additional checks. A module triggering a handler means registering it with the lifecycle coordinator; construction and callback attachment depend on its strategy.
 
-Imported modules retain their own initialization hooks and priorities. Their definitions are always discovered. The proposed runtime boundary gives each imported module its own handler-registration context rather than inheriting its parent's context; L1 must cover this behavior explicitly.
+Context restrictions cascade through imported modules as well as handlers and attributed callback methods on the module itself. Imported modules retain their own initialization hooks and priorities, but their parent must initialize successfully before registering them. Their own context and initialization conditions remain additional gates. This supersedes the earlier proposal for imports to have independent context eligibility.
+
+`can_initialize()` is an additional runtime gate, evaluated at the module's initialization point. A false result prevents construction, asynchronous configuration, initialization callbacks, and descendant registration through that module. For `AUTO`, it also prevents callback attachment; `JIT` can attach proxies before attempting initialization. A normal rejection does not count as successful initialization; an `AUTO` module can retry when its scheduled hook occurs again. Successful initialization is retained without rerunning its initialization condition or callback.
+
+The cascade describes registration through the module tree. The container remains flat: resolving a service is not module activation, and this work does not introduce ownership checks into direct container resolution or explicit handler registration.
 
 ### Discovery, registration, initialization, attachment, invocation
 
@@ -57,7 +66,7 @@ Imported modules retain their own initialization hooks and priorities. Their def
 
 Names currently obscure this separation: `register_methods()` discovers callbacks, `invoke_methods()` attaches them, and `load()` means initialization on a handler but attachment on a callback. `Invoker::load_handler($instance)` adopts an existing instance and enters it into registration.
 
-Proposed internal responsibilities are `initialize_handler()`, `ensure_callbacks()`, `attach_callbacks()`, and scheduling helpers under `register_handler()`. These are implementation boundaries, not new public APIs. Keep existing externally consumed entry points compatible.
+The existing `init_handler()`, `register_methods()`, `invoke_methods()`, and scheduling helpers implement these boundaries beneath `register_handler()`. Registration state is separate from loaded handler state; `init_eager_handler()` and `attach_pending_methods()` handle rejected `EARLY`/`NOW` initialization without duplicate scheduling. No lifecycle-method renaming or new public API is required for L1–L2.
 
 ### Strategy contract
 
@@ -90,16 +99,13 @@ Context selection and arbitrary conditions have different timing. An uncondition
 
 Keep the complete declarations in the shared cache. Do not freeze context selection or condition outcomes from the request that generated it. `XWP_Context` currently memoizes a context and detects REST via the request URI; the timing and completeness of that classification need coverage before using it to discard work permanently at app startup.
 
-### Ordering and remaining decisions
+### Ordering and late registration
 
-Application bootstrap, module activation, handler scheduling, and callback execution each have their own hook and priority. Preserve those stages. The default handler behavior of using the current action and current priority plus one also belongs in lifecycle coverage.
+Application bootstrap, module activation, handler scheduling, and callback execution each have their own hook and priority. Preserve those stages. Handlers without an explicit hook schedule on the active action at its current priority plus one, including nested actions. Cache construction must not capture that request's hook or priority.
 
-Before implementing module orchestration in L2, settle these remaining cases:
+Callers own registration timing. Registering after a configured action has completed, or after its configured priority has passed during the current action, installs the listener for the next occurrence. There is no automatic catch-up or missed-hook warning. If the action never fires again, that scheduled work does not run in the request. Imported modules follow the same rule: a parent can register an import too late for its configured hook.
 
-- Whether module context is a strict gate on its handlers or a default that an explicit handler context can override. The proposed gate model is strict; override behavior has not been agreed.
-- How context applies to attributed callback methods on the module itself. Applying the module context to their attachment is the proposed rule.
-- What happens when registration occurs after the intended handler hook/priority has already passed. Immediate catch-up versus waiting for another occurrence needs an explicit policy.
-- How existing module `can_initialize()` conditions relate to unconditional module initialization. Module definitions remain unconditional either way; module initialization conditions need an explicit migration decision.
+`NOW` still initializes and attaches immediately by strategy. `EARLY` initializes during registration but schedules attachment. Its explicit retry behavior is narrower than general catch-up: if its already-installed attachment listener ran while initialization was rejected, a successful retry finishes that pending attachment immediately. Newly registered `EARLY` handlers do not catch up a missed attachment hook.
 
 ## Goal
 
@@ -312,7 +318,7 @@ Each callback item needs a test in S2 or S3. L1–L2 cover the module and handle
 | Two runtimes exist during the transition | Exact-class routing; F6 removes legacy methods only after built-in and custom subclass compatibility is settled |
 | `save_hook()` returns a different object than it stores | Preserve discovery callers' decorator metadata access and runtime token identity; cover both producer paths in S3 |
 | Scanning or attachment constructs a JIT handler too early | L1 construction counters and ordered lifecycle traces, repeated through the S3 wiring |
-| Module context hides definitions or suppresses unrelated imported-module initialization | L2 tests for unconditional services and independent imported-module scheduling |
+| Context or initialization conditions remove definitions, or descendants bypass their ancestor's gate | L2 tests for unconditional services/static definitions, strict context cascades, and imported-module scheduling after parent initialization |
 | Repeated handler registration installs duplicate scheduling hooks | Explicit registration state and L1–L2 idempotency coverage |
 
 ## Review findings
@@ -333,7 +339,8 @@ Each callback item needs a test in S2 or S3. L1–L2 cover the module and handle
 - **Integration** (`tests/Integration/`, needs WP):
   - L1 traces construction, initialization callbacks, attachment, and execution for every strategy, with cache on and off. Begin with JIT versus LAZY: JIT attaches without construction and evaluates its initialization condition on invocation; LAZY requests initialization during attachment.
   - Cover no-callback LAZY handlers, rejected initialization followed by another opportunity, successful initialization once, duplicate registration, and default current-action/current-priority-plus-one scheduling. Separate current-behavior characterization from regression tests for defects fixed in L2.
-  - L2 verifies services/definitions remain available outside a module's handler context, module initialization finishes before handlers are triggered, and imported modules retain their own scheduling.
+  - L2 verifies services/static definitions remain available when module context or initialization conditions reject runtime work; context gates module-owned callbacks, handlers, and nested imports; initialization finishes before child registration; imported modules retain their own scheduling; late registration waits for the next hook occurrence.
+  - `Default_Schedule_Test` covers nested-action defaults with cold/warm hook caches and compiled containers. `Module_Lifecycle_Test` covers the module contract and context changes across requests sharing cached definitions. `Handler_Context_Test`, `Handler_Lifecycle_Test`, and `Handler_Retry_Test` cover registration, strategy timing, supplied instances, and rejected initialization.
   - A `Callback_Test` that drives `Callback` directly (S2).
   - A wiring test that boots a fixture app with hook cache on and off and walks the checklist (S3).
 - **Fixtures** go under `test/fixtures/shared/`:
@@ -348,13 +355,13 @@ Each implementation slice is one bead and one PR. Beads tracks execution status;
 
 ### L1 — Lifecycle contract and characterization
 
-- **Scope:** capture the strategy matrix, discovery/initialization/attachment ordering, condition timing, and module lifecycle expectations. Settle the module and late-registration decisions listed above before implementing them.
+- **Scope:** capture the strategy matrix, discovery/initialization/attachment ordering, condition timing, and the settled module and late-registration policies above.
 - **Files:** this plan, `tests/Integration/`, fixtures under `test/fixtures/shared/`.
-- **Acceptance:** existing strategy behavior is characterized with ordered events and construction counts. Desired module changes and known defects are distinguished from behavior already passing. JIT attachment does not construct a handler; LAZY attachment requests initialization; cached discovery preserves timing.
+- **Acceptance:** existing strategy behavior is characterized with ordered events and construction counts. Known defects are distinguished from behavior already passing. JIT attachment does not construct a handler; LAZY attachment requests initialization; cached discovery preserves timing; module gates preserve definitions and prevent excluded descendant activation.
 
 ### L2 — Explicit orchestration and registration state
 
-- **Scope:** clarify the internal operations beneath `register_handler()` while retaining its strategy branches; separate registration state from initialization and callback attachment; prevent duplicate scheduling; implement the agreed module lifecycle and context gate after the remaining decisions are resolved.
+- **Scope:** clarify the internal operations beneath `register_handler()` while retaining its strategy branches; separate registration state from initialization and callback attachment; prevent duplicate scheduling; preserve the agreed module lifecycle and context cascade, fixing only demonstrated departures from that contract.
 - **Files:** `src/Invoker.php`, targeted module/handler runtime code as required, integration tests and fixtures.
 - **Acceptance:** L1 strategy behavior remains intact; module services/definitions remain unconditional; module initialization finishes before handler triggering; repeated registration installs scheduling hooks once; supplied instances and failed initialization attempts retain their intended lifecycle.
 - **Depends on:** L1. Full runtime class extraction and callback token routing remain outside this slice.
