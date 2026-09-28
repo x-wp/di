@@ -7,16 +7,20 @@ on:
 
 jobs:
   phpunit:
-    name: "PHP ${{ matrix.php }}"
+    name: "PHP ${{ matrix.php }} / ${{ matrix.database }}"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         php: ['8.1', '8.2', '8.3', '8.4']
+        database: ['sqlite']
+        include:
+          - php: '8.3'
+            database: mysql
 
     services:
       mysql:
-        image: mysql:8.0
+        image: ${{ matrix.database == 'mysql' && 'mysql:8.0' || '' }}
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: wp_phpunit_tests
@@ -29,6 +33,7 @@ jobs:
           --health-retries=10
 
     env:
+      WP_TESTS_DB_ENGINE: ${{ matrix.database }}
       WP_TESTS_DB_HOST: 127.0.0.1
       WP_TESTS_DB_NAME: wp_phpunit_tests
       WP_TESTS_DB_USER: root
@@ -42,7 +47,7 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: composer:v2
           coverage: xdebug
-          extensions: mysqli, pdo_mysql
+          extensions: mysqli, pdo_mysql, pdo_sqlite, zip
 
       - name: Composer cache
         uses: actions/cache@v4
@@ -59,7 +64,7 @@ jobs:
 
       - run: composer test:integration
 
-      - if: matrix.php == '8.3'
+      - if: matrix.php == '8.3' && matrix.database == 'sqlite'
         uses: actions/upload-artifact@v4
         with:
           name: coverage

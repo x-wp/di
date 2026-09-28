@@ -130,39 +130,47 @@ You can find the examples in the [examples](https://github.com/x-wp/di/tree/mast
 
 ## Testing
 
-The test harness pairs PHPUnit with `wp-phpunit` and a docker-compose MySQL service. Two suites are wired up:
+The test harness pairs PHPUnit with `wp-phpunit` and SQLite Database Integration. No Docker or database server is needed for the default workflow. Two suites are wired up:
 
 - **Unit** — fast, no WordPress. Uses `Brain\Monkey` to stub WP functions; covers the DI container, decorators, and reflection helpers.
-- **Integration** — boots a real WordPress install via `wp-phpunit` against the docker MySQL and asserts the decorator-driven hooks actually register.
+- **Integration** — boots a real WordPress install via `wp-phpunit` against SQLite and asserts the decorator-driven hooks actually register.
 
 ### Prerequisites
 
-- PHP 8.1+ with the `pdo_mysql` and `mysqli` extensions
+- PHP 8.1–8.4 with the `pdo_sqlite` and `zip` extensions (SQLite 3.37.0 or newer)
 - Composer
-- Docker (for the MySQL service)
+- `tar` for extracting WordPress core
 
 ### One-time setup
 
 ```bash
 composer install
-composer test:up        # starts the MySQL 8 container on 127.0.0.1:33076
-composer test:install   # resets the test DB and downloads WordPress core
+composer test:install   # downloads WP core + the pinned SQLite plugin; resets the test DB
 ```
 
 ### Running tests
 
 ```bash
 composer test                # both suites
-composer test:unit           # unit suite only (no docker needed)
+composer test:unit           # unit suite only (no WordPress or SQLite needed)
 composer test:integration    # integration suite only
 composer test:coverage       # HTML coverage at build/coverage/html/index.html
 ```
 
-Stop the database when you're done:
+SQLite uses a disposable file under `tests/tmp/database/`, shared by the WordPress install subprocess and PHPUnit. The test bootstrap rebuilds WordPress's tables on each run. Rerun `composer test:install` to remove the SQLite database and its journal files entirely. Run only one integration suite at a time per database directory.
+
+### Optional MySQL testing
+
+To check MySQL compatibility, install PHP's `pdo_mysql` and `mysqli` extensions and point the tests at a disposable MySQL database. The existing Docker service remains available:
 
 ```bash
+composer test:up
+WP_TESTS_DB_ENGINE=mysql composer test:install
+WP_TESTS_DB_ENGINE=mysql composer test:integration
 composer test:down
 ```
+
+Use `WP_TESTS_DB_ENGINE=mysql` for both setup and testing. The installer drops and recreates the configured MySQL database. SQLite and MySQL can share the downloaded WordPress core; the test drop-in loads SQLite only when selected.
 
 ### Configuration
 
@@ -170,6 +178,8 @@ All defaults are baked in but every value is overridable via env var:
 
 | Variable                | Default              | Notes                                      |
 | ----------------------- | -------------------- | ------------------------------------------ |
+| `WP_TESTS_DB_ENGINE`    | `sqlite`             | `sqlite` or `mysql`                         |
+| `WP_TESTS_SQLITE_DIR`   | `tests/tmp/database` | SQLite directory; use an absolute path for overrides |
 | `WP_TESTS_DB_HOST`      | `127.0.0.1:33076`    | Test database host (port `33076` avoids local MySQL and DDEV) |
 | `WP_TESTS_DB_NAME`      | `wp_phpunit_tests`   |                                            |
 | `WP_TESTS_DB_USER`      | `root`               |                                            |
@@ -177,7 +187,7 @@ All defaults are baked in but every value is overridable via env var:
 | `WP_CORE_DIR`           | `tests/tmp/wordpress`| Where `install-tests.php` extracts WP core |
 | `WP_VERSION`            | `latest`             | Pin to e.g. `6.4` to test against an older release |
 
-The docker-compose stack and the GitHub Actions workflow share the same env contract — the only difference is the host (`127.0.0.1:33076` locally vs. `127.0.0.1:3306` in CI).
+The `WP_TESTS_DB_HOST`, `WP_TESTS_DB_USER`, and `WP_TESTS_DB_PASSWORD` settings apply only to MySQL. SQLite Database Integration is pinned to version 3.0.2 in the installer. GitHub Actions runs SQLite on PHP 8.1–8.4 and retains a MySQL compatibility job on PHP 8.3.
 
 ## Documentation
 

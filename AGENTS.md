@@ -40,7 +40,7 @@
 - Prefer the smallest backward-compatible change that matches local style.
 - For behavior changes, run focused tests/static checks plus impacted fixture/example checks. For docs, verify against repo state.
 - Tests: `composer test:unit`, `composer test:integration`, or `composer test` for both. Use explicit PHPUnit suites because `tests/bootstrap.php` selects the WP bootstrap from the command arguments.
-- Integration setup: `composer test:up`, then `composer test:install` (see `tests/wp-tests-config.php` for configuration).
+- Integration setup: `composer test:install` uses SQLite without Docker. For optional MySQL, run `composer test:up`, then set `WP_TESTS_DB_ENGINE=mysql` for both installation and integration tests (see `tests/wp-tests-config.php`).
 - Static checks: `vendor/bin/phpstan analyse` and `vendor/bin/phpcs`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

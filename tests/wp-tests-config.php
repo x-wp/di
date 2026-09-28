@@ -3,8 +3,7 @@
  * wp-phpunit test configuration.
  *
  * Read by wp-phpunit via the WP_PHPUNIT__TESTS_CONFIG env var set in tests/bootstrap.php.
- * All values are overridable via environment variables so docker-compose locally and
- * GitHub Actions services can hand off the same contract.
+ * SQLite is the default; set WP_TESTS_DB_ENGINE=mysql to use a MySQL server.
  *
  * @package XWP\DI\Tests
  */
@@ -26,6 +25,31 @@ if ( ! defined( 'ABSPATH' ) ) {
     define( 'ABSPATH', rtrim( WP_CORE_DIR, '/' ) . '/' );
 }
 
+define( 'DB_ENGINE', $xwpdi_env( 'WP_TESTS_DB_ENGINE', 'sqlite' ) );
+
+if ( ! in_array( DB_ENGINE, array( 'sqlite', 'mysql' ), true ) ) {
+    fwrite( STDERR, "WP_TESTS_DB_ENGINE must be sqlite or mysql.\n" );
+    exit( 1 );
+}
+
+if ( 'sqlite' === DB_ENGINE ) {
+    if ( ! extension_loaded( 'pdo_sqlite' ) ) {
+        fwrite( STDERR, "SQLite tests require the PHP pdo_sqlite extension.\n" );
+        exit( 1 );
+    }
+
+    $xwpdi_sqlite = new PDO( 'sqlite::memory:' );
+    if ( version_compare( $xwpdi_sqlite->query( 'SELECT sqlite_version()' )->fetchColumn(), '3.37.0', '<' ) ) {
+        fwrite( STDERR, "SQLite tests require SQLite 3.37.0 or newer.\n" );
+        exit( 1 );
+    }
+    unset( $xwpdi_sqlite );
+
+    // Shared by wp-phpunit's install subprocess and the test process.
+    define( 'DB_DIR', $xwpdi_env( 'WP_TESTS_SQLITE_DIR', XWPDI_TESTS_DIR . '/tmp/database' ) );
+    define( 'DB_FILE', 'wp-phpunit.sqlite' );
+}
+
 define( 'DB_NAME',     $xwpdi_env( 'WP_TESTS_DB_NAME',     'wp_phpunit_tests' ) );
 define( 'DB_USER',     $xwpdi_env( 'WP_TESTS_DB_USER',     'root' ) );
 define( 'DB_PASSWORD', $xwpdi_env( 'WP_TESTS_DB_PASSWORD', 'root' ) );
@@ -38,7 +62,7 @@ $table_prefix = $xwpdi_env( 'WP_TESTS_TABLE_PREFIX', 'wptests_' );
 define( 'WP_TESTS_DOMAIN',     $xwpdi_env( 'WP_TESTS_DOMAIN', 'example.org' ) );
 define( 'WP_TESTS_EMAIL',      $xwpdi_env( 'WP_TESTS_EMAIL',  'admin@example.org' ) );
 define( 'WP_TESTS_TITLE',      $xwpdi_env( 'WP_TESTS_TITLE',  'xwp-di tests' ) );
-define( 'WP_PHP_BINARY',       'php' );
+define( 'WP_PHP_BINARY',       escapeshellarg( PHP_BINARY ) );
 define( 'WPLANG',              '' );
 
 define( 'WP_TESTS_MULTISITE',  false );
