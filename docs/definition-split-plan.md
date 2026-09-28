@@ -259,7 +259,38 @@ and the handler instance itself for `!self.handler`. F5 must keep exactly this s
 
 The `!self.hook` view keeps working for the public example [Product_Page_Handler.php](../examples/simple-plugin/src/WC/Handlers/Product_Page_Handler.php): `Action $hook` type-hints and `$hook->tag` behave as before.
 
-**Unresolved compatibility requirement:** a reconstructed decorator alone is insufficient. `fired` and `firing` are documented on `Can_Invoke`, and the view's `target` would refer to its own `invoke()` rather than the registered callback. Preserving an `Action`/`Filter` type hint and resolved tag does not preserve live state or callable identity. Before S2, design and test delegation to the owning runtime, or explicitly approve a narrower compatibility contract. A CHANGELOG entry alone does not satisfy the current compatibility goal.
+#### Characterized behavior before extraction
+
+`Self_Hook_Test` covers the current implementation with cold/warm hook caches and compiled containers:
+
+- The injected object is the exact `Filter` or `Action` stored under its callback token. Repeated attributes on one handler method have separate objects, tokens, and counters.
+- `tag` is resolved at runtime, including modifiers; `method` identifies the handler method. The container, handler metadata, priority, accepted argument count, and attachment hook remain accessible through the decorator.
+- During invocation, `firing` is true and `fired` contains the number of prior completed attempts. After return, `firing` is false and `fired` increases. An exception also increments `fired` in `finally`; an invocation skipped by `INV_ONCE` does not. Retaining the injected object preserves access to its changing state.
+- For a proxied callback, `target` is the actual registered callable. Removal currently works with `$hook->target`, `array( $hook, 'invoke' )`, and `array( $container->get( $hook->get_token() ), 'invoke' )` because all three refer to the same object.
+- Removing the WordPress listener does not reset `loaded`. Calling `load()` again returns true without reattaching it. Direct `invoke()` remains callable after removal and updates the same live state.
+
+These tests characterize the existing runtime; equality with the container entry and the explicit view-object removal form need intentional test updates when the approved extraction contract is implemented.
+
+#### Selected direction and proposed delegation
+
+On 2026-09-29 the user selected a typed forwarding view. The view remains a `Filter` or `Action`, while the callback token resolves to the separate `Callback` runtime. Consequently, `$hook === $container->get( $hook->get_token() )` is no longer promised after the split. A reconstructed decorator with copied counters is insufficient.
+
+The proposed implementation keeps one runtime owner and one memoized view per callback:
+
+| View surface | Delegation contract |
+|---|---|
+| `fired`, `firing` | Read the owner's current state on every access; never copy invocation counters into the view. |
+| `target` | Return the owner's registered callable, including the owner's `invoke` identity for proxies. |
+| `tag`, `method`, `get_tag()`, `get_priority()`, `get_num_args()` | Expose the owner's effective metadata and runtime resolution. |
+| `get_handler()`, `get_container()`, `is_loaded()`, `get_init_hook()` | Forward to the owner so lifecycle and container identity stay consistent. |
+| `load()`, `can_load()`, `invoke()` | Forward to the owner. Only the owner attaches, executes, and updates state. Action invocation still returns null. |
+| `get_classname()`, `get_token()` | Preserve the definition's handler and byte-identical token. `Hook::get_token()` is final; construct the view from the original token inputs rather than overriding it. |
+
+Add an internal owner link only to the runtime-backed plain decorator view. Legacy decorators without an owner continue their existing path, including specialized subclasses. Runtime execution must not call back through the view's forwarding operations; injection returns the memoized view, and state always belongs to the runtime. Build/cache output contains definition data only; owner links and views are created per runtime and never serialized.
+
+The two removal forms that name the runtime remain available: `$hook->target` and `array( $container->get( $hook->get_token() ), 'invoke' )`. A direct `$hook->invoke()` call forwards normally, but this does not give `array( $hook, 'invoke' )` the owner's WordPress callable identity.
+
+**Accepted compatibility boundary (2026-09-29):** the user confirmed `!self.hook` has not been used in production and authorized the forwarding-view approach, including target-based removal. After extraction, `array( $hook, 'invoke' )` is not a supported WordPress removal identity for the separate view; use `$hook->target` or the container runtime's callable. Direct view invocation still forwards. Document these two identity changes in the migration notes when S3 switches the token routing. The characterization tests and this delegation proposal do not implement the new runtime.
 
 ### 4. Wiring
 
@@ -382,13 +413,14 @@ Each implementation slice is one bead and one PR. Beads tracks execution status;
 - **Scope:**
   - Add `src/Hook/Callback.php` per Design §2–§3.
   - `use Hook_Invoke_Methods`, and relax its phpstan annotation.
-  - Implement the settled `!self.hook` compatibility contract, including targeted decorator delegation if selected.
+  - Implement the selected typed forwarding view and owner delegation in Design §3.
   - *Out:* wiring it into `Factory`.
 - **Files:** `src/Hook/Callback.php`, `src/Traits/Hook_Invoke_Methods.php` (annotation adjustment after `di-upr`), any narrowly required decorator-view support, `tests/Integration/Callback_Test.php`, fixtures.
 - **Acceptance:**
   - A manually constructed `Callback` passes every behavioral checklist item that does not involve `Factory` or `Invoker`.
+  - The memoized view preserves Action/Filter type hints and live state, delegates runtime operations without a second state machine, and exposes the owner's removable callable through `target`. Update the characterized same-object and explicit view-object removal assertions to the accepted identity boundary in Design §3.
   - phpstan and phpcs are clean.
-- **Depends on:** S1, L2, callable-priority fix `di-upr`, and resolution of the `!self.hook` compatibility contract.
+- **Depends on:** S1, L2, callable-priority fix `di-upr`, and the settled `!self.hook` contract characterized in `di-965`.
 
 ### S3 — Route plain `Filter` / `Action` tokens to `Callback`
 
