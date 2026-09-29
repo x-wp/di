@@ -9,7 +9,7 @@ The F1–F4 ports from `definition-split-plan.md` now route exact built-in callb
 | `REST_Route` | `Hook\REST_Callback` |
 | `CLI_Command` | `Hook\CLI_Callback` |
 
-These classes extend `Hook\Callback`. Discovery still emits decorator metadata, and existing cache entries are read through `Hook\Factory`. Custom decorator subclasses retain their inherited runtime path; removing legacy decorator methods remains a separate compatibility decision.
+These classes extend `Hook\Callback`. Discovery now emits built-in callback definitions from unbound declaration metadata, and existing cache entries are read through `Hook\Factory`. The serialized metadata format is unchanged. Custom decorator subclasses retain their inherited runtime path; removing legacy decorator methods remains a separate compatibility decision.
 
 `!self.hook` supplies a memoized view of the original decorator type. Its public runtime operations forward to the owner. Callback tokens resolve to runtime objects, so the view and token entry have different object identities. Use `$hook->target` for WordPress hook removal. REST route registration always uses the runtime callable; a standard REST response callback still calls the handler directly.
 

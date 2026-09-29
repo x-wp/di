@@ -23,6 +23,13 @@ use XWP\DI\Decorators\REST_Route;
  */
 final class CallbackDefinition {
     /**
+     * Original wire metadata for discovery/cache round trips.
+     *
+     * @var array{type:class-string,args:array<string,mixed>,params:array<string,mixed>}|null
+     */
+    private ?array $data = null;
+
+    /**
      * Convert built-in callback metadata without resolving runtime values.
      *
      * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Decorator metadata.
@@ -31,7 +38,8 @@ final class CallbackDefinition {
      * @throws \InvalidArgumentException If the callback is a custom decorator.
      */
     public static function from_data( array $data ): self {
-        $type = match ( $data['type'] ) {
+        $source = $data;
+        $type   = match ( $data['type'] ) {
             Filter::class, Dynamic_Filter::class => 'filter',
             Action::class, Dynamic_Action::class, Ajax_Action::class, REST_Route::class, CLI_Command::class => 'action',
             default       => throw new \InvalidArgumentException(
@@ -74,7 +82,7 @@ final class CallbackDefinition {
         $base   = \trim( $params['classname'], '-' );
         $suffix = \ltrim( "{$params['method']}[{$args['tag']}]", '-' );
 
-        return new self(
+        $definition       = new self(
             id: \trim( "Hook-{$base}::{$suffix}", '-:/' ),
             handler: $params['classname'],
             method: $params['method'],
@@ -90,6 +98,8 @@ final class CallbackDefinition {
             decorator: $data['type'],
             options: $options,
         );
+        $definition->data = $source;
+        return $definition;
     }
 
     /**
@@ -126,6 +136,35 @@ final class CallbackDefinition {
         private ?string $decorator = null,
         private array $options = array(),
     ) {
+    }
+
+    /**
+     * Serialize discovered metadata using the existing hook-cache layout.
+     *
+     * @return array{type:class-string,args:array<string,mixed>,params:array<string,mixed>}
+     */
+    public function get_data(): array {
+        return $this->data ?? array(
+            'args'   => $this->options + array(
+                'args'        => $this->accepted_args,
+                'conditional' => $this->conditional,
+                'context'     => $this->context,
+                'invoke'      => $this->invoke,
+                'modifiers'   => $this->modifiers,
+                'params'      => $this->params,
+                'priority'    => $this->priority,
+                'tag'         => $this->tag,
+            ),
+            'params' => array(
+                'classname' => $this->handler,
+                'method'    => $this->method,
+            ),
+            'type'   => $this->get_decorator(),
+        );
+    }
+
+    public function get_token(): string {
+        return $this->get_id();
     }
 
     public function get_id(): string {

@@ -66,13 +66,22 @@ class Filter extends Hook implements Can_Invoke {
      * @return array<string,mixed>
      */
     public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['args']['args']     = $this->args;
-        $data['args']['invoke']   = $this->invoke;
-        $data['args']['params']   = $this->params;
+        $data                     = parent::get_data();
         $data['params']['method'] = $this->method;
-
         return $data;
+    }
+
+    /**
+     * Export unbound attribute metadata.
+     *
+     * @internal Discovery metadata detail.
+     * @return array<string,mixed>
+     */
+    public function get_declaration(): array {
+        return parent::get_declaration() + array(
+            'args'   => $this->args,
+            'invoke' => $this->invoke,
+            'params' => $this->params,
+        );
     }
 }

@@ -75,9 +75,6 @@ class Handler extends Hook implements Can_Handle {
     public function get_data(): array {
         $data = parent::get_data();
 
-        $data['args']['hookable']    = $this->hookable;
-        $data['args']['strategy']    = $this->strategy;
-        $data['args']['priority']    = $this->prio ?? 10;
         $data['params']['callbacks'] = $this->get_callbacks();
         $data['params']['params']    = \array_combine(
             \array_keys( $this->params ),
@@ -88,5 +85,19 @@ class Handler extends Hook implements Can_Handle {
         );
 
         return $data;
+    }
+
+    /**
+     * Export unbound attribute metadata.
+     *
+     * @internal Discovery metadata detail.
+     * @return array<string,mixed>
+     */
+    public function get_declaration(): array {
+        $args             = parent::get_declaration();
+        $args['hookable'] = $this->hookable;
+        $args['strategy'] = $this->strategy;
+        $args['priority'] = $this->prio ?? 10;
+        return $args;
     }
 }

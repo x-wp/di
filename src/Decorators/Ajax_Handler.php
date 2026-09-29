@@ -53,22 +53,16 @@ class Ajax_Handler extends Handler implements Can_Handle_Ajax {
     }
 
     /**
-     * Get compiler data for this AJAX handler.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'conditional' => $this->conditional,
-                    'prefix'      => $this->prefix,
-                    'priority'    => $this->prio,
-                ),
-            ),
+    public function get_declaration(): array {
+        return array(
+            'conditional' => $this->conditional,
+            'prefix'      => $this->prefix,
+            'priority'    => $this->prio,
         );
     }
 }

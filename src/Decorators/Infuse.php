@@ -41,11 +41,24 @@ class Infuse {
      * @return array<string>
      */
     public function get( Can_Handle $h ) {
+        return \in_array( '!self.handler', $this->params, true )
+            ? $this->get_tokens( $h->get_token() )
+            : $this->params;
+    }
+
+    /**
+     * Export injection metadata without a bound handler.
+     *
+     * @internal Discovery metadata detail.
+     * @param string $handler_token Handler token.
+     * @return array<string>
+     */
+    public function get_tokens( string $handler_token ): array {
         $params  = \array_diff( $this->params, array( '!self.handler' ) );
         $hook_it = $params !== $this->params;
 
         if ( $hook_it ) {
-            $params[] = $h->get_token();
+            $params[] = $handler_token;
         }
 
         return $params;

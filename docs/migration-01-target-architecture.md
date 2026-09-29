@@ -52,7 +52,7 @@ The container remains flat: imported modules do not introduce service visibility
 
 ### Parser and Compiler
 
-Parser discovers attributes and builds the existing raw metadata/PHP-DI definitions. Compiler writes Parser's raw output to `cache_dir/hook-definition.php` using `var_export()` and reloads it through Parser. The callback split did not change that cache format or invalidation policy.
+Discovery reads unbound built-in declarations into definitions. Parser traverses these definitions and custom-attribute metadata to build the existing raw metadata/PHP-DI definitions. Compiler writes Parser's raw output to `cache_dir/hook-definition.php` using `var_export()` and reloads it through Parser. The callback split did not change that cache format or invalidation policy.
 
 The plain callback wire format remains `type`, `args`, and `params`; `params` includes the handler classname and method. The callback token resolves through a Factory definition in the cached path. Runtime discovery stores the corresponding runtime under the same token.
 
@@ -62,7 +62,7 @@ A fully typed Parser output and redesigned primitive cache schema remain B2.1/B2
 
 Factory converts exact built-in callbacks into `Callback` or specialized runtime subclasses when a container is available. It also builds handler and module runtimes from definitions. Custom attribute subclasses retain their existing decorator runtime. A containerless Factory can still reconstruct decorator metadata.
 
-`resolve_callbacks()` returns decorators for discovery and serialization. Once the application has started, `get_callbacks()` returns the stored runtime objects. `load_callbacks()` accepts existing runtimes without applying decorator mutators, and repeated saves preserve existing token entries and their state.
+`resolve_callbacks()` returns built-in callback definitions and custom decorators for discovery and serialization. Once the application has started, `get_callbacks()` returns the stored runtime objects. `load_callbacks()` accepts existing runtimes without applying decorator mutators, and repeated saves preserve existing token entries and their state.
 
 ## Layer 3: Runtime (`Hook\Callback` and `Invoker`)
 

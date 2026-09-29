@@ -64,28 +64,22 @@ class CLI_Command extends Action implements Can_Execute {
     }
 
     /**
-     * Get compiler data for this CLI command.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'after'       => $this->after,
-                    'args'        => $this->cmd_args,
-                    'before'      => $this->before,
-                    'command'     => $this->subcommand,
-                    'deferred'    => $this->deferred,
-                    'description' => $this->description,
-                    'params'      => $this->params,
-                    'summary'     => $this->summary,
-                    'when'        => $this->when,
-                ),
-            ),
+    public function get_declaration(): array {
+        return array(
+            'after'       => $this->after,
+            'args'        => $this->cmd_args,
+            'before'      => $this->before,
+            'command'     => $this->subcommand,
+            'deferred'    => $this->deferred,
+            'description' => $this->description,
+            'params'      => $this->params,
+            'summary'     => $this->summary,
+            'when'        => $this->when,
         );
     }
 }

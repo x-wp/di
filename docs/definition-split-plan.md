@@ -12,6 +12,8 @@ The lifecycle conclusions below extend the original callback-only plan. The modu
 
 F6 preparation isolates shared legacy implementation in `Compatibility/`. Inherited runtime methods and mutators remain; strict API removal is still open. See [decorator compatibility](decorator-compatibility.md). The original S1–S3 scope and implementation sketches below are retained as historical context; [current state](migration-02-current-state.md) describes the completed F1–F5 ports.
 
+Built-in discovery now creates definitions without binding decorator mutators; [definition discovery](definition-discovery.md) describes the custom-extension fallback and unchanged cache format.
+
 ## Relation to the migration docs
 
 - Pulls [migration-04](migration-04-implementation-plan.md) **B3.2** forward for plain `Filter` / `Action`. It does not wait on B2.1 (Parser output), B2.2 (Compiler format) or B3.1 (strip `with_*()`).

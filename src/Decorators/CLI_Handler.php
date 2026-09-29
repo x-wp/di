@@ -194,22 +194,16 @@ class CLI_Handler extends Handler implements Can_Handle_CLI {
     }
 
     /**
-     * Get compiler data for this CLI handler.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'description' => $this->description,
-                    'namespace'   => $this->namespace,
-                    'priority'    => $this->prio,
-                ),
-            ),
+    public function get_declaration(): array {
+        return array(
+            'description' => $this->description,
+            'namespace'   => $this->namespace,
+            'priority'    => $this->prio,
         );
     }
 

@@ -9,7 +9,7 @@
 | `App`, `App_Factory`, `App_Builder` | Application wrapper, creation, container building, and startup |
 | `Container`, `Compiled_Container` | PHP-DI integration and forwarding to Invoker |
 | `Invoker` | Module/handler lifecycle, initialization strategies, callback attachment |
-| `Hook/Parser`, `Hook/Compiler` | Attribute discovery, metadata definitions, existing hook-cache format |
+| `Hook/Discovery`, `Hook/Parser`, `Hook/Compiler` | Unbound declaration-to-definition discovery, module traversal, existing hook-cache format |
 | `Hook/Factory` | Resolve metadata, handlers, and callback runtimes |
 | `Hook/Callback` and specialized subclasses | Registration and execution for exact built-in callback types |
 | `Hook/Handler`, `Hook/Module`, and specialized handlers | Handler initialization and module composition state |
@@ -22,7 +22,7 @@ There is no central `Hook/Dispatcher`. The [definition split plan](definition-sp
 
 ## Completed callback boundary
 
-Factory converts exact `Filter`/`Action` metadata into a `CallbackDefinition` and `Callback`, both when resolving cached metadata and when discovering callbacks after startup. Callback tokens and cache metadata arrays are unchanged. Discovery still returns decorators for Parser; started-app callback lookup returns stored runtime objects.
+Factory converts exact `Filter`/`Action` metadata into a `CallbackDefinition` and `Callback`, both when resolving cached metadata and when discovering callbacks after startup. Callback tokens and cache metadata arrays are unchanged. Built-in discovery now returns definitions for Parser; custom attributes retain compatibility discovery. Started-app callback lookup returns stored runtime objects. See [definition discovery](definition-discovery.md).
 
 Plain callback execution state belongs to Callback. Standard hooks retain the bound handler-method callable; proxies use the container Callback's `invoke` method. Reloading callbacks preserves runtime identity and counters.
 
@@ -54,7 +54,7 @@ These are separate slices, not authorization to start all of them. Beads tracks 
 - `App` owns startup; do not move lifecycle orchestration into the container.
 - Invoker remains the coordinator, with strategy-specific ordering.
 - Callback tokens identify runtime objects; do not recreate them when reloading callback lists.
-- Parser still needs metadata during discovery, even when Factory stores a runtime under the token.
+- Parser consumes built-in definitions and custom-attribute metadata during discovery, even when Factory stores a runtime under the token.
 - Specialized and custom subclasses must keep working until their migration is explicitly handled.
 - No blanket zero-reflection claim: uncached discovery, autowiring, and Callback's omitted-argument-count fallback can reflect at runtime.
 

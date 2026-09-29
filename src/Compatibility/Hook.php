@@ -244,6 +244,22 @@ abstract class Hook implements Can_Hook {
     }
 
     /**
+     * Export constructor metadata without binding discovery or runtime state.
+     *
+     * @internal Attribute metadata detail.
+     * @return array<string,mixed>
+     */
+    public function get_declaration(): array {
+        return array(
+            'conditional' => $this->conditional,
+            'context'     => $this->context,
+            'modifiers'   => $this->modifiers,
+            'priority'    => $this->prio,
+            'tag'         => $this->tag,
+        );
+    }
+
+    /**
      * Get compiler data for this hook.
      *
      * @internal Hook parser/compiler detail.
@@ -256,13 +272,7 @@ abstract class Hook implements Can_Hook {
      */
     public function get_data(): array {
         return array(
-            'args'   => array(
-                'conditional' => $this->conditional,
-                'context'     => $this->context,
-                'modifiers'   => $this->modifiers,
-                'priority'    => $this->prio,
-                'tag'         => $this->tag,
-            ),
+            'args'   => $this->get_declaration(),
             'params' => array(
                 'classname' => $this->classname,
             ),

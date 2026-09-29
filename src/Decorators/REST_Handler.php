@@ -46,22 +46,16 @@ class REST_Handler extends Handler implements Can_Handle_REST {
     }
 
     /**
-     * Get compiler data for this REST handler.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'basename'  => $this->basename,
-                    'namespace' => $this->namespace,
-                    'priority'  => $this->prio,
-                ),
-            ),
+    public function get_declaration(): array {
+        return array(
+            'basename'  => $this->basename,
+            'namespace' => $this->namespace,
+            'priority'  => $this->prio,
         );
     }
 

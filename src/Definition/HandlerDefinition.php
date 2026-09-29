@@ -21,6 +21,13 @@ use XWP\DI\Decorators\REST_Handler;
  */
 final class HandlerDefinition {
     /**
+     * Original wire metadata for discovery/cache round trips.
+     *
+     * @var array{type:class-string,args:array<string,mixed>,params:array<string,mixed>}|null
+     */
+    private ?array $data = null;
+
+    /**
      * Convert built-in handler metadata without evaluating runtime values.
      *
      * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Handler metadata.
@@ -46,7 +53,7 @@ final class HandlerDefinition {
             ),
             default => throw new \InvalidArgumentException( 'Only built-in handler metadata is supported.' ),
         };
-        $args = $data['args'] + $defaults + array(
+        $args             = $data['args'] + $defaults + array(
             'conditional' => null,
             'context'     => Handler::CTX_GLOBAL,
             'hookable'    => null,
@@ -55,7 +62,7 @@ final class HandlerDefinition {
             'strategy'    => Handler::INIT_AUTO,
             'tag'         => '',
         );
-        return new self(
+        $definition       = new self(
             handler_class: $data['params']['classname'],
             tag: $args['tag'] ?? '',
             priority: $args['tag'] ? $args['priority'] : null,
@@ -69,6 +76,8 @@ final class HandlerDefinition {
             decorator: $data['type'],
             options: $data['args'],
         );
+        $definition->data = $data;
+        return $definition;
     }
 
     /**
@@ -101,6 +110,35 @@ final class HandlerDefinition {
         private string $decorator = Handler::class,
         private array $options = array(),
     ) {
+    }
+
+    /**
+     * Serialize discovered metadata using the existing hook-cache layout.
+     *
+     * @return array{type:class-string,args:array<string,mixed>,params:array<string,mixed>}
+     */
+    public function get_data(): array {
+        return $this->data ?? array(
+            'args'   => $this->options + array(
+                'conditional' => $this->conditional,
+                'context'     => $this->context,
+                'hookable'    => $this->hookable,
+                'modifiers'   => $this->modifiers,
+                'priority'    => $this->priority ?? 10,
+                'strategy'    => $this->strategy,
+                'tag'         => $this->tag,
+            ),
+            'params' => array(
+                'callbacks' => $this->callbacks,
+                'classname' => $this->handler_class,
+                'params'    => $this->params,
+            ),
+            'type'   => $this->decorator,
+        );
+    }
+
+    public function get_token(): string {
+        return $this->get_id();
     }
 
     /**

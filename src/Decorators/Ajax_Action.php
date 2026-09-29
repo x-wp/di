@@ -80,29 +80,23 @@ class Ajax_Action extends Action {
     }
 
     /**
-     * Get compiler data for this AJAX action.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        return \array_merge(
-            parent::get_data(),
-            array(
-                'args' => array(
-                    'action'      => $this->action,
-                    'cap'         => $this->cap,
-                    'conditional' => $this->conditional,
-                    'method'      => $this->verb,
-                    'nonce'       => $this->nonce,
-                    'params'      => $this->params,
-                    'prefix'      => $this->prefix,
-                    'priority'    => $this->prio,
-                    'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
-                    'vars'        => $this->vars,
-                ),
-            ),
+    public function get_declaration(): array {
+        return array(
+            'action'      => $this->action,
+            'cap'         => $this->cap,
+            'conditional' => $this->conditional,
+            'method'      => $this->verb,
+            'nonce'       => $this->nonce,
+            'params'      => $this->params,
+            'prefix'      => $this->prefix,
+            'priority'    => $this->prio,
+            'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+            'vars'        => $this->vars,
         );
     }
 }

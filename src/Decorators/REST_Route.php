@@ -76,19 +76,23 @@ class REST_Route extends Action implements Can_Route {
         $data                       = parent::get_data();
         $data['params']['tag']      = $this->tag;
         $data['params']['priority'] = $this->prio;
+        return $data;
+    }
 
-        return \array_merge(
-            $data,
-            array(
-                'args' => array(
-                    'guard'   => $this->route_guard,
-                    'invoke'  => $this->invoke,
-                    'methods' => $this->methods,
-                    'params'  => $this->params,
-                    'route'   => $this->endpoint,
-                    'vars'    => $this->route_args,
-                ),
-            ),
+    /**
+     * Export unbound attribute metadata.
+     *
+     * @internal Discovery metadata detail.
+     * @return array<string,mixed>
+     */
+    public function get_declaration(): array {
+        return array(
+            'guard'   => $this->route_guard,
+            'invoke'  => $this->invoke,
+            'methods' => $this->methods,
+            'params'  => $this->params,
+            'route'   => $this->endpoint,
+            'vars'    => $this->route_args,
         );
     }
 }

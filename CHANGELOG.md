@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Built-in discovery now constructs definitions from unbound attribute metadata.
+  Parser records preloaded callback IDs without mutating decorators; cache
+  format and runtime identity remain unchanged. Custom callback and Infuse
+  declarations retain legacy discovery so extension overrides and metadata
+  mutations continue to work. See [definition discovery](docs/definition-discovery.md).
+
 - Plain `Filter` and `Action` callback tokens now resolve to `Hook\Callback`,
   built from `CallbackDefinition`. Runtime state and invocation belong to that
   object; hook tokens, cache metadata, and initialization timing are preserved.

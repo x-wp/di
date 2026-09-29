@@ -59,16 +59,13 @@ class Dynamic_Filter extends Filter {
     }
 
     /**
-     * Get compiler data for this dynamic filter.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['args'] = array(
+    public function get_declaration(): array {
+        return array(
             'args'     => $this->args,
             'context'  => $this->context,
             'params'   => $this->params,
@@ -76,7 +73,5 @@ class Dynamic_Filter extends Filter {
             'tag'      => $this->tag,
             'vars'     => $this->raw_vars,
         );
-
-        return $data;
     }
 }

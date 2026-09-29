@@ -38,6 +38,13 @@ class Factory {
     use Hook_Token_Methods;
 
     /**
+     * Definition discovery and custom-extension adapters.
+     *
+     * @var Discovery
+     */
+    private Discovery $discovery;
+
+    /**
      * Did the container start.
      *
      * @var ?bool
@@ -50,6 +57,7 @@ class Factory {
      * @param ?Container $container Container instance.
      */
     public function __construct( protected ?Container $container = null ) {
+        $this->discovery = new Discovery();
     }
 
     // Keep metadata/runtime routing and identity guards together.
@@ -71,7 +79,7 @@ class Factory {
         }
 
         if ( $this->ctr() && $this->runtime_class( $hook['type'] ) ) {
-            if ( REST_Route::class === $hook['type'] ) {
+            if ( REST_Route::class === $hook['type'] && ( ! isset( $hook['params']['tag'] ) || ! isset( $hook['params']['priority'] ) ) ) {
                 // Older cache entries omit the handler-specific registration tag.
                 $handler         = $this->ctr()->get( 'Hook-' . $hook['params']['classname'] );
                 $hook['params'] += array(
@@ -109,9 +117,9 @@ class Factory {
      * @template TObj of object
      *
      * @param  class-string<TObj> $module Module classname.
-     * @return Can_Import<TObj>
+     * @return Can_Import<TObj>|HandlerDefinition
      */
-    public function resolve_module( string $module ): Can_Import {
+    public function resolve_module( string $module ): Can_Import|HandlerDefinition {
         return $this->resolve_handler( $module, Can_Import::class );
     }
 
@@ -130,6 +138,9 @@ class Factory {
             ?? $this->resolve_handler( $target )
             ?? throw new InvalidDefinition( "Handler not found: {$target}" );
 
+        if ( $handler instanceof HandlerDefinition ) {
+            $handler = $this->make( $handler->get_data() );
+        }
         $this->save_hook( $handler );
 
         return $this->get( $handler->get_classname() ) ?? $handler;
@@ -143,17 +154,13 @@ class Factory {
      *
      * @param  class-string<TObj> $hook Hook classname or instance.
      * @param  class-string<THnd> $type Handler classname.
-     * @return null|THnd
+     * @return null|THnd|HandlerDefinition
      */
-    public function resolve_handler( string $hook, string $type = Can_Handle::class ): ?Can_Handle {
-        /**
-         * Reflection class for the hook.
-         *
-         * @var ReflectionClass<TObj>
-         */
-        $reflector = Reflection::get_reflector( $hook );
-
-        return Reflection::get_decorator( $reflector, $type )?->with_reflector( $reflector );
+    public function resolve_handler( string $hook, string $type = Can_Handle::class ): Can_Handle|HandlerDefinition|null {
+        $definition = $this->discovery->handler( $hook, $type );
+        return $definition instanceof HandlerDefinition && $this->ctr()
+            ? $this->make( $definition->get_data() )
+            : $definition;
     }
 
     /**
@@ -174,7 +181,7 @@ class Factory {
      * @template TObj of object
      *
      * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>>
+     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|Callback<TObj,Can_Handle<TObj>>|CallbackDefinition>
      *
      * @throws InvalidDefinition If the container is not set.
      */
@@ -199,10 +206,10 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @param  Can_Handle<TObj>|HandlerDefinition $handler Handler metadata or runtime.
+     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|CallbackDefinition>
      */
-    public function resolve_callbacks( Can_Handle $handler ): array {
+    public function resolve_callbacks( Can_Handle|HandlerDefinition $handler ): array {
         $callbacks = array();
 
         foreach ( $this->resolve_methods( $handler ) as $reflector ) {
@@ -224,11 +231,16 @@ class Factory {
         /**
          * Handler instance.
          *
-         * @var Can_Handle<TObj> $handler
+         * @var Can_Handle<TObj>|HandlerDefinition $handler
          */
         $handler = $this->get( $instance::class )
             ?? $this->resolve_handler( $instance::class )
             ?? $this->new_handler( $instance );
+
+        if ( $handler instanceof HandlerDefinition ) {
+            /** @var Can_Handle<TObj> $handler */
+            $handler = $this->make( $handler->get_data() );
+        }
 
         if ( null === $handler->get_target() ) {
             $handler->with_target( $instance );
@@ -289,6 +301,19 @@ class Factory {
      * @return Can_Handle<TObj>
      */
     protected function new_handler( object $instance ): Can_Handle {
+        if ( $this->ctr() ) {
+            /** @var Handler<TObj> $runtime */
+            $runtime = new Handler(
+                new HandlerDefinition(
+                    $instance::class,
+                    strategy: Handler_Decorator::INIT_USER,
+                    hookable: true,
+                ),
+                $this->ctr(),
+            );
+            return $runtime->with_target( $instance );
+        }
+
         $handler = new Handler_Decorator( strategy: Handler_Decorator::INIT_USER, hookable: true );
 
         /**
@@ -307,11 +332,13 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj>|ReflectionClass<TObj> $hook Hook instance or reflection.
+     * @param  Can_Handle<TObj>|HandlerDefinition|ReflectionClass<TObj> $hook Hook instance or reflection.
      * @return array<string,ReflectionMethod>
      */
-    protected function resolve_methods( Can_Handle|ReflectionClass $hook ): array {
-        $refl = $hook instanceof ReflectionClass ? $hook : $hook->get_reflector();
+    protected function resolve_methods( Can_Handle|HandlerDefinition|ReflectionClass $hook ): array {
+        $refl = $hook instanceof HandlerDefinition ? new ReflectionClass(
+            $hook->get_class(),
+        ) : ( $hook instanceof ReflectionClass ? $hook : $hook->get_reflector() );
 
         return Reflection::get_hookable_methods( $refl );
     }
@@ -321,16 +348,16 @@ class Factory {
      *
      * @template TObj of object
      *
-     * @param  Can_Handle<TObj> $handler Handler instance.
-     * @param  ReflectionMethod $reflector Method reflection.
+     * @param  Can_Handle<TObj>|HandlerDefinition $handler Handler metadata or runtime.
+     * @param  ReflectionMethod                   $reflector Method reflection.
      *
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>>
+     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|CallbackDefinition>
      */
-    protected function resolve_method_callbacks( Can_Handle $handler, ReflectionMethod $reflector ): array {
+    protected function resolve_method_callbacks( Can_Handle|HandlerDefinition $handler, ReflectionMethod $reflector ): array {
         $callbacks = array();
 
-        foreach ( Reflection::get_decorators( $reflector, Can_Invoke::class ) as $cb ) {
-            $callbacks[] = $this->save_hook( $cb->with_handler( $handler )->with_reflector( $reflector ) );
+        foreach ( $this->discovery->callbacks( $handler, $reflector ) as $cb ) {
+            $callbacks[] = $this->save_hook( $cb );
         }
 
         return $callbacks;
@@ -359,16 +386,16 @@ class Factory {
     // Keep metadata/runtime routing and identity guards together.
     // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
-     * Save a hook while retaining decorator metadata for discovery.
+     * Save a hook while retaining definition or custom-attribute metadata for discovery.
      *
      * Existing token entries retain their runtime identity and invocation state.
 
-     * @template TObj of Can_Hook|Callback
+     * @template TObj of Can_Hook|Callback|CallbackDefinition|HandlerDefinition
      *
      * @param  TObj $hook Hook instance.
      * @return TObj
      */
-    protected function save_hook( Can_Hook|Callback $hook ): Can_Hook|Callback {
+    protected function save_hook( Can_Hook|Callback|CallbackDefinition|HandlerDefinition $hook ): Can_Hook|Callback|CallbackDefinition|HandlerDefinition {
         if ( ! $this->started() ) {
             return $hook;
         }
@@ -380,6 +407,11 @@ class Factory {
         $token = $hook->get_token();
 
         if ( $this->ctr()->has( $token ) ) {
+            return $hook;
+        }
+
+        if ( $hook instanceof CallbackDefinition || $hook instanceof HandlerDefinition ) {
+            $this->ctr()->set( $token, $this->make( $hook->get_data() ) );
             return $hook;
         }
 

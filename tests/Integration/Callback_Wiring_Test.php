@@ -80,9 +80,9 @@ final class Callback_Wiring_Test extends TestCase {
             self::assertSame( 'xwp_wiring_module', $registry['standard:xwp_wiring_standard'] );
             self::assertSame( 'xwp_wiring_module', $registry['action:xwp_wiring_action'] );
 
-            // Discovery still supplies cacheable decorators, even after the app has started.
+            // Discovery supplies cacheable definitions without replacing live runtimes.
             $rediscovered = $factory->resolve_callbacks( $handler );
-            self::assertSame( Filter::class, $rediscovered[0]::class );
+            self::assertSame( CallbackDefinition::class, $rediscovered[0]::class );
             self::assertSame( $callbacks[0]->get_token(), $rediscovered[0]->get_token() );
             self::assertSame( $callbacks, $factory->get_callbacks( $handler ) );
         }

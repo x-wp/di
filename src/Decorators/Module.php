@@ -104,30 +104,25 @@ class Module extends Handler implements Can_Import {
     }
 
     /**
-     * Get compiler data for this module.
+     * Export unbound attribute metadata.
      *
-     * @internal Hook parser/compiler detail.
-     *
+     * @internal Discovery metadata detail.
      * @return array<string,mixed>
      */
-    public function get_data(): array {
-        $data = parent::get_data();
-        $keys = array( 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' );
-
-        $data['args'] = \array_merge(
-            \xwp_array_diff_assoc( $data['args'], $keys, ),
-            array(
-                'handlers' => $this->handlers,
-                'hook'     => $this->tag,
-                'imports'  => $this->imports,
-                'services' => $this->services,
-            ),
-        );
-
-        if ( self::INIT_AUTO !== $this->get_strategy() ) {
-            $data['args']['strategy'] = $this->get_strategy();
+    public function get_declaration(): array {
+        $args = parent::get_declaration();
+        foreach ( array( 'conditional', 'hookable', 'modifiers', 'strategy', 'tag' ) as $key ) {
+            unset( $args[ $key ] );
         }
-
-        return $data;
+        $args += array(
+            'handlers' => $this->handlers,
+            'hook'     => $this->tag,
+            'imports'  => $this->imports,
+            'services' => $this->services,
+        );
+        if ( self::INIT_AUTO !== $this->get_strategy() ) {
+            $args['strategy'] = $this->get_strategy();
+        }
+        return $args;
     }
 }
