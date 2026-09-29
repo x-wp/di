@@ -1,8 +1,7 @@
 name: tests
 
 on:
-  push:
-    branches: [master, develop, alpha, beta]
+  workflow_call:
   pull_request:
 
 jobs:
@@ -46,13 +45,18 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           tools: composer:v2
-          coverage: xdebug
-          extensions: mysqli, pdo_mysql, pdo_sqlite, zip
+          coverage: ${{ matrix.php == '8.3' && matrix.database == 'sqlite' && 'xdebug' || 'none' }}
+          extensions: mysqli, pdo_mysql, pdo_sqlite, zip, apcu
+          ini-values: apc.enable_cli=${{ matrix.php == '8.3' && matrix.database == 'sqlite' && '1' || '0' }}
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Composer cache
         uses: actions/cache@v4
         with:
-          path: ~/.composer/cache
+          path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
           restore-keys: composer-${{ matrix.php }}-
 
@@ -60,12 +64,30 @@ jobs:
 
       - run: php tests/bin/install-tests.php
 
-      - run: composer test:unit
+      - if: matrix.php != '8.3' || matrix.database != 'sqlite'
+        run: composer test
 
-      - run: composer test:integration
+      - if: matrix.php == '8.3' && matrix.database == 'sqlite'
+        run: composer test:coverage
 
       - if: matrix.php == '8.3' && matrix.database == 'sqlite'
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: build/coverage
+          path: |
+            build/coverage
+            build/logs
+
+  static:
+    name: Static analysis and coding standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-progress --no-interaction --prefer-dist
+      - run: vendor/bin/phpstan analyse --no-progress
+      - run: vendor/bin/phpcs

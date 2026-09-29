@@ -2,6 +2,7 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
+         defaultTestSuite="unit"
          colors="true"
          cacheResultFile=".phpunit.cache/result"
          failOnRisky="true"
@@ -24,14 +25,7 @@
             <directory>src/Global</directory>
             <file>src/Functions/xwp-di-helper-fns.php</file>
         </exclude>
-        <report>
-            <clover outputFile="build/coverage/clover.xml"/>
-            <html outputDirectory="build/coverage/html"/>
-        </report>
     </coverage>
-    <logging>
-        <junit outputFile="build/logs/junit.xml"/>
-    </logging>
     <php>
         <env name="WP_TESTS_DOMAIN" value="example.org"/>
         <env name="WP_TESTS_EMAIL" value="admin@example.org"/>

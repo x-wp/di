@@ -98,6 +98,11 @@
       "@test:unit",
       "@test:integration"
     ],
-    "test:coverage": "XDEBUG_MODE=coverage phpunit --coverage-html build/coverage/html --coverage-clover build/coverage/clover.xml"
+    "test:coverage": [
+      "@test:coverage:unit",
+      "@test:coverage:integration"
+    ],
+    "test:coverage:unit": "XDEBUG_MODE=coverage phpunit --testsuite=unit --coverage-html build/coverage/unit/html --coverage-clover build/coverage/unit/clover.xml --log-junit build/logs/unit.xml",
+    "test:coverage:integration": "XDEBUG_MODE=coverage phpunit --testsuite=integration --coverage-html build/coverage/integration/html --coverage-clover build/coverage/integration/clover.xml --log-junit build/logs/integration.xml"
   }
 }

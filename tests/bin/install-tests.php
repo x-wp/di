@@ -3,7 +3,7 @@
  * Install the test environment.
  *
  * Replaces the legacy SVN-based install-wp-tests.sh:
- *   1. Downloads WordPress core (if missing) into tests/tmp/wordpress.
+ *   1. Downloads the matching WordPress core (if missing or a different version) into tests/tmp/wordpress.
  *   2. Installs SQLite Database Integration and resets the disposable database,
  *      or drops and recreates the MySQL test database when explicitly selected.
  *
@@ -16,40 +16,51 @@
 
 require_once dirname( __DIR__, 2 ) . '/vendor/autoload.php';
 require_once dirname( __DIR__ ) . '/wp-tests-config.php';
+require_once __DIR__ . '/install-functions.php';
 
 $env = static fn ( string $name, string $default ): string
     => ( false !== ( $v = getenv( $name ) ) && '' !== $v ) ? $v : $default;
 
-$wp_ver  = $env( 'WP_VERSION',           'latest' );
+$wp_ver  = $env( 'WP_VERSION', ltrim( \Composer\InstalledVersions::getPrettyVersion( 'wp-phpunit/wp-phpunit' ), 'v' ) );
+if ( ! preg_match( '/^\d+\.\d+(?:\.\d+)?$/', $wp_ver ) ) {
+    fwrite( STDERR, "WP_VERSION must be a release number, for example 6.9.4.\n" );
+    exit( 1 );
+}
 $wp_dir  = rtrim( WP_CORE_DIR, '/' );
 
 echo "==> ensuring WordPress core at `{$wp_dir}`\n";
 
-if ( is_dir( $wp_dir ) && is_file( $wp_dir . '/wp-load.php' ) ) {
-    echo "    already present, skipping download\n";
+if ( is_file( $wp_dir . '/wp-load.php' ) && $wp_ver === xwp_di_installed_wp_version( $wp_dir . '/wp-includes/version.php' ) ) {
+    echo "    WordPress {$wp_ver} already present, skipping download\n";
 } else {
     if ( ! is_dir( $wp_dir ) && ! mkdir( $wp_dir, 0o755, true ) && ! is_dir( $wp_dir ) ) {
         fwrite( STDERR, "Could not create {$wp_dir}\n" );
         exit( 1 );
     }
 
-    $url = 'latest' === $wp_ver
-        ? 'https://wordpress.org/latest.tar.gz'
-        : "https://wordpress.org/wordpress-{$wp_ver}.tar.gz";
-    $tmp = sys_get_temp_dir() . '/xwpdi-wp-' . uniqid() . '.tar.gz';
+    $url = "https://wordpress.org/wordpress-{$wp_ver}.tar.gz";
+    $tmp = tempnam( sys_get_temp_dir(), 'xwpdi-wp-' );
 
-    echo "    downloading {$url}\n";
-    if ( ! copy( $url, $tmp ) ) {
-        fwrite( STDERR, "Download failed: {$url}\n" );
-        exit( 1 );
+    try {
+        echo "    downloading {$url}\n";
+        $checksum = file_get_contents( $url . '.sha1' );
+        if ( false === $checksum ) {
+            throw new RuntimeException( "Could not fetch checksum: {$url}.sha1" );
+        }
+        xwp_di_download_verified( $url, $tmp, trim( $checksum ), 'sha1' );
+
+        echo "    extracting into {$wp_dir}\n";
+        $rc = 0;
+        passthru( sprintf( 'tar -xz --strip-components=1 -C %s -f %s', escapeshellarg( $wp_dir ), escapeshellarg( $tmp ) ), $rc );
+        if ( 0 !== $rc || $wp_ver !== xwp_di_installed_wp_version( $wp_dir . '/wp-includes/version.php' ) ) {
+            throw new RuntimeException( "WordPress extraction failed or installed version differs from {$wp_ver}." );
+        }
+    } catch ( RuntimeException $error ) {
+        fwrite( STDERR, $error->getMessage() . "\n" );
+    } finally {
+        unlink( $tmp );
     }
-
-    echo "    extracting into {$wp_dir}\n";
-    $rc = 0;
-    passthru( sprintf( 'tar -xz --strip-components=1 -C %s -f %s', escapeshellarg( $wp_dir ), escapeshellarg( $tmp ) ), $rc );
-    @unlink( $tmp );
-    if ( 0 !== $rc ) {
-        fwrite( STDERR, "Extraction failed (tar exit code {$rc})\n" );
+    if ( isset( $error ) ) {
         exit( 1 );
     }
 }
@@ -80,9 +91,12 @@ if ( 'sqlite' === DB_ENGINE ) {
         echo "==> downloading SQLite Database Integration {$sqlite_version}\n";
 
         try {
-            if ( ! copy( $url, $tmp ) ) {
-                throw new RuntimeException( "Download failed: {$url}" );
-            }
+            xwp_di_download_verified(
+                $url,
+                $tmp,
+                '1602e75577ad9b3a7e3e4a6a44a81b9541cdee2124d48928faf61c6fd3cd4f74',
+                'sha256'
+            );
 
             $zip = new ZipArchive();
             if ( true !== $zip->open( $tmp ) ) {

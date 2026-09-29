@@ -10,9 +10,14 @@
 
 require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 
-$argv_str = implode( ' ', $_SERVER['argv'] ?? array() );
-$is_integration = str_contains( $argv_str, 'integration' )
-    || str_contains( $argv_str, 'Integration' );
+require_once __DIR__ . '/bootstrap-suite.php';
+
+try {
+    $is_integration = 'integration' === xwp_di_test_suite( $_SERVER['argv'] ?? array() );
+} catch ( \InvalidArgumentException $error ) {
+    fwrite( STDERR, $error->getMessage() . "\n" );
+    exit( 1 );
+}
 
 if ( ! $is_integration ) {
     \Brain\Monkey\setUp();

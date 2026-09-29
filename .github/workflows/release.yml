@@ -8,7 +8,11 @@ on:
       - beta
 
 jobs:
+  quality:
+    uses: ./.github/workflows/tests.yml
+
   release:
+    needs: quality
     name: Release
     runs-on: ubuntu-latest
     steps:
