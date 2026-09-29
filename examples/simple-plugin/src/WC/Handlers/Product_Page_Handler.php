@@ -42,7 +42,7 @@ class Product_Page_Handler {
      * This also demonstrates special injection tokens.
      * These are:
      *  - !self.hook        - Hook decorator
-     *  - !self.handler     - Handler decorator
+     *  - !self.handler     - Can_Handle runtime
      *  - !value:$VALUE     - Any value
      *  - !global:$VARIABLE - Any global variable
      *  - !const:$CONSTANT  - Any constant

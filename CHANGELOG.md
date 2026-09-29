@@ -2,9 +2,44 @@
 
 ## Unreleased
 
+### Breaking changes in the beta migration
+
+- `xwp_create_app()` and `xwp_app()` return `App`; use `container()` where a
+  container is required. Startup belongs to `App::run()`. Removed container
+  methods now throw `BadMethodCallException` instead of silently returning null.
+- Exact built-in handler/module tokens, public handler helpers, and
+  `!self.handler` expose runtime objects. Use `Can_Handle`, `Can_Import`, or
+  specialized handler interfaces instead of concrete decorator parameter types.
+- The injected `!self.hook` is a typed view rather than the registered runtime.
+  Remove proxied listeners with `$hook->target`; `array( $hook, 'invoke' )` only
+  identifies the view. Explicitly supplied decorators retain listener identity.
+- Lazy initialization notification tags now include the application UUID to
+  prevent one application's callbacks from initializing another's handlers.
+  Consumers of these internal tags must use `get_lazy_tag()`.
+
+### Review fixes
+
+- Proxied callback conditions are checked at invocation, so false conditions
+  during attachment do not permanently drop callbacks. Direct callbacks retain
+  attachment-time checks.
+- Preserve live custom `Infuse` overrides, supplied callback identity, narrow
+  custom constructors, and one-argument `check_method()` overrides. Injected
+  handler tokens keep their declared argument positions.
+- Restore CLI helpers, typed hook-view declaration properties, tagless supplied
+  handler priorities, and registration-order startup at `PHP_INT_MIN`.
+- Wait for supplied `USER` targets, retain initialization during constructor
+  self-adoption, attach later callbacks, and defer AUTO module context selection
+  until its hook. Repeated callback declarations receive distinct tokens and
+  listeners while single-declaration tokens remain compatible.
+- Remove the unused, inconsistent `Strategy` enum before release; use `INIT_*`.
+- Verify and pin integration downloads, split suite bootstrap and coverage,
+  reset REST test state, and gate release on tests, PHPStan and PHPCS.
+
+### Runtime migration
+
 - Built-in discovery now constructs definitions from unbound attribute metadata.
-  Parser records preloaded callback IDs without mutating decorators; cache
-  format and runtime identity remain unchanged. Custom callback and Infuse
+  Parser records built-in callback IDs on definitions; custom declarations retain
+  legacy mutator-based wiring. Existing single-declaration cache tokens remain compatible. Custom callback and Infuse
   declarations retain legacy discovery so extension overrides and metadata
   mutations continue to work. See [definition discovery](docs/definition-discovery.md).
 

@@ -158,8 +158,10 @@ composer test:install   # downloads WP core + the pinned SQLite plugin; resets t
 composer test                # both suites
 composer test:unit           # unit suite only (no WordPress or SQLite needed)
 composer test:integration    # integration suite only
-composer test:coverage       # HTML coverage at build/coverage/html/index.html
+composer test:coverage       # separate reports in build/coverage/{unit,integration}/html/
 ```
+
+Bare `vendor/bin/phpunit` runs the unit suite. Use `--testsuite integration` or an explicit file under `tests/Integration/` to bootstrap WordPress. Run both suites with `composer test` so each gets its own process. Coverage requires Xdebug or PCOV.
 
 SQLite uses a disposable file under `tests/tmp/database/`, shared by the WordPress install subprocess and PHPUnit. The test bootstrap rebuilds WordPress's tables on each run. Rerun `composer test:install` to remove the SQLite database and its journal files entirely. Run only one integration suite at a time per database directory.
 
@@ -189,9 +191,9 @@ All defaults are baked in but every value is overridable via env var:
 | `WP_TESTS_DB_USER`      | `root`               |                                            |
 | `WP_TESTS_DB_PASSWORD`  | `root`               |                                            |
 | `WP_CORE_DIR`           | `tests/tmp/wordpress`| Where `install-tests.php` extracts WP core |
-| `WP_VERSION`            | `latest`             | Pin to e.g. `6.4` to test against an older release |
+| `WP_VERSION`            | installed `wp-phpunit` version | Explicit release such as `6.8.3`; rerunning replaces a different installed version |
 
-The `WP_TESTS_DB_HOST`, `WP_TESTS_DB_USER`, and `WP_TESTS_DB_PASSWORD` settings apply only to MySQL. SQLite Database Integration is pinned to version 3.0.2 in the installer. GitHub Actions runs SQLite on PHP 8.1–8.4 and retains a MySQL compatibility job on PHP 8.3.
+The `WP_TESTS_DB_HOST`, `WP_TESTS_DB_USER`, and `WP_TESTS_DB_PASSWORD` settings apply only to MySQL. Core defaults to the installed `wp-phpunit` package version. Core and SQLite plugin downloads are checksum verified; SQLite Database Integration is pinned to version 3.0.2 in the installer. GitHub Actions runs SQLite on PHP 8.1–8.4 and retains a MySQL compatibility job on PHP 8.3.
 
 ## Documentation
 

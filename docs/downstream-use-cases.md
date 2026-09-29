@@ -399,13 +399,14 @@ integration coverage in this checkout.
 | Specialized callbacks retain their contracts | AJAX request/nonce/capability metadata, REST routes, CLI commands, and proxied DI arguments. |
 | Work scheduled outside DI keeps its own lifecycle | Action Scheduler jobs, `shutdown` deferral, activation helpers, and textdomain loading. |
 
-Current `beta` still uses runtime decorators, `Hook\Parser`, `Hook\Factory`, and
-`Invoker`. Its `CallbackDefinition::from_data()` accepts only plain `Filter` and
-`Action` metadata; it is not yet a general replacement for dynamic, AJAX, REST,
-or CLI decorators. `ModuleDefinition` carries composition metadata, and
-`HandlerDefinition` is not a complete replacement for every runtime attribute
-field. The consumer inventory therefore does not justify treating the definition
-migration as complete. Sources: [callback definition](../src/Definition/CallbackDefinition.php),
+Current `beta` uses `Hook\Parser`, `Hook\Factory`, and `Invoker` with separate
+built-in callback and handler runtimes. `CallbackDefinition::from_data()` accepts
+plain, Dynamic, AJAX, REST, and CLI metadata. `HandlerDefinition` carries handler
+metadata, while `ModuleDefinition` describes composition. Custom declarations and
+explicitly supplied decorators retain compatibility behavior. Removing legacy
+mutators and compiling only primitive definition graphs remain future work;
+consumer migration is still required for App and handler runtime types.
+Sources: [callback definition](../src/Definition/CallbackDefinition.php),
 [module definition](../src/Definition/ModuleDefinition.php),
 [handler definition](../src/Definition/HandlerDefinition.php), and
 [parser](../src/Hook/Parser.php).

@@ -11,3 +11,13 @@ The established lifecycle stays intact: application construction does not start 
 Use `get_definition()` on a runtime handler to inspect its initial metadata. Runtime callback discovery and supplied-instance binding do not mutate that definition.
 
 The handler runtime shares lifecycle implementation with legacy decorators through internal `Compatibility` adapters. It does not inherit from an attribute class. Inherited decorator mutators remain available for custom discovery and imperative compatibility paths; [F6 API removal remains open](decorator-compatibility.md).
+
+Supplied objects retain their external initialization lifecycle: adoption does not call `can_initialize()`, `configure_async()`, or `on_initialize()`. This includes REST controllers. Before adopting a controller, its owner must configure its namespace and basename and call `on_initialize()` if it relies on the base controller's route-registration listener. Adoption preserves that target and does not repeat its initialization. A declared `INIT_USER` handler remains pending until an instance is supplied. Self-adoption during container construction is different: the container's pending initialization still finishes once.
+
+Repeated registration attaches newly supplied callback tokens after the handler's original attachment point without reinstalling its lifecycle. Lazy initialization notifications use `get_lazy_tag()` and are scoped by application UUID; integrations listening for those internal notifications should use that accessor.
+
+The concrete handler type change is a beta breaking change. Code accepting
+`Decorators\Handler` or `Decorators\Module` for `!self.handler` must use
+`Can_Handle` or `Can_Import`; CLI consumers can use `Can_Handle_CLI`. CLI runtime
+handlers provide the same `choice()`, `prompt()`, `track()`, `tick()`, `finish()`
+helpers and readable `description` metadata as the legacy handler.

@@ -37,9 +37,8 @@ For the default `AUTO` strategy, the module's hook and priority determine when i
 Build application
   └─ Collect module services, definitions, and imports
 
-Register module through its parent
-  └─ Check module context; excluded modules stop here
-      └─ Schedule initialization using the module hook + priority
+Register AUTO module through its parent
+  └─ Schedule initialization using the module hook + priority
 
 Module initialization point
   └─ Check context and can_initialize(); rejection stops runtime progress
@@ -47,6 +46,8 @@ Module initialization point
           └─ Register eligible handlers and imported modules
               └─ Attach the module's own callbacks
 ```
+
+AUTO modules select context at their scheduled hook, so a REST URL prefix configured by a later plugin or theme is visible. A global context gate does not classify or memoize the request. Other strategies retain their context checks at registration.
 
 Module context is a strict runtime gate. An excluded module does not enter lifecycle construction, `configure_async()`, or `on_initialize()`, and does not attach its own callbacks or register handlers/imports. Broader or explicit child contexts cannot override an excluded ancestor. Module services and static definitions remain available in the container. This preserves the existing context gate rather than introducing unconditional module initialization.
 
@@ -85,7 +86,9 @@ The following describes successful paths in the current orchestration; context a
 | `NOW` | Initialize, discover and attach callbacks | No additional scheduled step | Execute |
 | `LAZY` | Install initialization listener; schedule attachment | Discover callbacks; callback loading requests initialization before attachment | Execute |
 | `JIT` | Install initialization listener; schedule attachment | Discover and attach proxy callbacks without initializing the handler | Request initialization, then execute if permitted |
-| `USER` | Use supplied instance; discover and attach callbacks | No additional scheduled step | Execute |
+| `USER` | Wait for a supplied instance, then discover and attach callbacks | No additional scheduled step | Execute |
+
+Explicit module strategies follow the same contract. A LAZY or JIT module needs a callback of its own to trigger initialization; its descendants are registered only after it initializes. A composition-only module should use AUTO (or NOW for immediate activation), since its descendant callbacks are not yet available to trigger it.
 
 `LAZY` and `JIT` deliberately share the registration branch. Their distinction happens downstream: callback loading requests `INIT_LAZY`, while callback invocation requests `INIT_JIT`. Both retain the lazy-handler switch to proxied invocation.
 
@@ -133,23 +136,28 @@ Done when:
 
 ## Current flow (the seam)
 
-Callbacks reach the container along two producer paths, and are consumed in one place.
+Callbacks reach the container through cached metadata or live discovery.
 
-**Producer A: cached / preloaded.**
-[Parser::add_hook()](../src/Hook/Parser.php) stores `$hook->get_data()` under `{token}[params]` and registers `{token}` as
-`\DI\factory( array( Factory::class, 'make' ) )->parameter( 'hook', \DI\get( '{token}[params]' ) )`.
-[Factory::make()](../src/Hook/Factory.php) converts plain Filter/Action arrays with `CallbackDefinition::from_data()` and creates a `Callback`. Other types retain decorator reconstruction: `new $hook['type']( ...$hook['args'] )`, then `with_data( $hook['params'] )`.
+**Cached / preloaded:** `Parser::add_hook()` stores metadata under
+`{token}[params]` and a factory under `{token}`. `Factory::make()` builds exact
+built-in callback and handler runtimes from definitions. Custom declarations
+retain decorator construction and override behavior; narrow custom constructors
+receive only supported named arguments.
 
-A Factory without a container can still reconstruct decorator metadata; runtime conversion requires a container. This preserves the metadata-only construction path.
+**Live discovery:** `Discovery` produces definitions for exact built-ins and
+preserves decorators when custom declarations require their behavior.
+`Factory::save_hook()` converts definitions into runtimes while retaining live
+objects supplied by callers. The saved object is the returned object, and
+existing tokens retain their runtime state. Multiple declarations sharing a
+base token receive deterministic suffixes and separate listeners.
 
-**Producer B: runtime (hook cache off, or user-registered instances).**
-`Invoker::register_methods()` → `Factory::resolve_callbacks()` → `resolve_method_callbacks()` → `save_hook()`. Plain callbacks are converted through `make()` and stored under their token; other decorators are stored directly. Discovery still returns decorator metadata. Once the app has started, `get_callbacks()` returns the stored objects, including when it first discovers an uncached handler's methods. Existing token entries are retained when callbacks are loaded again.
+**Consumer:** handlers retain callback tokens. `Invoker` resolves each callback,
+loads it, and records the attached hook. Registration, initialization, and
+callback attachment remain distinct lifecycle steps. The same objects are used
+when manually supplied callbacks are added after a handler has initialized.
 
-**Consumer.**
-The handler only keeps tokens (`with_callbacks( $tokens )`).
-[Invoker::invoke_methods()](../src/Invoker.php) does `get_hook( $token )->load()`, then `add_callback()` reads `get_method()`, `get_tag()`, `get_classname()`, `is_loaded()`, `get_init_hook()`.
-
-**The token is the seam.** Callback lists remain stable when `{token}` resolves to a runtime object. Factory and Invoker type contracts must still be updated. The names above describe the current code; L2 makes their responsibilities explicit.
+The implementation sketches below record the original split design; they are
+historical where later F1–F5 work differs from this current flow.
 
 ## Design
 
@@ -339,13 +347,13 @@ Each callback item needs a test in S2 or S3. L1–L2 cover the module and handle
 - [ ] `remove_filter()` works with `[ $instance, 'method' ]` (standard) and `[ $container->get( $token ), 'invoke' ]` (proxied).
 - [ ] `INV_ONCE`, `INV_LOOPED`, `INV_SAFELY`, `INV_PROXIED` semantics are unchanged.
 - [ ] `INV_SAFELY` returns `$args[0]` and logs; without it, the exception is rethrown.
-- [ ] For lazy and JIT handlers, `{token}_{strategy}_init` fires exactly as before, and the callback is proxied.
-- [ ] Callback context and `conditional` gating are unchanged; handler initialization conditions retain their strategy-specific evaluation point.
+- [ ] For lazy and JIT handlers, the initialization notification returned by `get_lazy_tag()` is app-scoped, and the callback is proxied.
+- [ ] Callback contexts gate attachment and proxied invocation. Direct callback conditions gate attachment; proxied callback conditions are evaluated only at invocation. Handler initialization conditions retain their strategy-specific evaluation point.
 - [ ] `xwp_di_hooks_loaded_{$classname}` still fires.
 - [ ] `Invoker::get_actions()` output is unchanged.
 - [ ] An existing `hook-definition.php` cache loads without regeneration.
 - [ ] `!self.hook` receives an `Action`/`Filter` with a resolved `tag`, live documented state, and the registered callable target under the compatibility contract settled before S2; `!self.handler` receives the handler.
-- [ ] A `Dynamic_Filter`, `Ajax_Action`, `REST_Route` or `CLI_Command` token still resolves to its decorator.
+- [ ] Exact built-in Dynamic, AJAX, REST and CLI callback tokens resolve to specialized runtimes; custom and supplied decorator objects retain their identity.
 - [ ] The container still compiles with `cache_app` on.
 
 ## Risks
@@ -360,7 +368,9 @@ Each callback item needs a test in S2 or S3. L1–L2 cover the module and handle
 | Context or initialization conditions remove definitions, or descendants bypass their ancestor's gate | L2 tests for unconditional services/static definitions, strict context cascades, and imported-module scheduling after parent initialization |
 | Repeated handler registration installs duplicate scheduling hooks | Explicit registration state and L1–L2 idempotency coverage |
 
-## Review findings
+## Review findings from the original design
+
+These findings describe the pre-split snapshot. Callable priority handling, registration deduplication, eligibility retries, and runtime factory routing now have regression coverage. Remaining architectural cleanup is tracked separately in Beads.
 
 - **Callable priorities already fail:** `Hook_Invoke_Methods::resolve_priority()` calls `defined($prio)` before checking arrays or closures. A local PHP probe reproduced `TypeError` for both. `call_priority()` also accepts only `array|string`, excluding closures. Bead `di-upr` tracks a focused fix and regression coverage; the runtime split must not silently inherit this defect.
 - **Registry deduplication is incomplete:** `Invoker::add_handler()` returns early for an existing entry, but `register_handler()` continues its fluent chain and can install scheduling hooks again. L2 needs a registration guard that covers the whole operation.

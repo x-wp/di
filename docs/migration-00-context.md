@@ -18,7 +18,7 @@ Three layers, three responsibilities, no fusion:
 
 Public surface stays familiar: decorators on classes and `xwp_load_app()` to schedule startup. `xwp_create_app()` and `xwp_app()` return an `App` wrapper; `container()` exposes its container and `run()` starts the lifecycle.
 
-The plain Filter/Action split is implemented as one `Hook\Callback` per callback token. Specialized callbacks and handler/module runtime extraction remain pending. The [definition split plan](definition-split-plan.md) governs this transition and supersedes the original central Dispatcher sketch.
+The plain Filter/Action split is implemented as one `Hook\Callback` per callback token. Exact built-in specialized callbacks and handlers/modules also use separate `Hook` runtimes. Custom declarations and explicitly supplied decorators retain the compatibility path; removing legacy mutators remains pending. The [definition split plan](definition-split-plan.md) governs this transition and supersedes the original central Dispatcher sketch.
 
 ## What v2.0 is *not*
 

@@ -27,14 +27,14 @@ Anything *not* in this document is `@internal`. Internal classes can change with
     'app_id'          => string,                   // unique identifier (required)
     'app_module'      => class-string,             // root #[Module] class (required)
     'app_file'        => string,                   // plugin's main __FILE__ (required)
-    'cache_app'       => bool,                     // compile container (default: false)
-    'cache_defs'      => bool,                     // PHP-DI APCu cache (default: false)
-    'cache_hooks'     => bool,                     // hook-definition.php (default: false)
+    'cache_app'       => bool,                     // compile container (default: production)
+    'cache_defs'      => bool,                     // PHP-DI APCu cache (default: production with APCu)
+    'cache_hooks'     => bool,                     // hook-definition.php (default: production)
     'cache_dir'       => string,                   // where to write artifacts
     'use_attributes'  => bool,                     // PHP-DI attribute autowiring (default: true)
     'use_autowiring'  => bool,                     // PHP-DI autowiring (default: true)
     'use_proxies'     => bool,                     // lazy proxies (default: false)
-    'extendable'      => bool,                     // allow xwp_extend_app (default: false)
+    'extendable'      => bool,                     // allow xwp_extend_app (default: true)
 ]
 ```
 
@@ -66,7 +66,7 @@ All are PHP attributes. Metadata-only declarations are the intended end state. C
 | `REST_Handler` | class | (extends `Handler`, sets context to REST) |
 | `Dynamic_Action` | method | `tag` (with `%s` placeholder), `modifiers[]` |
 | `Dynamic_Filter` | method | `tag` (with `%s` placeholder), `modifiers[]` |
-| `Infuse` | parameter | named arguments — values or service references |
+| `Infuse` | method | ordered service tokens and `!self.handler` for initializer arguments |
 
 ## Definition helpers (`XWP\DI\Definition\Helper\*`)
 
@@ -124,7 +124,7 @@ Its `@mixin Container` annotation exposes forwarded container methods to IDEs.
 `xwp_create_app()` builds it synchronously;
 call it only once class autoloading is safe. `xwp_load_app()` registers a closure
 and returns a boolean without loading application classes. By default, that
-closure creates and runs the application at `plugins_loaded`, allowing Jetpack
+closure creates and runs the application at `plugins_loaded` with priority `PHP_INT_MIN`. Applications at that priority retain registration order, allowing Jetpack
 Autoloader to finish selecting dependency versions first.
 
 | Method | Signature | Role |
@@ -152,12 +152,11 @@ Limited public surface — most methods are `@internal`. Public on `Container`:
 
 | Method | Signature | Role |
 |---|---|---|
-| `run` | `(): Container` | Delegate startup to the app and return the container. |
 | `started` | `(): bool` | Read the app's started state. |
 | `register` | `(object $instance): Can_Handle` | Register a runtime handler instance. |
 | `hookOn` | `(object $handler): void` | Attach a handler to its declared hook. |
 
-Plus PHP-DI's standard container methods (`get`, `has`, `make`, `call`).
+Plus PHP-DI's standard container methods (`get`, `has`, `make`, `call`). Startup belongs to `App::run()`; `Container::run()` is no longer supported. Unknown forwarded methods throw `BadMethodCallException` instead of silently returning null.
 
 ## WordPress-facing base classes
 
