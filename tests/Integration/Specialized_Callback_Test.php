@@ -47,6 +47,7 @@ final class Specialized_Callback_Test extends TestCase {
 
     public function tear_down(): void {
         $this->context->setValue( null, $this->original_context );
+        $GLOBALS['wp_rest_server'] = null;
         parent::tear_down();
     }
 
@@ -116,21 +117,23 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertInstanceOf( Ajax_Callback::class, $callback );
         self::assertTrue( $callback->load() );
         self::assertFalse( has_action( 'wp_ajax_nopriv_secure' ) );
-        $die = static function (): never { throw new \RuntimeException( 'guard' ); };
+        $die = static function ( string $message ): never { throw new \RuntimeException( $message ); };
         $filter = static fn() => $die;
         add_filter( 'wp_die_handler', $filter );
         try {
-            foreach ( array( false, true ) as $valid_nonce ) {
+            $subscriber = self::factory()->user->create( array( 'role' => 'subscriber' ) );
+            foreach ( array( array( $subscriber, false, 'nonce' ), array( 0, true, 'cap' ) ) as [ $user, $valid_nonce, $guard ] ) {
+                wp_set_current_user( $user );
                 $_REQUEST['special_nonce'] = $valid_nonce ? wp_create_nonce( 'secure' ) : 'invalid';
                 try {
                     $callback->invoke();
                     self::fail( 'Guard must reject the request.' );
                 } catch ( \RuntimeException $e ) {
-                    self::assertSame( 'guard', $e->getMessage() );
+                    self::assertSame( $guard, $e->getMessage() );
                 }
                 self::assertFalse( $callback->firing );
             }
-            wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+            wp_set_current_user( $subscriber );
             $_REQUEST['special_nonce'] = wp_create_nonce( 'secure' );
             $callback->invoke();
             self::assertSame( 'default', $this->target->value );
@@ -155,9 +158,11 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertSame( array( 'GET' => true ), $route['methods'] );
         self::assertSame( array( 'type' => 'string' ), $route['args']['value'] );
         self::assertSame( array( $this->target, 'allowed' ), $route['permission_callback'] );
-        self::assertTrue( ( $route['permission_callback'] )() );
         $request = new \WP_REST_Request( 'GET', '/special/v1/items/item' );
-        self::assertSame( array( 'ok' => true ), ( $route['callback'] )( $request ) );
+        $response = rest_do_request( $request );
+        self::assertSame( 200, $response->get_status() );
+        self::assertSame( array( 'ok' => true ), $response->get_data() );
+        self::assertGreaterThan( 0, $this->target->permission_checks );
         $view = $this->target->view;
         self::assertInstanceOf( REST_Route::class, $view );
         self::assertSame( $callback->get_token(), $view->get_token() );
@@ -168,6 +173,124 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertFalse( $view->firing );
         self::assertTrue( $view->invoke() );
         self::assertTrue( remove_action( 'special/v1/items', $view->target, 19 ) );
+    }
+
+    public function test_ajax_json_body_is_decoded_before_other_request_arguments(): void {
+        $this->context->setValue( null, Filter::CTX_AJAX );
+        $callback = $this->make( new Ajax_Action( 'json', vars: array( 'body' => true, 'missing' => 'default' ) ), 'ajax_body', new Ajax_Handler( 'special' ) );
+        // Substitute only the input stream; exercise the runtime's real decoder and argument ordering.
+        stream_wrapper_unregister( 'php' );
+        try {
+            stream_wrapper_register( 'php', Specialized_Input_Stream::class );
+            foreach ( array( '{"value":"body"}' => array( 'value' => 'body' ), 'invalid-json' => array() ) as $json => $expected ) {
+                Specialized_Input_Stream::$input = $json;
+                $callback->invoke();
+                self::assertSame( array( $expected, 'default' ), $this->target->body_args );
+            }
+        } finally {
+            stream_wrapper_restore( 'php' );
+        }
+    }
+
+    public function test_ajax_custom_guard_precedence_and_fallbacks(): void {
+        $this->context->setValue( null, Filter::CTX_AJAX );
+        $targets = array(
+            new class extends Specialized_Callback_Target {
+                public function secure_nonce_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function nonce_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function secure_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function unverified_call(): never { throw new \RuntimeException( __FUNCTION__ ); }
+            },
+            new class extends Specialized_Callback_Target {
+                public function nonce_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function secure_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+            },
+            new class extends Specialized_Callback_Target {
+                public function secure_guard(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function unverified_call(): never { throw new \RuntimeException( __FUNCTION__ ); }
+            },
+            new class extends Specialized_Callback_Target {
+                public function unverified_call(): never { throw new \RuntimeException( __FUNCTION__ ); }
+                public function invalid_call(): never { throw new \RuntimeException( __FUNCTION__ ); }
+            },
+            new class extends Specialized_Callback_Target {
+                public function invalid_call(): never { throw new \RuntimeException( __FUNCTION__ ); }
+            },
+        );
+        $expected = array( 'secure_nonce_guard', 'nonce_guard', 'secure_guard', 'unverified_call', 'invalid_call' );
+        $_REQUEST['special_nonce'] = 'invalid';
+        try {
+            foreach ( $targets as $index => $target ) {
+                $this->target = $target;
+                $callback = $this->make( new Ajax_Action( 'secure', nonce: array( 'special_nonce' => 'secure' ) ), 'ajax', new Ajax_Handler( 'special' ) );
+                try {
+                    $callback->invoke();
+                    self::fail( 'The custom guard must run.' );
+                } catch ( \RuntimeException $error ) {
+                    self::assertSame( $expected[$index], $error->getMessage() );
+                }
+                self::assertFalse( $callback->firing );
+                self::assertFalse( isset( $target->value ) );
+            }
+        } finally {
+            unset( $_REQUEST['special_nonce'] );
+        }
+    }
+
+    public function test_rest_default_permission_and_denial_are_enforced_by_dispatch(): void {
+        $this->context->setValue( null, Filter::CTX_REST );
+        rest_get_server();
+        foreach ( array( null, 'denied' ) as $guard ) {
+            $route = $guard ?? 'public';
+            $callback = $this->make( new REST_Route( $route, 'GET', guard: $guard ), 'rest_standard', new REST_Handler( 'special/v1', 'items' ) );
+            self::assertTrue( $callback->invoke() );
+            $response = rest_do_request( new \WP_REST_Request( 'GET', '/special/v1/items/' . $route ) );
+            if ( null === $guard ) {
+                self::assertSame( '__return_true', $callback->get_guard() );
+                self::assertSame( 200, $response->get_status() );
+                self::assertSame( array( 'standard' => true ), $response->get_data() );
+                self::assertSame( 1, $callback->fired );
+            } else {
+                self::assertSame( 401, $response->get_status() );
+                self::assertSame( 'rest_forbidden', $response->get_data()['code'] );
+                self::assertSame( 0, $callback->fired );
+            }
+        }
+    }
+
+    public function test_ajax_post_and_request_getters_and_capability_arguments(): void {
+        $this->context->setValue( null, Filter::CTX_AJAX );
+        $author = self::factory()->user->create( array( 'role' => 'author' ) );
+        $post = self::factory()->post->create( array( 'post_author' => $author ) );
+        $subscriber = self::factory()->user->create( array( 'role' => 'subscriber' ) );
+        $die_filter = static fn() => static function ( string $message ): never { throw new \RuntimeException( $message ); };
+        add_filter( 'wp_die_handler', $die_filter );
+        wp_set_current_user( $author );
+        try {
+            foreach ( array( 'POST' => '_POST', 'REQ' => '_REQUEST' ) as $method => $global ) {
+                $GLOBALS[$global]['special_post'] = $post;
+                $GLOBALS[$global]['special_value'] = $method;
+                $callback = $this->make( new Ajax_Action( 'edit', method: $method, cap: array( 'edit_post' => 'special_post' ), vars: array( 'special_value' => 'default' ), params: array( '!self.hook' ) ), 'ajax', new Ajax_Handler( 'special' ) );
+                $callback->invoke();
+                self::assertSame( $method, $this->target->value );
+                unset( $GLOBALS[$global]['special_value'] );
+                $callback->invoke();
+                self::assertSame( 'default', $this->target->value );
+                wp_set_current_user( $subscriber );
+                try {
+                    $callback->invoke();
+                    self::fail( 'A subscriber cannot edit the requested post.' );
+                } catch ( \RuntimeException $error ) {
+                    self::assertSame( 'cap', $error->getMessage() );
+                }
+                wp_set_current_user( $author );
+                unset( $GLOBALS[$global]['special_post'] );
+            }
+        } finally {
+            remove_filter( 'wp_die_handler', $die_filter );
+            unset( $_POST['special_post'], $_POST['special_value'], $_REQUEST['special_post'], $_REQUEST['special_value'] );
+            wp_set_current_user( 0 );
+        }
     }
 
     public function test_rest_standard_callback_and_older_cache_metadata(): void {
@@ -247,9 +370,11 @@ final class Specialized_Callback_Test extends TestCase {
     }
 }
 
-final class Specialized_Callback_Target {
+class Specialized_Callback_Target {
     public Filter $view;
     public string $value;
+    public int $permission_checks = 0;
+    public array $body_args = array();
 
     public function dynamic( string $value, Dynamic_Filter $view, string $suffix ): string {
         $this->view = $view;
@@ -261,7 +386,12 @@ final class Specialized_Callback_Target {
     }
 
     public function allowed(): bool {
+        ++$this->permission_checks;
         return true;
+    }
+
+    public function denied(): bool {
+        return false;
     }
 
     public function rest( \WP_REST_Request $request, REST_Route $view ): array {
@@ -284,8 +414,37 @@ final class Specialized_Callback_Target {
         $this->view = $view;
     }
 
+    public function ajax_body( array $body, string $value ): void {
+        $this->body_args = array( $body, $value );
+    }
+
     public function ajax( string $value, Ajax_Action $view ): void {
         $this->value = $value;
         $this->view = $view;
+    }
+}
+
+/** Disposable php://input fixture, restored in a finally block. */
+final class Specialized_Input_Stream {
+    public $context;
+    public static string $input = '';
+    private int $position = 0;
+
+    public function stream_open( string $path, string $mode, int $options, ?string &$opened_path ): bool {
+        return 'php://input' === $path;
+    }
+
+    public function stream_read( int $count ): string {
+        $value = substr( self::$input, $this->position, $count );
+        $this->position += strlen( $value );
+        return $value;
+    }
+
+    public function stream_eof(): bool {
+        return $this->position >= strlen( self::$input );
+    }
+
+    public function stream_stat(): array {
+        return array();
     }
 }

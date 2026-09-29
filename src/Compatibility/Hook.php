@@ -98,6 +98,13 @@ abstract class Hook implements Can_Hook {
     private string $token;
 
     /**
+     * Explicit identity for repeated declarations.
+     *
+     * @var string|null
+     */
+    private ?string $declared_token = null;
+
+    /**
      * Constructor.
      *
      * @param string|null                                             $tag         Hook tag.
@@ -275,7 +282,7 @@ abstract class Hook implements Can_Hook {
             'args'   => $this->get_declaration(),
             'params' => array(
                 'classname' => $this->classname,
-            ),
+            ) + ( null !== $this->declared_token ? array( 'token' => $this->declared_token ) : array() ),
             'type'   => static::class,
         );
     }
@@ -304,6 +311,19 @@ abstract class Hook implements Can_Hook {
      */
     final public function get_token(): string {
         return $this->token ??= $this->generate_token();
+    }
+
+    /**
+     * Preserve the discovery identity when restoring repeated declarations.
+     *
+     * @internal Discovery/cache binding detail.
+     * @param string $token Stable callback token.
+     * @return static
+     */
+    public function with_token( string $token ): static {
+        $this->declared_token = $token;
+        $this->token          = $token;
+        return $this;
     }
 
     /**

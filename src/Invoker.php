@@ -37,6 +37,13 @@ class Invoker {
     private array $registered = array();
 
     /**
+     * Handlers that have reached their callback attachment point.
+     *
+     * @var array<class-string,true>
+     */
+    private array $attached = array();
+
+    /**
      * EARLY/NOW handlers whose initialization was rejected without an exception.
      *
      * @var array<class-string,true>
@@ -166,16 +173,12 @@ class Invoker {
         $h = $this->get_handler( $classname );
         $this->add_handler( $h );
 
-        if ( ! $h->check_context() ) {
+        if ( ! $this->can_register( $h ) ) {
             return $h;
         }
 
         if ( isset( $this->registered[ $h->get_classname() ] ) ) {
-            if ( isset( $this->retryable[ $h->get_classname() ] ) ) {
-                $this->init_eager_handler( $h );
-            }
-
-            return $h;
+            return $this->register_again( $h );
         }
 
         // Prevent registration from re-entering through initialization callbacks.
@@ -207,6 +210,9 @@ class Invoker {
         $cname = $handler->get_classname();
 
         if ( isset( $this->handlers[ $cname ] ) ) {
+            if ( $handler->is_loaded() ) {
+                $this->handlers[ $cname ] = $handler->get_init_hook();
+            }
             return $this;
         }
 
@@ -231,6 +237,39 @@ class Invoker {
         $handler = $this->factory->load_handler( $instance );
 
         $this->register_handler( $handler->get_classname() );
+
+        return $handler;
+    }
+
+    /**
+     * Check registration gates without freezing AUTO module context before its hook.
+     *
+     * @template T of object
+     * @param Can_Handle<T> $handler Handler to register.
+     * @return bool
+     */
+    private function can_register( Can_Handle $handler ): bool {
+        if ( $handler::INIT_USER === $handler->get_strategy() && null === $handler->get_target() ) {
+            return false;
+        }
+
+        $scheduled_module = $handler instanceof Can_Import && $handler::INIT_AUTO === $handler->get_strategy();
+        return $scheduled_module || $handler->check_context();
+    }
+
+    /**
+     * Retry eligible initialization or attach newly supplied callbacks.
+     *
+     * @template T of object
+     * @param Can_Handle<T> $handler Registered handler.
+     * @return Can_Handle<T>
+     */
+    private function register_again( Can_Handle $handler ): Can_Handle {
+        if ( isset( $this->retryable[ $handler->get_classname() ] ) ) {
+            $this->init_eager_handler( $handler );
+        } elseif ( $handler->is_loaded() && isset( $this->attached[ $handler->get_classname() ] ) ) {
+            $this->register_methods( $handler )->invoke_methods( $handler, true );
+        }
 
         return $handler;
     }
@@ -419,14 +458,18 @@ class Invoker {
         return $this;
     }
 
+    // Keep attachment and notification decisions together for reentrant registration.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
      * Invoke handler methods
      *
      * @template T of object
-     * @param  Can_Handle<T> $h Handler instance.
+     * @param  Can_Handle<T> $h        Handler instance.
+     * @param  bool          $new_only Attach only callbacks that are not loaded yet.
      * @return static
      */
-    private function invoke_methods( Can_Handle $h ): static {
+    private function invoke_methods( Can_Handle $h, bool $new_only = false ): static {
+        $changed = ! $new_only;
         /**
          * Variable override
          *
@@ -434,16 +477,24 @@ class Invoker {
          */
         foreach ( $h->get_callbacks() as $cb_token ) {
             $cb = $this->get_hook( $cb_token );
+            if ( $new_only && $cb->is_loaded() ) {
+                continue;
+            }
 
-            $cb->load();
+            $changed = $cb->load() || $changed;
 
             $this->add_callback( $cb );
         }
 
-        \do_action( "xwp_di_hooks_loaded_{$h->get_classname()}" );
+        $this->attached[ $h->get_classname() ] = true;
+        if ( $changed ) {
+            \do_action( "xwp_di_hooks_loaded_{$h->get_classname()}" );
+        }
 
         return $this;
     }
+
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Add a hook to the registry.

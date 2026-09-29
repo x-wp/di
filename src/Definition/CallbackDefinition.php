@@ -83,7 +83,7 @@ final class CallbackDefinition {
         $suffix = \ltrim( "{$params['method']}[{$args['tag']}]", '-' );
 
         $definition       = new self(
-            id: \trim( "Hook-{$base}::{$suffix}", '-:/' ),
+            id: $params['token'] ?? \trim( "Hook-{$base}::{$suffix}", '-:/' ),
             handler: $params['classname'],
             method: $params['method'],
             type: $type,

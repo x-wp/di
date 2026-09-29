@@ -70,9 +70,8 @@ final class Handler_Context_Test extends TestCase {
                     self::assertArrayHasKey( $class, $invoker->get_handlers() );
                     self::assertFalse( $invoker->get_handlers()[ $class ], 'Excluded handlers remain known but uninitialized.' );
                     self::assertFalse( has_action( $hook ) );
-                    self::assertFalse( has_action( 'Hook-' . $class . '_' . Handler::INIT_LAZY . '_init' ) );
-                    self::assertFalse( has_action( 'Hook-' . $class . '_' . Handler::INIT_JIT . '_init' ) );
                     $handler = $app->container()->get( 'Hook-' . $class );
+                    self::assertFalse( has_action( $handler->get_lazy_tag() ) );
                     self::assertNull( $handler->get_target() );
                     self::assertFalse( $handler->is_loaded() );
                     if ( ! $hooks ) {

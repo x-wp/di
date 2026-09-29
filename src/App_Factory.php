@@ -183,7 +183,7 @@ final class App_Factory {
             return;
         }
 
-        $this->files[ $ext['file'] ] = $app;
+        $this->files[ \plugin_basename( $ext['file'] ) ] = $app;
     }
 
     /**
@@ -205,7 +205,7 @@ final class App_Factory {
      * @return bool
      */
     protected function is_uninstalling( string|bool $file ): bool {
-        return \defined( 'WP_UNINSTALL_PLUGIN' ) && WP_UNINSTALL_PLUGIN === $file;
+        return \is_string( $file ) && '' !== $file && $this->get_uninstall_file() === \plugin_basename( $file );
     }
 
     /**
@@ -228,12 +228,28 @@ final class App_Factory {
     }
 
     /**
+     * Get the plugin being uninstalled by a file or registered callback.
+     *
+     * @return string|false
+     */
+    private function get_uninstall_file(): string|false {
+        if ( \defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+            return \plugin_basename( WP_UNINSTALL_PLUGIN );
+        }
+
+        $hook = (string) \current_action();
+
+        return \str_starts_with( $hook, 'uninstall_' )
+            ? \plugin_basename( \substr( $hook, 10 ) )
+            : false;
+    }
+
+    /**
      * Uninstall the container.
      */
     private function call_uninstall(): void {
-        $app = \defined( 'WP_UNINSTALL_PLUGIN' )
-            ? $this->files[ WP_UNINSTALL_PLUGIN ] ?? false
-            : false;
+        $file = $this->get_uninstall_file();
+        $app  = false !== $file ? $this->files[ $file ] ?? false : false;
 
         if ( ! $app ) {
             return;

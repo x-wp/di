@@ -22,6 +22,53 @@ trait Accessible_Hook_Methods {
     protected static array $hooks = array();
 
     /**
+     * Checks if a method is callable.
+     *
+     * @param  string|object $class_or_obj Class name or object.
+     * @param  string        $method       Method name.
+     * @return string|false
+     */
+    protected static function check_method_access( string|object $class_or_obj, string $method ): string|false {
+        $classname = \is_object( $class_or_obj ) ? $class_or_obj::class : $class_or_obj;
+
+        return match ( true ) {
+            ! \method_exists( $class_or_obj, $method )       => 'undefined',
+            ! static::is_method_valid( $classname, $method ) => 'private',
+            default                                          => false,
+        };
+    }
+
+    /**
+     * Checks if a private / protected method is callable.
+     *
+     * @param  string $classname Class name.
+     * @param  string $method    Method name.
+     * @return bool
+     */
+    protected static function is_method_valid( string $classname, string $method ): bool {
+        return \array_reduce(
+            static::get_registered_hooks( $classname, $method ),
+            static fn( bool $c, string $hook ) => $c || \doing_action( $hook ) || \doing_filter( $hook ),
+            false,
+        );
+    }
+
+    /**
+     * Get the valid hooks for a class and method.
+     *
+     * @param  string $classname Class name.
+     * @param  string $method    Method name.
+     * @return array
+     */
+    protected static function get_registered_hooks( string $classname, string $method ): array {
+        static::$hooks[ $classname ][ $method ] ??= \array_unique(
+            \wp_list_pluck( \xwp_hook_invoker()->get_hooks( $classname )[ $method ] ?? array(), 'tag' ),
+        );
+
+        return static::$hooks[ $classname ][ $method ];
+    }
+
+    /**
      * Magic method to call private methods which are hooked.
      *
      * @param  string $name      Method name.
@@ -74,52 +121,5 @@ trait Accessible_Hook_Methods {
         }
 
         return static::$name( ...$arguments );
-    }
-
-    /**
-     * Checks if a method is callable.
-     *
-     * @param  string|object $class_or_obj Class name or object.
-     * @param  string        $method       Method name.
-     * @return string|false
-     */
-    protected static function check_method_access( string|object $class_or_obj, string $method ): string|false {
-        $classname = \is_object( $class_or_obj ) ? $class_or_obj::class : $class_or_obj;
-
-        return match ( true ) {
-            ! \method_exists( $class_or_obj, $method )       => 'undefined',
-            ! static::is_method_valid( $classname, $method ) => 'private',
-            default                                          => false,
-        };
-    }
-
-    /**
-     * Checks if a private / protected method is callable.
-     *
-     * @param  string $classname Class name.
-     * @param  string $method    Method name.
-     * @return bool
-     */
-    protected static function is_method_valid( string $classname, string $method ): bool {
-        return \array_reduce(
-            static::get_registered_hooks( $classname, $method ),
-            static fn( bool $c, string $hook ) => $c || \doing_action( $hook ) || \doing_filter( $hook ),
-            false,
-        );
-    }
-
-    /**
-     * Get the valid hooks for a class and method.
-     *
-     * @param  string $classname Class name.
-     * @param  string $method    Method name.
-     * @return array
-     */
-    protected static function get_registered_hooks( string $classname, string $method ): array {
-        static::$hooks[ $classname ][ $method ] ??= \array_unique(
-            \wp_list_pluck( \xwp_hook_invoker()->get_hooks( $classname )[ $method ] ?? array(), 'tag' ),
-        );
-
-        return static::$hooks[ $classname ][ $method ];
     }
 }

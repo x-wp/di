@@ -74,6 +74,10 @@ class Factory {
      */
     public function make( array $hook ): Can_Hook|Callback {
         if ( $this->ctr() && $this->handler_runtime_class( $hook['type'] ) ) {
+            $legacy = $this->discovery->handler( $hook['params']['classname'] );
+            if ( $legacy instanceof Can_Handle ) {
+                return $this->restore_legacy( $legacy, $hook['params'] );
+            }
             $runtime = $this->handler_runtime_class( $hook['type'] );
             return new $runtime( HandlerDefinition::from_data( $hook ), $this->ctr() );
         }
@@ -93,8 +97,20 @@ class Factory {
             return new $runtime( CallbackDefinition::from_data( $hook ), $this->ctr() );
         }
 
-        return ( new $hook['type']( ...$hook['args'] ) )
-            ->with_data( $hook['params'] )->with_container( $this->ctr() );
+        $constructor = ( new ReflectionClass( $hook['type'] ) )->getConstructor();
+        $args        = $hook['args'];
+        if ( $constructor && ! $constructor->isVariadic() ) {
+            $names = \array_map( static fn( $param ) => $param->getName(), $constructor->getParameters() );
+            $args  = \array_intersect_key( $args, \array_flip( $names ) );
+        }
+
+        $legacy = new $hook['type']( ...$args );
+        if ( $legacy instanceof Filter && isset( $hook['args']['invoke'] ) ) {
+            // Discovery can change invocation flags after a narrow constructor runs.
+            $legacy->with_invoke( $hook['args']['invoke'] );
+        }
+
+        return $this->restore_legacy( $legacy, $hook['params'] );
     }
     // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
@@ -306,6 +322,7 @@ class Factory {
             $runtime = new Handler(
                 new HandlerDefinition(
                     $instance::class,
+                    priority: null,
                     strategy: Handler_Decorator::INIT_USER,
                     hookable: true,
                 ),
@@ -415,21 +432,36 @@ class Factory {
             return $hook;
         }
 
-        $runtime = $this->handler_runtime_class(
-            $hook::class,
-        ) || ( $hook instanceof Filter && $this->runtime_class( $hook::class ) )
-            ? $this->make( $hook->get_data() )
-            : $hook;
-
-        if ( $runtime instanceof Handler && $hook instanceof Can_Handle && $hook->get_target() ) {
-            $runtime->with_target( $hook->get_target() );
-        }
-
-        $this->ctr()->set( $token, $runtime );
+        // Supplied and custom-discovered decorators own their live listener state.
+        $this->ctr()->set( $token, $hook );
 
         return $hook;
     }
     // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
+
+    /**
+     * Restore cache metadata without replacing custom injection declarations.
+     *
+     * @template T of Can_Hook
+     * @param T                   $hook Legacy hook.
+     * @param array<string,mixed> $params Serialized binding metadata.
+     * @return T
+     */
+    private function restore_legacy( Can_Hook $hook, array $params ): Can_Hook {
+        $hook->with_classname( $params['classname'] );
+        if ( ! $hook instanceof Can_Handle ) {
+            return $hook->with_data( $params )->with_container( $this->ctr() );
+        }
+        foreach ( $params['params'] ?? array() as $method => $tokens ) {
+            $infuse = $hook->get_params( $method );
+            if ( ! $infuse || \XWP\DI\Decorators\Infuse::class === $infuse::class ) {
+                continue;
+            }
+
+            unset( $params['params'][ $method ] );
+        }
+        return $hook->with_data( $params )->with_container( $this->ctr() );
+    }
 
     /**
      * Get a hook by classname

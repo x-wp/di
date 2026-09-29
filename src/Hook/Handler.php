@@ -55,7 +55,6 @@ class Handler extends Hook implements Can_Handle {
         $this->strategy  = $definition->get_strategy();
         $this->hookable  = $definition->is_hookable();
         $this->callbacks = $definition->get_callbacks();
-        $this->loaded    = self::INIT_USER === $this->strategy;
         $this->with_params( $definition->get_params() );
     }
 

@@ -67,13 +67,16 @@ class Container extends DI_Container {
      * @return mixed
      *
      * @internal Runtime proxy for Invoker methods.
+     * @throws \BadMethodCallException If the method is not supported.
      */
     public function __call( string $name, array $args ): mixed {
         if ( \in_array( $name, self::INV_METHODS, true ) ) {
             return $this->resolvedEntries['xwp.invoker']->$name( ...$args );
         }
 
-        return null;
+        throw new \BadMethodCallException(
+            \esc_html( "Unknown container method {$name}. Use App::run() to start the application." ),
+        );
     }
 
     /**

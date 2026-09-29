@@ -46,56 +46,50 @@ final class Callback_Gates_Test extends TestCase {
     }
 
     /** @dataProvider strategies_and_cache_modes */
-    public function test_rejected_callbacks_can_retry_attachment_without_reinitializing_the_handler( string $class, bool $compile, bool $hooks ): void {
-        foreach ( array( 'context', 'condition' ) as $gate ) {
-            foreach ( $this->apps( $compile, $hooks ) as $app ) {
-                $this->context->setValue( null, 'context' === $gate ? Handler::CTX_FRONTEND : Handler::CTX_ADMIN );
-                Callback_Gates_Module::$allowed = 'condition' !== $gate;
-                $handler = $app->container()->get( Invoker::class )->register_handler( $class );
-                do_action( 'xwp_gates_attach' );
+    public function test_proxied_conditions_are_evaluated_when_the_hook_fires( string $class, bool $compile, bool $hooks ): void {
+        foreach ( $this->apps( $compile, $hooks ) as $app ) {
+            Callback_Gates_Module::$allowed = false;
+            $handler = $app->container()->get( Invoker::class )->register_handler( $class );
+            do_action( 'xwp_gates_attach' );
 
-                self::assertSame( 'condition' === $gate ? 4 : 0, Callback_Gates_Module::$checks );
-                $initial_events = Jit_Gates_Handler::class === $class ? array() : array( 'construct', 'initialize' );
-                self::assertSame( $initial_events, Callback_Gates_Module::$events );
-                foreach ( array( 'xwp_gates_standard', 'xwp_gates_proxied', 'xwp_gates_standard_action', 'xwp_gates_proxied_action' ) as $tag ) {
-                    self::assertFalse( has_filter( $tag ) );
-                }
-                self::assertSame( 'value', apply_filters( 'xwp_gates_standard', 'value' ) );
-                self::assertSame( 'value', apply_filters( 'xwp_gates_proxied', 'value' ) );
-                do_action( 'xwp_gates_standard_action' );
-                do_action( 'xwp_gates_proxied_action' );
-                self::assertSame( $initial_events, Callback_Gates_Module::$events );
+            self::assertNotFalse( has_filter( 'xwp_gates_proxied' ) );
+            self::assertNotFalse( has_action( 'xwp_gates_proxied_action' ) );
+            self::assertSame( $handler->is_lazy(), false !== has_filter( 'xwp_gates_standard' ) );
+            self::assertSame( $handler->is_lazy() ? 0 : 2, Callback_Gates_Module::$checks );
+            self::assertSame( 'value', apply_filters( 'xwp_gates_proxied', 'value' ) );
+            do_action( 'xwp_gates_proxied_action' );
+            self::assertSame( array( 'construct', 'initialize' ), Callback_Gates_Module::$events );
 
-                $this->context->setValue( null, Handler::CTX_ADMIN );
-                Callback_Gates_Module::$allowed = true;
-                $before = Callback_Gates_Module::$checks;
-                self::assertCount( 4, $handler->get_callbacks() );
-                foreach ( $handler->get_callbacks() as $token ) {
-                    $callback = $app->container()->get( $token );
-                    self::assertFalse( $callback->is_loaded() );
-                    self::assertTrue( $callback->load() );
-                    self::assertTrue( $callback->load(), 'Repeated attachment must not recheck conditions.' );
-                }
-                self::assertSame( $before + 4, Callback_Gates_Module::$checks );
-                self::assertSame( $initial_events, Callback_Gates_Module::$events, 'JIT attachment stays deferred; other handlers initialize once.' );
+            // A changing request condition needs no explicit reattachment.
+            Callback_Gates_Module::$allowed = true;
+            self::assertSame( 'value:proxied', apply_filters( 'xwp_gates_proxied', 'value' ) );
+            do_action( 'xwp_gates_proxied_action' );
+            self::assertSame( array( 'construct', 'initialize', 'proxied filter', 'proxied action' ), Callback_Gates_Module::$events );
 
-                self::assertSame( 'value:standard', apply_filters( 'xwp_gates_standard', 'value' ) );
-                self::assertSame( 'value:proxied', apply_filters( 'xwp_gates_proxied', 'value' ) );
-                do_action( 'xwp_gates_standard_action' );
-                do_action( 'xwp_gates_proxied_action' );
-                self::assertSame( array( 'construct', 'initialize', 'standard filter', 'proxied filter', 'standard action', 'proxied action' ), Callback_Gates_Module::$events );
-                self::assertSame( $before + 4 + ( $handler->is_lazy() ? 4 : 2 ), Callback_Gates_Module::$checks );
+            // Direct callbacks can retry a previously rejected attachment.
+            foreach ( $handler->get_callbacks() as $token ) {
+                $callback = $app->container()->get( $token );
+                self::assertTrue( $callback->load() );
+                self::assertTrue( $callback->load() );
             }
+            self::assertSame( 'value:standard', apply_filters( 'xwp_gates_standard', 'value' ) );
         }
     }
 
     /** @dataProvider strategies_and_cache_modes */
-    public function test_eligible_callbacks_check_once_at_attachment_and_proxies_recheck_at_invocation( string $class, bool $compile, bool $hooks ): void {
+    public function test_context_rejection_can_retry_and_proxies_recheck_at_invocation( string $class, bool $compile, bool $hooks ): void {
         foreach ( $this->apps( $compile, $hooks ) as $app ) {
+            $this->context->setValue( null, Handler::CTX_FRONTEND );
             $handler = $app->container()->get( Invoker::class )->register_handler( $class );
             do_action( 'xwp_gates_attach' );
-            self::assertSame( 4, Callback_Gates_Module::$checks );
-            self::assertSame( Jit_Gates_Handler::class === $class ? array() : array( 'construct', 'initialize' ), Callback_Gates_Module::$events );
+            self::assertFalse( has_filter( 'xwp_gates_proxied' ) );
+            self::assertSame( 0, Callback_Gates_Module::$checks );
+
+            $this->context->setValue( null, Handler::CTX_ADMIN );
+            foreach ( $handler->get_callbacks() as $token ) {
+                self::assertTrue( $app->container()->get( $token )->load() );
+            }
+            self::assertSame( $handler->is_lazy() ? 0 : 2, Callback_Gates_Module::$checks );
 
             Callback_Gates_Module::$allowed = false;
             self::assertSame( $handler->is_lazy() ? 'value' : 'value:standard', apply_filters( 'xwp_gates_standard', 'value' ) );
@@ -103,7 +97,7 @@ final class Callback_Gates_Test extends TestCase {
             do_action( 'xwp_gates_standard_action' );
             do_action( 'xwp_gates_proxied_action' );
             self::assertSame( $handler->is_lazy() ? array( 'construct', 'initialize' ) : array( 'construct', 'initialize', 'standard filter', 'standard action' ), Callback_Gates_Module::$events );
-            self::assertSame( $handler->is_lazy() ? 8 : 6, Callback_Gates_Module::$checks );
+            self::assertSame( 4, Callback_Gates_Module::$checks );
 
             $events = Callback_Gates_Module::$events;
             $checks = Callback_Gates_Module::$checks;

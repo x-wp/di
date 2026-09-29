@@ -450,6 +450,8 @@ class Parser {
         };
     }
 
+    // Extensions combine registration metadata and typed PHP-DI definitions.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
      * Merge the extended definition.
      *
@@ -479,11 +481,14 @@ class Parser {
         $merged['app.extensions'][ $ext['id'] ] = \DI\get( "app.ext.{$ext['id']}" );
 
         foreach ( $this->get_definition( $ext['module'] ) as $key => $val ) {
-            $merged[ $key ] = \array_merge_recursive( $merged[ $key ] ?? array(), $val );
+            $merged[ $key ] = \is_array( $merged[ $key ] ?? null ) && \is_array( $val )
+                ? \array_merge_recursive( $merged[ $key ], $val )
+                : $val;
         }
 
         return $merged;
     }
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Append a value to the definition.

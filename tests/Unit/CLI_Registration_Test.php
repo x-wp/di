@@ -38,9 +38,14 @@ final class CLI_Registration_Test extends TestCase {
         ) );
         $additions = 0;
         \WP_CLI::add_hook( 'before_add_command:shared', static function () use ( &$additions ): void { ++$additions; } );
-        $metadata = ( new CLI_Handler( 'shared' ) )->with_classname( CLI_Registration_Target::class )->get_data();
+        $metadata = ( new CLI_Handler( 'shared', description: 'Shared commands' ) )->with_classname( CLI_Registration_Target::class )->get_data();
         $runtime = ( new Factory( $container ) )->make( $metadata );
         $runtime->with_target( new CLI_Registration_Target() );
+        $runtime->track( 'Review progress', 2 );
+        $runtime->tick();
+        $runtime->tick();
+        $runtime->finish();
+        self::assertSame( 'Shared commands', $runtime->description );
         $custom = ( new Custom_CLI_Registration_Handler( 'shared' ) )->with_target( new CLI_Registration_Target() );
         foreach ( $custom_first ? array( $custom, $runtime ) : array( $runtime, $custom ) as $handler ) {
             $handler->load();

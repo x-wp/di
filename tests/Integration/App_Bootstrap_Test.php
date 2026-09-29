@@ -119,6 +119,29 @@ final class App_Bootstrap_Test extends TestCase {
         $app->run();
     }
 
+    public function test_default_loader_runs_before_later_listeners_at_the_same_priority(): void {
+        remove_all_actions( 'plugins_loaded' );
+        $first = $this->config();
+        $second = $this->config();
+        $events = array();
+        xwp_load_app( $first );
+        add_action( 'plugins_loaded', static function () use ( $first, &$events ): void {
+            $events[] = xwp_app( $first['app_id'] )->started();
+        }, PHP_INT_MIN );
+        xwp_load_app( $second );
+        add_action( 'plugins_loaded', static function () use ( $second, &$events ): void {
+            $events[] = xwp_app( $second['app_id'] )->started();
+        }, PHP_INT_MIN );
+        do_action( 'plugins_loaded' );
+        self::assertSame( array( true, true ), $events );
+    }
+
+    public function test_unknown_container_method_throws_instead_of_silently_skipping_startup(): void {
+        $app = xwp_create_app( $this->config() );
+        $this->expectException( \BadMethodCallException::class );
+        $app->container()->run();
+    }
+
     private function config(): array {
         $id = uniqid( 'lifecycle_' );
 

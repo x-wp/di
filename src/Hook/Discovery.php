@@ -45,7 +45,7 @@ final class Discovery {
      * @return HandlerDefinition|Can_Handle<object>|null
      */
     public function handler( string $classname, string $type = Can_Handle::class ): HandlerDefinition|Can_Handle|null {
-        $reflector = new ReflectionClass( $classname );
+        $reflector = Reflection::get_reflector( $classname );
         $attribute = Reflection::get_decorator( $reflector, $type );
         if ( ! $attribute ) {
             return null;
@@ -88,8 +88,47 @@ final class Discovery {
 
             $callbacks[] = $this->callback_definition( $attribute, $handler, $method );
         }
+        return $this->unique_callbacks( $callbacks );
+    }
+
+    // Keep ordinal assignment and metadata round trips together.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
+    /**
+     * Disambiguate repeated declarations while preserving existing single IDs.
+     *
+     * @param array<CallbackDefinition|Can_Invoke<object,Can_Handle<object>>> $callbacks Method declarations.
+     * @return array<CallbackDefinition|Can_Invoke<object,Can_Handle<object>>>
+     */
+    private function unique_callbacks( array $callbacks ): array {
+        $seen = array();
+        foreach ( $callbacks as $index => $callback ) {
+            $token          = $callback->get_token();
+            $occurrence     = $seen[ $token ] ?? 0;
+            $seen[ $token ] = $occurrence + 1;
+            if ( 0 === $occurrence ) {
+                continue;
+            }
+            $token .= '#' . ( $occurrence + 1 );
+            if ( $callback instanceof CallbackDefinition ) {
+                $data                    = $callback->get_data();
+                $data['params']['token'] = $token;
+                if ( isset( $data['args']['invoke'] ) ) {
+                    $data['args']['invoke'] = ( $callback->get_invoke() | D\Filter::INV_PROXIED ) & ~D\Filter::INV_STANDARD;
+                }
+                $callbacks[ $index ] = CallbackDefinition::from_data( $data );
+            } else {
+                /** @var D\Hook<object,ReflectionMethod> $callback */
+                $callback->with_token( $token );
+                if ( $callback instanceof D\Filter ) {
+                    $callback->with_invoke(
+                        ( ( $callback->get_declaration()['invoke'] ?? D\Filter::INV_PROXIED ) | D\Filter::INV_PROXIED ) & ~D\Filter::INV_STANDARD,
+                    );
+                }
+            }
+        }
         return $callbacks;
     }
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Keep mutable extension discovery on its original handler object.
@@ -142,9 +181,7 @@ final class Discovery {
             return $definition;
         }
         $data                                      = $definition->get_data();
-        $data['params']['params']['on_initialize'] = D\Infuse::class === $infuse::class
-            ? $infuse->get_tokens( $definition->get_id() )
-            : $infuse->get( $this->legacy_handler( $definition ) );
+        $data['params']['params']['on_initialize'] = $infuse->get_tokens( $definition->get_id() );
         return HandlerDefinition::from_data( $data );
     }
 
@@ -205,9 +242,7 @@ final class Discovery {
             return $definition;
         }
         if ( isset( $this->legacy_handlers[ $definition ] ) ) {
-            return $this->legacy_handlers[ $definition ]->with_reflector(
-                new ReflectionClass( $definition->get_class() ),
-            );
+            return $this->legacy_handlers[ $definition ];
         }
         $data      = $definition->get_data();
         $classname = $definition->get_decorator();

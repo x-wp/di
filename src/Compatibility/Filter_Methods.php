@@ -60,7 +60,7 @@ trait Filter_Methods {
     protected bool $firing = false;
 
     public function __get( string $name ): mixed {
-        return $this->runtime ? $this->runtime->__get( $name ) : parent::__get( $name );
+        return $this->runtime?->__get( $name ) ?? parent::__get( $name );
     }
 
     /**
@@ -113,6 +113,18 @@ trait Filter_Methods {
             $this->invoke = ( $this->invoke | self::INV_PROXIED ) & ~self::INV_STANDARD;
         }
 
+        return $this;
+    }
+
+    /**
+     * Set invocation flags while binding repeated declarations.
+     *
+     * @internal Discovery binding detail.
+     * @param int $invoke Invocation flags.
+     * @return static
+     */
+    public function with_invoke( int $invoke ): static {
+        $this->invoke = $invoke;
         return $this;
     }
 
@@ -228,7 +240,11 @@ trait Filter_Methods {
             return $this->runtime->can_load();
         }
 
-        return parent::can_load() && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
+        $handler = $this->get_handler();
+
+        return $this->check_context()
+            && ( ! $this->cb_valid( self::INV_STANDARD ) || $this->check_method( $this->conditional ) )
+            && ( $handler->is_lazy() || $handler->is_loaded() );
     }
 
     /**
@@ -320,7 +336,7 @@ trait Filter_Methods {
             return $handler->is_lazy();
         }
 
-        \do_action( "{$handler->get_token()}_{$strategy}_init", $handler );
+        \do_action( $handler->get_lazy_tag(), $handler );
 
         return $handler->is_loaded();
     }

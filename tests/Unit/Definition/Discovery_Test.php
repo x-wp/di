@@ -17,6 +17,51 @@ use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Utils\Reflection;
 
 final class Discovery_Test extends TestCase {
+    public function test_narrow_specialized_constructors_accept_exported_metadata(): void {
+        $factory = new Factory();
+        foreach ( array( new Discovery_Narrow_Ajax( 'action' ), new Discovery_Narrow_Route( '/route', 'GET' ) ) as $callback ) {
+            $callback->with_classname( Discovery_Repeated_Host::class )->with_method( 'value' );
+            self::assertSame( $callback->get_data(), $factory->make( $callback->get_data() )->get_data() );
+        }
+        $handler = ( new Discovery_Narrow_REST( 'review/v1', 'items' ) )->with_reflector( new \ReflectionClass( Discovery_Repeated_Host::class ) );
+        self::assertSame( $handler->get_data(), $factory->make( $handler->get_data() )->get_data() );
+    }
+
+    public function test_repeated_specialized_and_custom_callbacks_have_stable_ids(): void {
+        $factory = new Factory();
+        foreach ( array( Discovery_Repeated_REST::class, Discovery_Repeated_Custom::class ) as $class ) {
+            $callbacks = $factory->resolve_callbacks( $factory->resolve_handler( $class ) );
+            $tokens = array_map( static fn( $cb ) => $cb->get_token(), $callbacks );
+            self::assertCount( count( $callbacks ), array_unique( $tokens ) );
+            foreach ( $callbacks as $callback ) {
+                $data = $callback->get_data();
+                self::assertInstanceOf( $data['type'], new $data['type']( ...$data['args'] ) );
+            }
+            self::assertSame( $tokens, array_map( static fn( $cb ) => $factory->make( $cb->get_data() )->get_token(), $callbacks ) );
+            self::assertSame( $tokens, array_map( static fn( $cb ) => $cb->get_token(), $factory->resolve_callbacks( $factory->resolve_handler( $class ) ) ) );
+        }
+    }
+
+    public function test_repeated_callback_ids_are_unique_and_survive_metadata_round_trips(): void {
+        $factory = new Factory();
+        $callbacks = $factory->resolve_callbacks( $factory->resolve_handler( Discovery_Repeated_Host::class ) );
+        $tokens = array_map( static fn( $cb ) => $cb->get_token(), $callbacks );
+        self::assertCount( 2, array_unique( $tokens ) );
+        self::assertSame( $tokens, array_map( static fn( $cb ) => $factory->make( $cb->get_data() )->get_token(), $callbacks ) );
+    }
+
+    public function test_missing_handler_uses_the_legacy_exception_contract(): void {
+        $this->expectException( \InvalidArgumentException::class );
+        ( new Factory() )->resolve_handler( 'Missing_Discovery_Review_Class' );
+    }
+
+    public function test_custom_narrow_module_constructor_can_round_trip(): void {
+        $factory = new Factory();
+        $module = $factory->resolve_module( Discovery_Narrow_Module_Host::class );
+        $copy = $factory->make( $module->get_data() );
+        self::assertSame( $module->get_data(), $copy->get_data() );
+    }
+
     /** @dataProvider handlers */
     public function test_handler_discovery_returns_definition_with_legacy_metadata( string $class ): void {
         $factory = new Factory();
@@ -112,7 +157,7 @@ final class Discovery_Test extends TestCase {
         self::assertSame( 'inherited', $definition->get_method() );
         self::assertSame( 2, $definition->get_accepted_args() );
         self::assertSame( 'on_initialize', array_key_first( $factory->resolve_handler( Discovery_Handler::class )->get_params() ) );
-        self::assertSame( array( 1 => 'service', 2 => 'Hook-' . Discovery_Handler::class ), $factory->resolve_handler( Discovery_Handler::class )->get_params()['on_initialize'] );
+        self::assertSame( array( 'Hook-' . Discovery_Handler::class, 'service' ), $factory->resolve_handler( Discovery_Handler::class )->get_params()['on_initialize'] );
     }
 }
 
@@ -124,7 +169,7 @@ class Discovery_Parent {
 #[D\Handler( strategy: D\Handler::INIT_JIT )]
 class Discovery_Handler extends Discovery_Parent {
     #[D\Infuse( '!self.handler', 'service' )]
-    public function on_initialize( $service, $handler ) {}
+    public function on_initialize( $handler, $service ) {}
 }
 
 #[D\Module( 'plugins_loaded', services: array( \stdClass::class ), strategy: D\Handler::INIT_NOW )]
@@ -205,4 +250,52 @@ class Discovery_Custom_Infuse extends D\Infuse {
 class Discovery_Infuse_Host {
     #[Discovery_Custom_Infuse()]
     protected function on_initialize() {}
+}
+
+#[\Attribute( \Attribute::TARGET_CLASS )]
+class Discovery_Narrow_Module extends D\Module {
+    public function __construct( string $hook, int $priority = 10, int $context = self::CTX_GLOBAL, array $imports = array(), array $handlers = array() ) {
+        parent::__construct( $hook, $priority, $context, $imports, $handlers );
+    }
+}
+
+#[Discovery_Narrow_Module( 'init' )]
+class Discovery_Narrow_Module_Host {}
+
+#[D\Handler( 'init' )]
+class Discovery_Repeated_Host {
+    #[D\Filter( 'repeated', priority: 10 )]
+    #[D\Action( 'repeated', priority: 20 )]
+    public function value( $value ) { return $value; }
+}
+
+class Discovery_Narrow_Ajax extends D\Ajax_Action {
+    public function __construct( string $action ) { parent::__construct( $action ); }
+}
+class Discovery_Narrow_Route extends D\REST_Route {
+    public function __construct( string $route, string $methods ) { parent::__construct( $route, $methods ); }
+}
+class Discovery_Narrow_REST extends D\REST_Handler {
+    public function __construct( string $namespace, string $basename ) { parent::__construct( $namespace, $basename ); }
+}
+
+#[D\REST_Handler( 'review/v1', 'items' )]
+class Discovery_Repeated_REST {
+    #[D\REST_Route( '/first', 'GET' )]
+    #[D\REST_Route( '/second', 'GET' )]
+    public function route() {}
+
+    #[D\Ajax_Action( 'first' )]
+    #[D\Ajax_Action( 'second' )]
+    public function ajax() {}
+}
+
+#[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
+class Discovery_Repeated_Filter extends D\Filter {}
+
+#[D\Handler( 'init' )]
+class Discovery_Repeated_Custom {
+    #[Discovery_Repeated_Filter( 'repeat_custom', invoke: D\Filter::INV_PROXIED )]
+    #[Discovery_Repeated_Filter( 'repeat_custom', invoke: D\Filter::INV_PROXIED )]
+    public function value( $value ) { return $value; }
 }

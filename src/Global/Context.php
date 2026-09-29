@@ -99,7 +99,7 @@ final class XWP_Context {
      * @return bool
      */
     public static function validate( int $context ): bool {
-        return 0 !== ( self::get() & $context );
+        return self::Global === $context || 0 !== ( self::get() & $context );
     }
 
     /**

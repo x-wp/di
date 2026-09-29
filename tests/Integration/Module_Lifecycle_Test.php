@@ -63,7 +63,7 @@ final class Module_Lifecycle_Test extends TestCase {
 
             if ( Module::CTX_FRONTEND === $context ) {
                 self::assertSame( array(), Module_Lifecycle_Root::$events, 'Excluded ancestors block construction, conditions, and initialization throughout their subtree.' );
-                self::assertFalse( has_action( 'xwp_module_parent' ) );
+                self::assertTrue( has_action( 'xwp_module_parent' ), 'AUTO modules select context when their scheduled hook runs.' );
                 self::assertFalse( has_action( 'xwp_module_child' ) );
                 self::assertFalse( has_filter( 'xwp_module_value' ) );
                 self::assertSame( 'value', apply_filters( 'xwp_module_value', 'value' ) );
@@ -85,7 +85,7 @@ final class Module_Lifecycle_Test extends TestCase {
                 self::assertSame( array( 'parent:action', 'child:action' ), array_slice( Module_Lifecycle_Root::$events, -2 ) );
             }
 
-            self::assertFalse( has_action( 'xwp_module_excluded' ), 'An imported module must also satisfy its own context.' );
+            self::assertSame( Module::CTX_ADMIN === $context, has_action( 'xwp_module_excluded' ), 'An imported module waits for its hook to select its own context.' );
             self::assertFalse( has_action( 'xwp_module_descendant' ), 'A global descendant cannot override its excluded ancestor.' );
             self::assertFalse( $app->container()->has( 'lifecycle.excluded.runtime' ) );
             self::assertFalse( $app->container()->has( 'lifecycle.descendant.runtime' ) );

@@ -28,6 +28,7 @@ final class Callback_Runtime_Test extends TestCase {
             'app.cache' => array( 'app' => false, 'defs' => false, 'hooks' => false, 'dir' => false ),
             'app.env' => 'testing',
             'app.id' => 'callback-runtime',
+            'app.uuid' => 'callback-runtime-test',
         ) );
         $this->target = new Callback_Runtime_Target();
         $this->set_handler( Handler::INIT_NOW, true );
@@ -103,6 +104,42 @@ final class Callback_Runtime_Test extends TestCase {
         return array( 'filter' => array( Filter::class, 'filter_view' ), 'action' => array( Action::class, 'action_view' ) );
     }
 
+    public function test_typed_view_retains_declaration_properties(): void {
+        $callback = $this->make_callback( 'filter_view', array(
+            'params' => array( '!self.hook' ), 'priority' => 23, 'conditional' => '__return_true',
+        ) );
+        self::assertSame( 'a:changed', $callback->invoke( 'a' ) );
+        $view = $this->target->views[0];
+        self::assertSame( array( '!self.hook' ), $view->params );
+        self::assertSame( 23, $view->prio );
+        self::assertSame( '__return_true', $view->conditional );
+        self::assertSame( 1, $view->fired );
+        self::assertFalse( $view->firing );
+    }
+
+    public function test_legacy_proxy_attaches_before_its_condition_becomes_true(): void {
+        $allowed = false;
+        $callback = ( new Filter(
+            'xwp_legacy_condition', args: 2, invoke: Filter::INV_PROXIED,
+            conditional: static function () use ( &$allowed ): bool { return $allowed; },
+        ) )->with_handler( $this->handler )->with_method( 'pair' );
+        self::assertTrue( $callback->load() );
+        self::assertSame( 'a', apply_filters( 'xwp_legacy_condition', 'a', 'b' ) );
+        $allowed = true;
+        self::assertSame( 'a:b', apply_filters( 'xwp_legacy_condition', 'a', 'b' ) );
+        self::assertSame( 1, $callback->fired );
+    }
+
+    public function test_infuse_preserves_handler_tokens_in_each_argument_position(): void {
+        $this->container->set( 'review.service', 'service-value' );
+        $infuse = new \XWP\DI\Decorators\Infuse( '!self.handler', 'review.service', '!self.handler' );
+        $received = $this->container->call(
+            static fn( $first, $second, $third ) => array( $first, $second, $third ),
+            $infuse->resolve( $this->handler ),
+        );
+        self::assertSame( array( $this->handler, 'service-value', $this->handler ), $received );
+    }
+
     public function test_plain_view_normalizes_null_priority_metadata(): void {
         $data = ( new Filter( 'xwp_runtime', params: array( '!self.hook' ), invoke: Filter::INV_PROXIED ) )
             ->with_classname( Callback_Runtime_Target::class )->with_method( 'filter_view' )->get_data();
@@ -125,7 +162,7 @@ final class Callback_Runtime_Test extends TestCase {
         self::assertSame( 1, $this->target->views[1]->fired );
     }
 
-    public function test_context_and_condition_gate_attachment_and_proxy_invocation(): void {
+    public function test_context_gates_attachment_and_condition_gates_proxy_invocation(): void {
         $checks = 0;
         $allowed = false;
         $callback = $this->make_callback( 'run', array(
@@ -138,23 +175,23 @@ final class Callback_Runtime_Test extends TestCase {
         self::assertFalse( $callback->load() );
         self::assertSame( 0, $checks );
         $this->context->setValue( null, Filter::CTX_ADMIN );
-        self::assertFalse( $callback->load() );
-        self::assertSame( 1, $checks );
+        self::assertTrue( $callback->load() );
+        self::assertSame( 0, $checks );
         $allowed = true;
         self::assertTrue( $callback->load() );
         self::assertTrue( $callback->load() );
-        self::assertSame( 2, $checks );
+        self::assertSame( 0, $checks );
         $allowed = false;
         self::assertSame( 'a', apply_filters( 'xwp_runtime', 'a' ) );
-        self::assertSame( 3, $checks );
+        self::assertSame( 1, $checks );
         self::assertSame( 0, $callback->fired );
         $allowed = true;
         self::assertSame( 'a:changed', apply_filters( 'xwp_runtime', 'a' ) );
-        self::assertSame( 4, $checks );
+        self::assertSame( 2, $checks );
         self::assertSame( 1, $callback->fired );
         $this->context->setValue( null, Filter::CTX_FRONTEND );
         self::assertSame( 'b', apply_filters( 'xwp_runtime', 'b' ) );
-        self::assertSame( 4, $checks );
+        self::assertSame( 2, $checks );
         self::assertSame( 1, $callback->fired );
     }
 
@@ -163,7 +200,7 @@ final class Callback_Runtime_Test extends TestCase {
         $this->set_handler( $strategy, false );
         $attempts = 0;
         $allowed = false;
-        $tag = $this->handler->get_token() . '_' . $strategy . '_init';
+        $tag = $this->handler->get_lazy_tag();
         add_action( $tag, function ( Handler $handler ) use ( &$attempts, &$allowed ): void {
             ++$attempts;
             if ( $allowed ) {

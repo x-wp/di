@@ -30,6 +30,13 @@ trait Handler_Methods {
     protected bool $did_init = false;
 
     /**
+     * Whether container construction is adopting its own target.
+     *
+     * @var bool
+     */
+    private bool $initializing = false;
+
+    /**
      * Handler instance.
      *
      * @var T
@@ -113,7 +120,7 @@ trait Handler_Methods {
         $this->classname ??= $instance::class;
         $this->loaded      = true;
         $this->init_hook   = \current_action();
-        $this->did_init    = true;
+        $this->did_init    = ! $this->initializing;
 
         return $this;
     }
@@ -206,8 +213,9 @@ trait Handler_Methods {
     public function get_priority(): int {
         if ( '' === $this->tag && null === $this->prio ) {
             $action     = \end( $GLOBALS['wp_current_filter'] );
-            $filter     = $GLOBALS['wp_filter'][ $action ];
-            $this->prio = $filter->current_priority() + 1;
+            $filter     = $GLOBALS['wp_filter'][ $action ] ?? null;
+            $priority   = $filter?->current_priority();
+            $this->prio = \is_int( $priority ) ? $priority + 1 : 10;
         }
 
         return parent::get_priority();
@@ -243,7 +251,7 @@ trait Handler_Methods {
      * @return string
      */
     public function get_lazy_tag(): string {
-        return \sprintf( '%s_%s_init', $this->get_token(), $this->get_strategy() );
+        return \sprintf( '%s_%s_%s_init', $this->get_token(), $this->get_app_uuid(), $this->get_strategy() );
     }
 
     /**
@@ -276,10 +284,7 @@ trait Handler_Methods {
      * @return bool
      */
     public function can_load(): bool {
-        return parent::can_load() && $this->check_method(
-            array( $this->classname, 'can_initialize' ),
-            $this->resolve_params( 'can_initialize' ),
-        );
+        return parent::can_load() && $this->check_initializer();
     }
 
     /**
@@ -341,7 +346,12 @@ trait Handler_Methods {
             $init_hook = $this->get_lazy_tag();
         }
 
-        $this->instance ??= $this->instantiate();
+        $this->initializing = true;
+        try {
+            $this->instance ??= $this->instantiate();
+        } finally {
+            $this->initializing = false;
+        }
         $this->init_hook = $init_hook ?? \current_action();
 
         return $this;
@@ -382,5 +392,19 @@ trait Handler_Methods {
      */
     protected function resolve_params( string $method ): array {
         return $this->get_params( $method )?->resolve( $this ) ?? array();
+    }
+
+    /**
+     * Evaluate the initialization condition with its explicit injection parameters.
+     *
+     * @return bool
+     */
+    private function check_initializer(): bool {
+        $method = array( $this->classname, 'can_initialize' );
+        $params = $this->resolve_params( 'can_initialize' );
+
+        return array() === $params
+            ? $this->check_method( $method )
+            : ( ! $this->can_call( $method ) || $this->get_container()->call( $method, $params ) );
     }
 }

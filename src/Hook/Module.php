@@ -37,7 +37,13 @@ class Module extends Handler implements Can_Import {
      */
     public function __construct( HandlerDefinition $definition, Container $container ) {
         parent::__construct( $definition, $container );
-        $this->composition = ModuleDefinition::from_data( $this->get_data() );
+        $options           = $definition->get_options();
+        $this->composition = new ModuleDefinition(
+            $definition->get_class(),
+            imports: $options['imports'] ?? array(),
+            handlers: $options['handlers'] ?? array(),
+            services: $options['services'] ?? array(),
+        );
     }
 
     public function get_imports(): array {

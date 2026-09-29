@@ -225,9 +225,11 @@ class Callback {
     }
 
     public function can_load(): bool {
+        $handler = $this->get_handler();
+
         return $this->check_context()
-            && $this->check_method( $this->definition->get_conditional() )
-            && ( $this->get_handler()->is_lazy() || $this->get_handler()->is_loaded() );
+            && ( ! $this->cb_valid( Can_Invoke::INV_STANDARD ) || $this->check_method( $this->definition->get_conditional() ) )
+            && ( $handler->is_lazy() || $handler->is_loaded() );
     }
 
     public function load(): bool {
@@ -297,7 +299,7 @@ class Callback {
             return $handler->is_lazy();
         }
 
-        \do_action( "{$handler->get_token()}_{$strategy}_init", $handler );
+        \do_action( $handler->get_lazy_tag(), $handler );
 
         return $handler->is_loaded();
     }
@@ -405,6 +407,10 @@ class Callback {
             ->with_method( $this->get_method() )
             ->with_container( $this->container )
             ->with_runtime( $this );
+
+        if ( $this->view->get_token() !== $this->get_token() ) {
+            $this->view->with_token( $this->get_token() );
+        }
 
         if ( $this->view instanceof \XWP\DI\Decorators\REST_Route ) {
             $this->view->with_tag( $this->tag )->with_priority( $this->get_priority() );

@@ -54,14 +54,10 @@ class Infuse {
      * @return array<string>
      */
     public function get_tokens( string $handler_token ): array {
-        $params  = \array_diff( $this->params, array( '!self.handler' ) );
-        $hook_it = $params !== $this->params;
-
-        if ( $hook_it ) {
-            $params[] = $handler_token;
-        }
-
-        return $params;
+        return \array_map(
+            static fn( string $param ): string => '!self.handler' === $param ? $handler_token : $param,
+            $this->params,
+        );
     }
 
     /**

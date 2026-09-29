@@ -54,7 +54,6 @@ class Handler extends Hook implements Can_Handle {
         mixed ...$args,
     ) {
         $this->strategy    = $strategy;
-        $this->loaded      = self::INIT_USER === $strategy;
         $this->hookable    = $hookable;
         $this->compat_args = \array_keys( \array_filter( $args ) );
 

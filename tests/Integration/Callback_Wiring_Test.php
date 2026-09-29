@@ -46,7 +46,7 @@ final class Callback_Wiring_Test extends TestCase {
             self::assertInstanceOf( \XWP\DI\Hook\Module::class, $container->get( 'Hook-' . Callback_Wiring_Module::class ) );
             $factory = $container->get( Factory::class );
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
-            self::assertSame( \XWP\DI\Hook\Handler::class, $handler::class );
+            self::assertSame( \XWP\DI\Decorators\Handler::class, $handler::class );
             $callbacks = $factory->get_callbacks( $handler );
             self::assertCount( 4, $callbacks );
             $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Callback::class, 'custom' => Custom_Wiring_Filter::class );

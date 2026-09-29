@@ -30,11 +30,10 @@ trait Hook_Invoke_Methods {
      * Calls a method if it exists and is callable.
      *
      * @param  null|Closure|string|array{0: class-string,1: string} $method Method to call.
-     * @param  array<mixed>                                         $params Explicit invocation parameters.
      * @return bool
      */
-    protected function check_method( null|Closure|string|array $method, array $params = array() ): bool {
-        return ! $this->can_call( $method ) || $this->get_container()->call( $method, $params );
+    protected function check_method( null|Closure|string|array $method ): bool {
+        return ! $this->can_call( $method ) || $this->get_container()->call( $method );
     }
 
     /**
