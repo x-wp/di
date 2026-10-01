@@ -7,6 +7,7 @@
 
 namespace Tests\XWP\DI\Integration;
 
+use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use XWP\DI\App;
 use XWP\DI\App_Factory;
@@ -22,7 +23,7 @@ final class App_Uninstall_Test extends \Tests\XWP\DI\Unit\TestCase {
      * @runInSeparateProcess
      * @preserveGlobalState disabled
      */
-    public function test_uninstall_only_clears_the_mapped_application_cache( string $trigger, string|false $extension_file, bool $removed ): void {
+    public function test_uninstall_only_clears_the_mapped_application_cache( string $trigger, string|false $extension_file, bool $removed, bool $created = true ): void {
         $core = rtrim( getenv( 'WP_CORE_DIR' ) ?: dirname( __DIR__ ) . '/tmp/wordpress', '/' );
         define( 'ABSPATH', $core . '/' );
         define( 'WP_CONTENT_DIR', $core . '/wp-content' );
@@ -54,18 +55,29 @@ final class App_Uninstall_Test extends \Tests\XWP\DI\Unit\TestCase {
                 'id' => 'review-extension', 'module' => Uninstall_Module::class,
                 'file' => false === $extension_file ? false : ( 'absolute' === $extension_file ? WP_PLUGIN_DIR . '/' : '' ) . 'review-extension/plugin.php', 'type' => 'plugin',
             ), $id );
-            $app = xwp_create_app( array(
+            $config = array(
                 'app_id' => $id, 'app_module' => Uninstall_Module::class,
                 'app_debug' => false, 'app_file' => false, 'app_type' => 'plugin',
                 'cache_app' => false, 'cache_hooks' => true, 'cache_defs' => false,
                 'cache_dir' => $cache_dir,
-            ) );
-            self::assertInstanceOf( App::class, $app );
+            );
+            if ( $created ) {
+                $app = xwp_create_app( $config );
+                self::assertInstanceOf( App::class, $app );
+                self::assertSame( $cache_dir, $app->get( 'app.cache' )['dir'] );
+            } else {
+                $config['app_module'] = 'UninstallMustNotLoad\\Module';
+                xwp_load_app( $config );
+                // Hook dispatch is covered with real WordPress in App_Management_Test.
+                Filters\expectApplied( "xwp_di_scheduled_app_{$id}" )->andReturn( $config );
+                file_put_contents( $cache_dir . '/hook-definition.php', '<?php return array();' );
+                self::assertFalse( xwp_has( $id ) );
+            }
             self::assertFileExists( $cache_dir . '/hook-definition.php' );
-            self::assertSame( $cache_dir, $app->get( 'app.cache' )['dir'] );
 
             xwp_uninstall_ext();
             App_Factory::instance()->__destruct();
+            self::assertSame( $created, xwp_has( $id ) );
 
             if ( $removed ) {
                 self::assertDirectoryDoesNotExist( $cache_dir );
@@ -91,6 +103,9 @@ final class App_Uninstall_Test extends \Tests\XWP\DI\Unit\TestCase {
             'unrelated callback' => array( 'uninstall_other/plugin.php', 'absolute', false ),
             'ordinary hook' => array( 'init', 'absolute', false ),
             'extension without a file' => array( 'constant', false, false ),
+            'scheduled app with constant' => array( 'constant', 'relative', true, false ),
+            'scheduled app with absolute constant' => array( 'absolute-constant', 'absolute', true, false ),
+            'scheduled app with unrelated callback' => array( 'uninstall_other/plugin.php', 'absolute', false, false ),
         );
     }
 

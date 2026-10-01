@@ -38,6 +38,8 @@ function xwp_app( string $container_id ): App {
  *   app_class?: class-string<TCtr>,
  *   app_debug?: bool,
  *   app_id?: string|false,
+ *   id?: string,
+ *   module?: class-string,
  *   app_module?: class-string,
  *   app_file?: string,
  *   app_type?: 'plugin'|'theme',
@@ -69,6 +71,12 @@ function xwp_app( string $container_id ): App {
  * @return true
  */
 function xwp_load_app( array $app, string $hook = 'plugins_loaded', int $priority = PHP_INT_MIN ): bool {
+    $id = $app['app_id'] ?? $app['id'] ?? null;
+    if ( is_string( $id ) ) {
+        // Retain configuration for uninstall without loading the factory before its startup hook.
+        add_filter( "xwp_di_scheduled_app_{$id}", static fn() => $app );
+    }
+
     return add_action(
         $hook,
         static function () use ( $app ): void {

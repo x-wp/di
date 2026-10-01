@@ -296,9 +296,9 @@ final class App_Factory {
      * @return bool
      */
     private function call_decompile( string $id, bool $now = false ): bool {
-        $config = $this->apps[ $id ]->get( 'app.cache' );
+        $config = $this->cache_config( $id );
 
-        if ( ! $config['app'] && ! $config['hooks'] ) {
+        if ( ! ( $config['app'] ?? false ) && ! ( $config['hooks'] ?? false ) ) {
             return false;
         }
 
@@ -315,6 +315,35 @@ final class App_Factory {
                 },
             )
             : self::clear( $config );
+    }
+
+    /**
+     * Resolve cache settings without building or starting an application.
+     *
+     * Unknown applications are skipped: an extension filename cannot identify a cache directory.
+     *
+     * @param  string $id Application ID.
+     * @return array<string,mixed>|null
+     */
+    private function cache_config( string $id ): ?array {
+        if ( isset( $this->apps[ $id ] ) ) {
+            return $this->apps[ $id ]->get( 'app.cache' );
+        }
+
+        $config = \apply_filters( "xwp_di_scheduled_app_{$id}", null );
+        if ( ! \is_array( $config ) ) {
+            return null;
+        }
+
+        $config = $this->parse_app_config( $config );
+
+        return array(
+            'app'   => $config['cache_app'],
+            'defs'  => $config['cache_defs'],
+            'dir'   => $config['cache_dir'],
+            'hooks' => $config['cache_hooks'],
+            'ns'    => $config['app_id'],
+        );
     }
 
     /**

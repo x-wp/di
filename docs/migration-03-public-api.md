@@ -20,6 +20,8 @@ Anything *not* in this document is `@internal`. Internal classes can change with
 | `xwp_decompile_app` | `(string $container_id, bool $immediately = false): void` | Clear compiled artifacts for an app (cache invalidation). |
 | `xwp_uninstall_ext` | `(): void` | Hook into WP's uninstall flow to clean up extension state. |
 
+Uninstall cleanup uses the mapped application's `app.cache` settings when the app exists. If `xwp_load_app()` scheduled it but its startup hook has already passed, cleanup uses that scheduled configuration, including custom cache directories and legacy configuration aliases, without building or starting the app. Applications with neither an instance nor scheduled configuration are skipped; cache paths are never inferred from extension filenames. The configuration lookup is internal and does not change startup timing.
+
 ### `$config` array shape
 
 ```php
