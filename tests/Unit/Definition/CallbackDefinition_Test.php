@@ -21,7 +21,7 @@ final class CallbackDefinition_Test extends TestCase {
         $conditional = static function (): bool {
             throw new \LogicException( 'Condition must remain unevaluated.' );
         };
-        $hook = ( new Filter(
+        $hook = new Filter(
             tag: 'the_{app.id}_title',
             priority: $priority,
             context: Filter::CTX_FRONTEND,
@@ -30,12 +30,11 @@ final class CallbackDefinition_Test extends TestCase {
             invoke: Filter::INV_ONCE | Filter::INV_SAFELY,
             args: 0,
             params: array( '!self.handler', '!self.hook' ),
-        ) )->with_classname( Callback_Handler_Fixture::class )
-            ->with_reflector( new \ReflectionMethod( Callback_Handler_Fixture::class, 'filter_value' ) );
+        );
 
-        $definition = CallbackDefinition::from_data( $hook->get_data() );
+        $definition = CallbackDefinition::from_data( $this->metadata( $hook ) );
 
-        self::assertSame( $hook->get_token(), $definition->get_id() );
+        self::assertSame( 'Hook-' . Callback_Handler_Fixture::class . '::filter_value[' . $hook->get_declaration()['tag'] . ']', $definition->get_id() );
         self::assertSame( Callback_Handler_Fixture::class, $definition->get_handler() );
         self::assertSame( 'filter_value', $definition->get_method() );
         self::assertSame( 'filter', $definition->get_type() );
@@ -52,13 +51,11 @@ final class CallbackDefinition_Test extends TestCase {
     public function test_preserves_tokens_and_defaults_for_plain_callbacks(): void {
         foreach ( array( Filter::class => 'filter', Action::class => 'action' ) as $class => $type ) {
             foreach ( array( 'the_title', 'the_{app.id}_title', 'the_%s_title' ) as $tag ) {
-                $hook = ( new $class( $tag ) )->with_classname( Callback_Handler_Fixture::class )->with_reflector(
-                    new \ReflectionMethod( Callback_Handler_Fixture::class, 'filter_value' ),
-                );
+                $hook = new $class( $tag, args: 2 );
 
-                $definition = CallbackDefinition::from_data( $hook->get_data() );
+                $definition = CallbackDefinition::from_data( $this->metadata( $hook ) );
 
-                self::assertSame( $hook->get_token(), $definition->get_id() );
+                self::assertSame( 'Hook-' . Callback_Handler_Fixture::class . '::filter_value[' . $hook->get_declaration()['tag'] . ']', $definition->get_id() );
                 self::assertSame( $type, $definition->get_type() );
                 self::assertSame( 2, $definition->get_accepted_args() );
                 self::assertSame( 10, $definition->get_priority() );
@@ -72,11 +69,10 @@ final class CallbackDefinition_Test extends TestCase {
     }
 
     public function test_preserves_raw_priorities_and_unresolved_argument_count(): void {
-        $hook = ( new Filter( 'the_title' ) )
-            ->with_data( array( 'classname' => Callback_Handler_Fixture::class, 'method' => 'filter_value' ) );
+        $hook = new Filter( 'the_title' );
 
         foreach ( array( null, 0, 'PHP_INT_MAX', 'priority_filter:15', array( Callback_Handler_Fixture::class, 'priority' ) ) as $priority ) {
-            $data = $hook->get_data();
+            $data = $this->metadata( $hook );
             $data['args']['priority'] = $priority;
             $data['args']['modifiers'] = 'app.id';
             $data['args']['conditional'] = array( Callback_Handler_Fixture::class, 'can_filter' );
@@ -91,14 +87,12 @@ final class CallbackDefinition_Test extends TestCase {
     }
 
     public function test_preserves_specialized_callback_metadata(): void {
-        $hook = ( new Dynamic_Filter( 'the_%s_title', array( 'app.id' ) ) )->with_classname( Callback_Handler_Fixture::class )->with_reflector(
-            new \ReflectionMethod( Callback_Handler_Fixture::class, 'filter_value' ),
-        );
+        $hook = new Dynamic_Filter( 'the_%s_title', array( 'app.id' ), args: 1 );
 
-        $definition = CallbackDefinition::from_data( $hook->get_data() );
-        self::assertSame( $hook->get_token(), $definition->get_id() );
+        $definition = CallbackDefinition::from_data( $this->metadata( $hook ) );
+        self::assertSame( 'Hook-' . Callback_Handler_Fixture::class . '::filter_value[' . $hook->get_declaration()['tag'] . ']', $definition->get_id() );
         self::assertSame( Dynamic_Filter::class, $definition->get_decorator() );
-        self::assertSame( $hook->get_data()['args'], $definition->get_options() );
+        self::assertSame( $hook->get_declaration(), $definition->get_options() );
         self::assertSame( Filter::INV_PROXIED, $definition->get_invoke() );
     }
 
@@ -145,6 +139,14 @@ final class CallbackDefinition_Test extends TestCase {
 
         self::assertFalse( $left->equals( $right ) );
     }
+    private function metadata( Filter $declaration ): array {
+        return array(
+            'type' => $declaration::class,
+            'args' => $declaration->get_declaration(),
+            'params' => array( 'classname' => Callback_Handler_Fixture::class, 'method' => 'filter_value' ),
+        );
+    }
+
 }
 
 final class Callback_Handler_Fixture {

@@ -70,7 +70,7 @@ final class Specialized_Wiring_Test extends TestCase {
                 } else {
                     $callback->run_cmd( array(), array() );
                 }
-                self::assertNotNull( $handler->get_target()->view, $class );
+                self::assertSame( $callback, $handler->get_target()->view, $class );
                 self::assertSame( $callback->get_token(), $handler->get_target()->view->get_token() );
                 self::assertSame( $callback, $app->container()->get( $handler->get_target()->view->get_token() ) );
                 $factory->load_callbacks( $handler, $callbacks );

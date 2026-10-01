@@ -37,7 +37,7 @@ final class Handler_Runtime_Test extends TestCase {
     }
 
     public function test_module_strategy_and_composition_roundtrip(): void {
-        $data = ( new Module_Attribute( 'init', services: array( Handler_Runtime_Target::class ) ) )->with_classname( Handler_Runtime_Target::class )->get_data();
+        $data = array( 'type' => Module_Attribute::class, 'args' => ( new Module_Attribute( 'init', services: array( Handler_Runtime_Target::class ) ) )->get_declaration(), 'params' => array( 'classname' => Handler_Runtime_Target::class ) );
         $runtime = new Module( HandlerDefinition::from_data( $data ), $this->container() );
         $runtime->with_strategy( Handler_Attribute::INIT_NOW );
         $copy = new Module( HandlerDefinition::from_data( $runtime->get_data() ), $this->container() );
@@ -45,12 +45,12 @@ final class Handler_Runtime_Test extends TestCase {
         self::assertSame( array( Handler_Runtime_Target::class ), $copy->get_services() );
     }
 
-    public function test_custom_handler_decorator_keeps_overrides_and_instance_identity(): void {
+    public function test_custom_handler_declaration_keeps_configuration_and_instance_identity(): void {
         $container = $this->container();
         $factory = new Factory( $container );
         $instance = new Custom_Handler_Runtime_Target();
         $runtime = $factory->load_handler( $instance );
-        self::assertSame( Custom_Handler_Attribute::class, $runtime::class );
+        self::assertSame( Handler::class, $runtime::class );
         self::assertSame( $instance, $runtime->get_target() );
         self::assertSame( $runtime, $factory->get_handler( $instance::class ) );
         self::assertSame( 37, $runtime->get_priority() );
@@ -63,7 +63,7 @@ final class Handler_Runtime_Target {
 
 #[\Attribute( \Attribute::TARGET_CLASS )]
 final class Custom_Handler_Attribute extends Handler_Attribute {
-    public function get_priority(): int { return 37; }
+    public function __construct() { parent::__construct( tag: 'init', priority: 37 ); }
 }
 
 #[Custom_Handler_Attribute]

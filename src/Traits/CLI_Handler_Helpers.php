@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Compatibility;
+namespace XWP\DI\Traits;
 
 use cli\progress\Bar;
 use WP_CLI;

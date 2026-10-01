@@ -1,6 +1,6 @@
 <?php
 /**
- * Verify the typed !self.hook view over the routed callback runtime.
+ * Verify the !self.hook injection of the registered callback runtime.
  *
  * @package XWP\DI\Tests
  */
@@ -10,8 +10,6 @@ namespace Tests\XWP\DI\Integration;
 use XWP\DI\App;
 use XWP\DI\App_Builder;
 use XWP\DI\Compiled_Container;
-use XWP\DI\Decorators\Action;
-use XWP\DI\Decorators\Filter;
 use XWP\DI\Hook\Callback;
 use XWP\DIT\Lifecycle\Self_Hook_Handler;
 use XWP\DIT\Lifecycle\Self_Hook_Module;
@@ -56,8 +54,8 @@ final class Self_Hook_Test extends TestCase {
             self::assertSame( 'first:filtered', apply_filters( 'xwp_self_filter', 'first' ) );
             self::assertSame( 'second:filtered', apply_filters( 'xwp_self_filter', 'second' ) );
             foreach ( Self_Hook_Module::$observations as $count => $observed ) {
-                self::assertSame( Filter::class, $observed['hook']::class );
-                self::assertNotSame( $filter, $observed['hook'] );
+                self::assertSame( Callback::class, $observed['hook']::class );
+                self::assertSame( $filter, $observed['hook'] );
                 self::assertSame( Self_Hook_Module::$observations[0]['hook'], $observed['hook'] );
                 self::assertSame( $filter, $app->container()->get( $observed['hook']->get_token() ) );
                 self::assertSame( 'xwp_self_filter', $observed['tag'] );
@@ -82,8 +80,8 @@ final class Self_Hook_Test extends TestCase {
             do_action( 'xwp_self_action_second' );
             foreach ( array( $first, $second ) as $index => $action ) {
                 $observed = Self_Hook_Module::$observations[ $index + 2 ];
-                self::assertSame( Action::class, $observed['hook']::class );
-                self::assertNotSame( $action, $observed['hook'] );
+                self::assertSame( Callback::class, $observed['hook']::class );
+                self::assertSame( $action, $observed['hook'] );
                 self::assertSame( $action, $app->container()->get( $action->get_token() ) );
                 self::assertSame( $action->get_tag(), $observed['tag'] );
                 self::assertSame( 'action', $observed['method'] );
@@ -100,17 +98,12 @@ final class Self_Hook_Test extends TestCase {
     /** @dataProvider removal_forms_and_cache_modes */
     public function test_injected_callable_can_remove_its_registration( string $form, bool $compile, bool $hooks ): void {
         foreach ( $this->apps( $compile, $hooks ) as $app ) {
-            Self_Hook_Module::$observe = static function ( Filter $hook ) use ( $app, $form ): void {
+            Self_Hook_Module::$observe = static function ( Callback $hook ) use ( $app, $form ): void {
                 $target = match ( $form ) {
                     'target' => $hook->target,
                     'self' => array( $hook, 'invoke' ),
                     'token' => array( $app->container()->get( $hook->get_token() ), 'invoke' ),
                 };
-                if ( 'self' === $form ) {
-                    self::assertFalse( remove_filter( $hook->tag, $target, $hook->get_priority() ) );
-                    self::assertSame( $hook->get_priority(), has_filter( $hook->tag, $hook->target ) );
-                    $target = $hook->target;
-                }
                 self::assertTrue( remove_filter( $hook->tag, $target, $hook->get_priority() ) );
             };
             self::assertSame( 'first:filtered', apply_filters( 'xwp_self_filter', 'first' ) );
@@ -151,7 +144,7 @@ final class Self_Hook_Test extends TestCase {
                 self::assertSame( 'self.hook fixture failure', $exception->getMessage() );
             }
             $observed = Self_Hook_Module::$observations[1];
-            self::assertNotSame( $failed, $observed['hook'] );
+            self::assertSame( $failed, $observed['hook'] );
             self::assertSame( $failed, $app->container()->get( $observed['hook']->get_token() ) );
             self::assertSame( 1, $observed['hook']->fired );
             self::assertFalse( $observed['hook']->firing );

@@ -52,7 +52,7 @@ Uninstall cleanup uses the mapped application's `app.cache` settings when the ap
 
 ## Decorators (`XWP\DI\Decorators\*`)
 
-All are PHP attributes. Metadata-only declarations are the intended end state. Current beta decorators retain internal mutators and legacy runtime behavior for custom subclasses through `Compatibility` adapters. Exact built-in callbacks and handlers resolve to separate `Hook` runtimes. This preparatory cleanup does not make attributes immutable. The typed `!self.hook` view is described in the [migration notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
+All are metadata-only PHP attributes. Runtime methods and `with_*()` wiring mutators are removed. Attribute constructors and metadata-only subclasses remain supported; execution belongs to `Hook` runtime objects. `!self.hook` injects a `Hook\Callback` (or specialized subclass); `!self.handler` uses the handler runtime contracts. See the [F6 migration](decorator-compatibility.md).
 
 | Decorator | Target | Constructor (key arguments) |
 |---|---|---|
@@ -174,7 +174,7 @@ Anything not in the tables above. Highlights:
 
 - `App_Factory`, `App_Builder` — bootstrap mechanism, not for direct use
 - `Invoker` — orchestrator, not for direct use
-- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook` runtime classes, and `Compatibility\*` — internal pipeline, execution, and legacy adapters
+- `Hook\Parser`, `Hook\Compiler`, `Hook\Factory`, `Hook` runtime classes — pipeline and execution implementation; callback runtimes are also the values supplied by `!self.hook`
 - `Compiled_Container` — generated, not for human consumption
 - `Utils\Reflection`, `Traits\*`, `XWP_Context`, `XWP_CLI_Namespace`
 - `Decorators\Hook` and inherited base-class behavior on decorators — extend at your own risk; signatures may change in minors

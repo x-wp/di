@@ -8,30 +8,44 @@
 
 namespace XWP\DI\Decorators;
 
-use Closure;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Route;
 
 /**
  * Decorator for REST routes.
  *
- * @property-read string                        $methods  REST route methods.
- * @property-read array                         $vars   REST route parameters.
- * @property-read string                        $guard    REST route guard.
- *
  * @template T of \XWP_REST_Controller
- * @template H of REST_Handler<T>
+ * @template H of Can_Handle<T>
  * @extends Action<T,H>
- * @implements Can_Route<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
-class REST_Route extends Action implements Can_Route {
+class REST_Route extends Action {
     /**
-     * Legacy custom-subclass and typed-view compatibility.
+     * Declared route args.
      *
-     * @use \XWP\DI\Compatibility\REST_Route_Methods<T,H>
+     * @var string|array<string,mixed>
      */
-    use \XWP\DI\Compatibility\REST_Route_Methods;
+    protected array|string $route_args;
+
+    /**
+     * Declared route guard.
+     *
+     * @var string
+     */
+    protected string $route_guard;
+
+    /**
+     * Declared endpoint.
+     *
+     * @var string
+     */
+    protected string $endpoint;
+
+    /**
+     * Declared methods.
+     *
+     * @var string
+     */
+    protected string $methods;
 
     /**
      * Constructor.
@@ -63,20 +77,6 @@ class REST_Route extends Action implements Can_Route {
         $this->route_args  = $vars;
         $this->methods     = $methods;
         $this->route_guard = $guard ?? '__return_true';
-    }
-
-    /**
-     * Get compiler data for this REST route.
-     *
-     * @internal Hook parser/compiler detail.
-     *
-     * @return array<string,mixed>
-     */
-    public function get_data(): array {
-        $data                       = parent::get_data();
-        $data['params']['tag']      = $this->tag;
-        $data['params']['priority'] = $this->prio;
-        return $data;
     }
 
     /**

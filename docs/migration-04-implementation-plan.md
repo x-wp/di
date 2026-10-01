@@ -19,7 +19,7 @@ The actual `bd create` commands and dependency wiring happen at the end of this 
 
 The [definition split plan](definition-split-plan.md) is the implementation authority for lifecycle and runtime extraction. L1–L2 established lifecycle behavior; S1 added inert callback-data conversion; S2 added `Hook\Callback` and a typed forwarding view; S3 connected plain Filter/Action tokens in Factory and Invoker. S4 synchronizes these documents. The completed plain split did not require a Parser/Compiler cache-format change or prior removal of decorator mutators.
 
-F1–F4 (Dynamic, AJAX, REST, CLI) and F5 (handler/module extraction) are implemented. F6 has isolated inherited implementation into compatibility adapters, but API removal and immutable decorators remain pending the custom-subclass/view migration policy. See [the compatibility boundary](decorator-compatibility.md).
+F1–F4 (Dynamic, AJAX, REST, CLI) and F5 (handler/module extraction) are implemented. F6 removes inherited runtime APIs and the temporary compatibility adapters. Custom metadata subclasses are supported; runtime overrides require migration, and `!self.hook` now injects the runtime owner. See [the compatibility boundary](decorator-compatibility.md).
 
 ## Phase 0 — Foundations
 
@@ -96,14 +96,14 @@ F1–F4 (Dynamic, AJAX, REST, CLI) and F5 (handler/module extraction) are implem
 
 - **Why:** Attribute declarations should describe metadata independently of live execution state.
 - **Scope:** F6 of the [split plan](definition-split-plan.md). Remove obsolete mutation/dispatch behavior only after specialized callback and handler/module ports. Preserve public attribute syntax. Settle custom-subclass migration and typed-view dependencies before removing inherited methods.
-- **Acceptance:** Remaining decorator behavior is justified by the agreed compatibility policy; runtime ownership is separate and consumer migrations are documented. Current beta still contains `with_*()`, `invoke()`, `load()`, and `can_load()` paths.
+- **Implemented:** F6 removes decorator `with_*()`, `invoke()`, `load()`, and `can_load()` paths. Attributes expose constructor metadata; custom execution overrides require migration. `!self.hook` injects the runtime itself. See the [F6 migration](decorator-compatibility.md).
 - **Depends on:** F1–F5 and the extension/view compatibility decision. Parser changes alone do not make this cleanup safe.
 
 ### B3.2 — Extract per-callback runtime behind stable tokens
 
 - **Why:** Each callback needs one execution owner and a stable WordPress callable identity. This replaces the central `Hook/Dispatcher` and generated-closure sketch.
-- **Implemented:** S1–S3 provide `CallbackDefinition::from_data()`, `Hook\Callback`, the memoized typed `!self.hook` view, and exact Filter/Action routing in Factory and Invoker. Standard hooks retain handler-method callables; proxies register the Callback's `invoke`. Cached and runtime producers preserve tokens and metadata format.
-- **Further implemented:** F1–F4 port specialized callbacks; F5 extracts handler/module runtime while preserving the L1–L2 lifecycle contract. Invoker remains the coordinator. Custom subclasses retain compatibility adapters; F6 API removal remains open.
+- **Implemented:** S1–S3 provide `CallbackDefinition::from_data()`, `Hook\Callback`, runtime `!self.hook` injection (superseding the original typed view in F6), and Filter/Action routing in Factory and Invoker. Standard hooks retain handler-method callables; proxies register the Callback's `invoke`. Cached and runtime producers preserve tokens and metadata format.
+- **Further implemented:** F1–F4 port specialized callbacks; F5 extracts handler/module runtime while preserving the L1–L2 lifecycle contract. Invoker remains the coordinator. F6 removes compatibility adapters and supports metadata-only subclasses; legacy execution overrides produce migration errors.
 - **Acceptance:** Each port has focused behavior tests plus cache and integration coverage. Custom subclasses continue working until their migration is handled. Removing decorator runtime is the final F6/B3.1 step, not a prerequisite for plain callback routing.
 - **Dependencies:** Completed plain extraction used S1, L1–L2, callable-priority fixes, and the agreed forwarding-view contract. B2.1/B2.2 remain separate definition-graph/compiler work.
 

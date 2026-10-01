@@ -1,15 +1,25 @@
-# Decorator compatibility and the F6 boundary
+# Metadata-only decorators and the F6 migration
 
-F1–F5 separate built-in callback, handler, and module execution from attribute objects. F6 preparation moves shared legacy implementation into internal `XWP\DI\Compatibility` classes and traits. This is code isolation, not immutable attributes: inherited `with_*()`, `load()`, `can_load()`, and `invoke()` APIs remain available.
+F6 completes the attribute/runtime separation. Decorators describe configuration through constructors and `get_declaration()`; they do not hold containers, reflection bindings, handler instances, registration state, or invocation counters. Their `with_*()`, `load()`, `invoke()`, and `can_load()` APIs are removed. Runtime services live in `XWP\DI\Hook` and consume definitions.
 
-`Decorators\Hook` retains the existing attribute hierarchy through a compatibility base. Callback traits retain protected override points and parent-method dispatch for custom attribute subclasses. Handler decorators and the new handler runtime share lifecycle methods; `Hook\Handler` does not inherit from an attribute class. Constants remain on classes for PHP 8.1 support.
+## Callback injection
 
-Built-in discovery now reads definitions from unbound constructor metadata; see [definition discovery](definition-discovery.md). Three compatibility consumers still require the inherited API:
+`!self.hook` returns the callback runtime itself, the same object stored under the callback token. Replace injected `Decorators\Filter` or `Decorators\Action` parameter types with `Hook\Callback`, or the appropriate specialized callback runtime. Retained references see live `fired`/`firing` state. Direct `invoke()` calls execute that runtime. Use `$hook->target` for WordPress removal: standard callbacks can still use the target handler method, while proxies use the runtime callable.
 
-- Custom discovery and imperative Factory reconstruction still bind reflection, container, handler, and parameter metadata. Parser uses immutable definitions for classes using only built-in attributes; classes with custom callbacks or Infuse declarations retain legacy discovery so their mutations survive.
-- Custom decorator subclasses can override protected registration, argument resolution, and invocation methods. Exact-class runtime routing preserves those overrides.
-- Typed `!self.hook` views extend the original callback attribute and forward live operations to their runtime owner. Their declared interfaces and inherited methods remain part of that bridge.
+`!self.handler` continues to return a runtime implementing `Can_Handle` (or the specialized handler contracts). Attribute type hints are not runtime contracts.
 
-Removing the APIs outright would require a custom-extension migration policy, completion of the custom discovery migration, and a replacement for the current view/interface wiring. Moving the same methods into traits does not satisfy that removal criterion. The strict immutable-decorator work remains open in `di-bao.10`; the compatible isolation is tracked separately in `di-2b2`.
+## Custom attributes
 
-Existing consumers need no change for this isolation. New integrations should use the public helpers and `Can_Handle`/`Can_Hook` contracts. `Compatibility` classes and traits are internal implementation details, not new extension APIs.
+Metadata-only subclasses remain supported. A custom attribute can normalize constructor arguments or override `get_declaration()` to describe configuration. Custom `Infuse` declarations export tokens through `get_tokens($handler_token)`. Discovery builds definitions and chooses the corresponding runtime using the attribute family; a custom attribute is never registered as a runtime service.
+
+Legacy overrides of runtime operations, wiring mutators, and bound serialization fail during discovery or cache restoration with a migration error. Move eligibility into declared conditions, application behavior into the target handler, and explicit execution customization into a runtime subclass. Custom `Infuse::get()`/`resolve()` implementations must export tokens through `get_tokens()` instead. Metadata export must not snapshot request-dependent eligibility into the shared cache.
+
+## Imperative registration
+
+Supply handler instances through the existing helpers; their external initialization and identity are preserved. Supply callback runtime objects through `xwp_load_handler_cbs()`. Construct those runtimes from `CallbackDefinition` and the application's container, or use the internal Factory's metadata conversion when working inside the library. A chained `new Filter(...)->with_handler(...)->with_reflector(...)` is no longer supported. Existing supplied runtime objects keep their listener identity and state.
+
+## Compatibility scope
+
+Attribute names, constructor arguments, constants, callback tokens, and the `type` / `args` / `params` cache metadata layout remain. Existing built-in cache metadata is consumed by runtime factories. Caches describing removed custom runtime overrides must be rebuilt after migrating those declarations. F6 does not introduce a new compiler schema or change application startup timing.
+
+The downstream survey recorded Extremis Core's custom `Theme_Module` on a `^1.5.3` dependency. That source snapshot does not establish use of this beta. Any downstream upgrade is a separate package change; it does not require retaining decorators as services in v2.

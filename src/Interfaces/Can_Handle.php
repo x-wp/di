@@ -13,7 +13,7 @@ use XWP\DI\Container;
 use XWP\DI\Decorators\Infuse;
 
 /**
- * Defines decorators that can handle WordPress hooks.
+ * Defines runtime handlers for WordPress hooks.
  *
  * @template THndlr of object
  *

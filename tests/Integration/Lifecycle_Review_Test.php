@@ -66,7 +66,10 @@ final class Lifecycle_Review_Test extends TestCase {
         $invoker = $app->container()->get( Invoker::class );
         $handler = $invoker->load_handler( new Review_User_Handler() );
         self::assertSame( 'value:handled', apply_filters( 'xwp_review_value', 'value' ) );
-        $callback = ( new Filter( 'xwp_review_extra' ) )->with_handler( $handler )->with_method( 'value' );
+        $callback = $app->container()->get( Factory::class )->make( array(
+            'type' => Filter::class, 'args' => array( 'tag' => 'xwp_review_extra' ),
+            'params' => array( 'classname' => $handler->get_classname(), 'method' => 'value' ),
+        ) );
         $app->container()->get( Factory::class )->load_callbacks( $handler, array( $callback ) );
         $invoker->register_handler( Review_User_Handler::class );
         $invoker->register_handler( Review_User_Handler::class );

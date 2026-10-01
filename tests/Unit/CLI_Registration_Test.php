@@ -38,7 +38,11 @@ final class CLI_Registration_Test extends TestCase {
         ) );
         $additions = 0;
         \WP_CLI::add_hook( 'before_add_command:shared', static function () use ( &$additions ): void { ++$additions; } );
-        $metadata = ( new CLI_Handler( 'shared', description: 'Shared commands' ) )->with_classname( CLI_Registration_Target::class )->get_data();
+        $metadata = array(
+            'type' => CLI_Handler::class,
+            'args' => ( new CLI_Handler( 'shared', description: 'Shared commands' ) )->get_declaration(),
+            'params' => array( 'classname' => CLI_Registration_Target::class ),
+        );
         $runtime = ( new Factory( $container ) )->make( $metadata );
         $runtime->with_target( new CLI_Registration_Target() );
         $runtime->track( 'Review progress', 2 );
@@ -46,7 +50,7 @@ final class CLI_Registration_Test extends TestCase {
         $runtime->tick();
         $runtime->finish();
         self::assertSame( 'Shared commands', $runtime->description );
-        $custom = ( new Custom_CLI_Registration_Handler( 'shared' ) )->with_target( new CLI_Registration_Target() );
+        $custom = ( new Custom_CLI_Registration_Handler( \XWP\DI\Definition\HandlerDefinition::from_data( $metadata ), $container ) )->with_target( new CLI_Registration_Target() );
         foreach ( $custom_first ? array( $custom, $runtime ) : array( $runtime, $custom ) as $handler ) {
             $handler->load();
         }
@@ -75,13 +79,21 @@ final class CLI_Registration_Test extends TestCase {
             'app.cache' => array( 'app' => false, 'defs' => false, 'hooks' => false, 'dir' => false ),
         ) );
         $target = new CLI_Registration_Target();
-        $handler = ( new CLI_Handler( 'special' ) )->with_target( $target );
+        $handler = ( new Factory( $container ) )->make( array(
+            'type' => CLI_Handler::class,
+            'args' => ( new CLI_Handler( 'special' ) )->get_declaration(),
+            'params' => array( 'classname' => CLI_Registration_Target::class ),
+        ) )->with_target( $target );
         $container->set( $handler->get_token(), $handler );
-        $decorator = ( new CLI_Command(
+        $decorator = new CLI_Command(
             'registered', args: array( array( 'type' => 'assoc', 'name' => 'choice', 'optional' => true, 'options' => array( 'special.options', 'two', 'three' ) ) ),
             summary: 'Registered command', deferred: true,
-        ) )->with_handler( $handler )->with_reflector( new \ReflectionMethod( $target, 'run' ) );
-        $callback = ( new Factory( $container ) )->make( $decorator->get_data() );
+        );
+        $callback = ( new Factory( $container ) )->make( array(
+            'type' => CLI_Command::class,
+            'args' => $decorator->get_declaration(),
+            'params' => array( 'classname' => CLI_Registration_Target::class, 'method' => 'run' ),
+        ) );
         self::assertSame( CLI_Callback::class, $callback::class );
         self::assertTrue( $callback->load() );
         $root = \WP_CLI::get_root_command()->get_subcommands();
@@ -100,8 +112,8 @@ final class CLI_Registration_Target {
     public function run( array $flags ): void {}
 }
 
-final class Custom_CLI_Registration_Handler extends CLI_Handler {
+final class Custom_CLI_Registration_Handler extends \XWP\DI\Hook\CLI_Handler {
     protected function add_command(): bool {
-        return \WP_CLI::add_command( $this->namespace, \XWP_CLI_Namespace::class, array( 'shortdesc' => 'Custom namespace' ) );
+        return \WP_CLI::add_command( $this->get_namespace(), \XWP_CLI_Namespace::class, array( 'shortdesc' => 'Custom namespace' ) );
     }
 }

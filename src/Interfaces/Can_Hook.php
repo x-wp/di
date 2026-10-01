@@ -14,7 +14,7 @@ use Reflector;
 use XWP\DI\Container;
 
 /**
- * Describes decorators that can be hooked into WordPress.
+ * Describes runtime objects that can be hooked into WordPress.
  *
  * @template THndlr of object
  * @template TRflct of Reflector

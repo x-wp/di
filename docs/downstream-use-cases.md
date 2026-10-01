@@ -402,10 +402,10 @@ integration coverage in this checkout.
 Current `beta` uses `Hook\Parser`, `Hook\Factory`, and `Invoker` with separate
 built-in callback and handler runtimes. `CallbackDefinition::from_data()` accepts
 plain, Dynamic, AJAX, REST, and CLI metadata. `HandlerDefinition` carries handler
-metadata, while `ModuleDefinition` describes composition. Custom declarations and
-explicitly supplied decorators retain compatibility behavior. Removing legacy
-mutators and compiling only primitive definition graphs remain future work;
-consumer migration is still required for App and handler runtime types.
+metadata, while `ModuleDefinition` describes composition. F6 now routes custom metadata declarations through definitions and removes decorator
+runtime methods. Explicitly supplied callbacks must be runtime objects. Compiling
+only primitive definition graphs remains separate work; consumer migration is
+still required for App, handler runtime types, and custom execution overrides.
 Sources: [callback definition](../src/Definition/CallbackDefinition.php),
 [module definition](../src/Definition/ModuleDefinition.php),
 [handler definition](../src/Definition/HandlerDefinition.php), and

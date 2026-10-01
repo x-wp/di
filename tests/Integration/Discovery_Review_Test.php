@@ -39,11 +39,14 @@ final class Discovery_Review_Test extends TestCase {
                 self::assertSame( 'v:second', apply_filters( 'xwp_discovery_second', 'v' ), $pass );
                 $handler = $factory->get_handler( Discovery_Review_Repeated::class );
                 self::assertSame( 'v:same:same', apply_filters( 'xwp_discovery_same', 'v' ) );
-                self::assertSame( 'v:legacy:legacy:override', apply_filters( 'xwp_discovery_legacy', 'v' ) );
+                self::assertSame( 'v:metadata:metadata', apply_filters( 'xwp_discovery_legacy', 'v' ) );
                 apply_filters( 'xwp_discovery_views', 'v' );
                 $views = array_values( array_filter( $factory->get_callbacks( $handler ), static fn( $callback ) => 'views' === $callback->get_method() ) );
                 self::assertSame( array_map( static fn( $callback ) => $callback->get_token(), $views ), $handler->get_target()->tokens );
-                $cb = ( new Filter( 'xwp_discovery_supplied', invoke: Filter::INV_PROXIED ) )->with_handler( $handler )->with_method( 'value' );
+                $cb = $factory->make( array(
+                    'type' => Filter::class, 'args' => array( 'tag' => 'xwp_discovery_supplied', 'invoke' => Filter::INV_PROXIED ),
+                    'params' => array( 'classname' => $handler->get_classname(), 'method' => 'value' ),
+                ) );
                 xwp_load_handler_cbs( $handler, array( $cb ) );
                 $cb->load();
                 self::assertSame( $cb, $app->container()->get( $cb->get_token() ) );

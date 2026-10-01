@@ -11,7 +11,6 @@ namespace XWP\DI\Hook;
 use Automattic\Jetpack\Constants;
 use ReflectionMethod;
 use XWP\DI\Container;
-use XWP\DI\Decorators\Filter;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
@@ -102,13 +101,6 @@ class Callback {
      * @var ReflectionMethod
      */
     protected ReflectionMethod $reflector;
-
-    /**
-     * Memoized typed view; all runtime state remains on this object.
-     *
-     * @var Filter<T,H>
-     */
-    private Filter $view;
 
     /**
      * Constructor.
@@ -253,7 +245,7 @@ class Callback {
      * @param  mixed ...$args Hook arguments.
      * @return mixed
      */
-    // Keep the strategy, eligibility, and invocation gates together as in Filter::invoke().
+    // Keep the strategy, eligibility, and invocation gates together for each runtime invocation.
     // phpcs:ignore SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     public function invoke( mixed ...$args ): mixed {
         $fallback = 'action' === $this->get_type() ? null : ( $args[0] ?? null );
@@ -361,7 +353,7 @@ class Callback {
 
     protected function get_cb_arg( string $param ): mixed {
         return match ( true ) {
-            '!self.hook' === $param                => $this->get_view(),
+            '!self.hook' === $param                => $this,
             '!self.handler' === $param             => $this->get_handler(),
             \str_starts_with( $param, '!value:' )  => \str_replace( '!value:', '', $param ),
             \str_starts_with( $param, '!global:' ) => $GLOBALS[ \str_replace( '!global:', '', $param ) ] ?? null,
@@ -369,54 +361,6 @@ class Callback {
             $this->container->has( $param )        => $this->container->get( $param ),
             default                                => $param,
         };
-    }
-
-    /**
-     * Build the typed compatibility view only when requested by a parameter.
-     *
-     * @return Filter<T,H>
-     */
-    protected function get_view(): Filter {
-        if ( isset( $this->view ) ) {
-            return $this->view;
-        }
-
-        /**
-         * Original decorator type, retaining this runtime's handler type.
-         *
-         * @var class-string<Filter<T,H>> $type
-         */
-        $type = $this->definition->get_decorator();
-
-        $options = $this->definition->get_options() ?: array(
-            'args'        => $this->definition->get_accepted_args(),
-            'conditional' => $this->definition->get_conditional(),
-            'context'     => $this->get_context(),
-            'invoke'      => $this->definition->get_invoke(),
-            'modifiers'   => $this->definition->get_modifiers(),
-            'params'      => $this->definition->get_params(),
-            'priority'    => $this->definition->get_priority() ?? 10,
-            'tag'         => $this->tag,
-        );
-
-        if ( \array_key_exists( 'priority', $options ) ) {
-            $options['priority'] ??= 10;
-        }
-
-        $this->view = ( new $type( ...$options ) )->with_classname( $this->get_classname() )
-            ->with_method( $this->get_method() )
-            ->with_container( $this->container )
-            ->with_runtime( $this );
-
-        if ( $this->view->get_token() !== $this->get_token() ) {
-            $this->view->with_token( $this->get_token() );
-        }
-
-        if ( $this->view instanceof \XWP\DI\Decorators\REST_Route ) {
-            $this->view->with_tag( $this->tag )->with_priority( $this->get_priority() );
-        }
-
-        return $this->view;
     }
 
     /**

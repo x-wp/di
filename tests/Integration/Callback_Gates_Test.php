@@ -12,6 +12,9 @@ use XWP\DI\App_Builder;
 use XWP\DI\Compiled_Container;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Definition\CallbackDefinition;
+use XWP\DI\Hook\Callback;
+use XWP\DI\Hook\Factory;
 use XWP\DI\Invoker;
 use XWP\DIT\Lifecycle\Auto_Gates_Handler;
 use XWP\DIT\Lifecycle\Callback_Gates_Module;
@@ -119,13 +122,24 @@ final class Callback_Gates_Test extends TestCase {
     public function test_attachment_honors_subclass_eligibility(): void {
         foreach ( $this->apps( false, false ) as $app ) {
             $handler = $app->container()->get( Invoker::class )->register_handler( Now_Gates_Handler::class );
-            $callback = ( new Eligibility_Filter( 'xwp_gates_override', args: 1 ) )
-                ->with_container( $app->container() )->with_handler( $handler )->with_method( 'standard_filter' );
+            $definition = CallbackDefinition::from_data( array(
+                'type' => Filter::class, 'args' => array( 'tag' => 'xwp_gates_override', 'args' => 1 ),
+                'params' => array( 'classname' => $handler->get_classname(), 'method' => 'standard_filter' ),
+            ) );
+            $callback = new Eligibility_Callback( $definition, $app->container() );
+            $factory = $app->container()->get( Factory::class );
+            $factory->load_callbacks( $handler, array( $callback ) );
+            self::assertSame( $callback, $app->container()->get( $callback->get_token() ) );
             self::assertFalse( $callback->load() );
             self::assertFalse( has_filter( 'xwp_gates_override' ) );
             $callback->eligible = true;
             self::assertTrue( $callback->load() );
             self::assertSame( 'value:standard', apply_filters( 'xwp_gates_override', 'value' ) );
+            self::assertSame( 1, $callback->fired );
+            $factory->load_callbacks( $handler, array( $callback ) );
+            self::assertSame( array( $callback ), $factory->get_callbacks( $handler ) );
+            self::assertSame( 1, $callback->fired );
+            self::assertTrue( remove_filter( 'xwp_gates_override', array( $callback, 'invoke' ) ) );
         }
     }
 
@@ -183,7 +197,7 @@ final class Callback_Gates_Test extends TestCase {
     }
 }
 
-final class Eligibility_Filter extends Filter {
+final class Eligibility_Callback extends Callback {
     public bool $eligible = false;
 
     public function can_load(): bool {

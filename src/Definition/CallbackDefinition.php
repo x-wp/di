@@ -35,34 +35,33 @@ final class CallbackDefinition {
      * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Decorator metadata.
      * @return self
      *
-     * @throws \InvalidArgumentException If the callback is a custom decorator.
+     * @throws \InvalidArgumentException If the callback declaration type is unsupported.
      */
     public static function from_data( array $data ): self {
         $source = $data;
-        $type   = match ( $data['type'] ) {
-            Filter::class, Dynamic_Filter::class => 'filter',
-            Action::class, Dynamic_Action::class, Ajax_Action::class, REST_Route::class, CLI_Command::class => 'action',
-            default       => throw new \InvalidArgumentException(
-                'Only built-in callback metadata is supported.',
-            ),
+        $type   = match ( true ) {
+            \is_a( $data['type'], Action::class, true ),
+            \is_a( $data['type'], Dynamic_Action::class, true ) => 'action',
+            \is_a( $data['type'], Filter::class, true ) => 'filter',
+            default => throw new \InvalidArgumentException( 'Unsupported callback declaration type.' ),
         };
 
         $options = $data['args'];
-        if ( Ajax_Action::class === $data['type'] ) {
+        if ( \is_a( $data['type'], Ajax_Action::class, true ) ) {
             $data['args'] += array(
                 'args'    => 0,
                 'context' => Filter::CTX_AJAX,
                 'tag'     => '%s_%s_%s',
             );
         }
-        if ( REST_Route::class === $data['type'] ) {
+        if ( \is_a( $data['type'], REST_Route::class, true ) ) {
             $data['args'] += array(
                 'context'  => Filter::CTX_REST,
                 'priority' => $data['params']['priority'] ?? 10,
                 'tag'      => $data['params']['tag'] ?? 'rest_api_init',
             );
         }
-        if ( CLI_Command::class === $data['type'] ) {
+        if ( \is_a( $data['type'], CLI_Command::class, true ) ) {
             $data['args']['args'] = null;
             $data['args']        += array(
                 'context' => Filter::CTX_CLI,

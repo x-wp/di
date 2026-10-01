@@ -1,12 +1,12 @@
 <?php //phpcs:disable Universal.Operators.DisallowShortTernary.Found, Squiz.Commenting.FunctionComment.Missing
 /**
- * Handler legacy compatibility methods.
+ * Handler runtime lifecycle methods.
  *
  * @package eXtended WordPress
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Compatibility;
+namespace XWP\DI\Traits;
 
 use Closure;
 use ReflectionClass;
@@ -16,7 +16,7 @@ use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Utils\Reflection;
 
 /**
- * Preserves inherited wiring and override seams for existing decorators.
+ * Owns handler initialization and parameter resolution.
  *
  * @template T of object
  * @internal New runtime extensions belong in XWP\DI\Hook.
@@ -113,7 +113,7 @@ trait Handler_Methods {
      * @param  T $instance Handler instance.
      * @return static
      *
-     * @internal Runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Runtime wiring detail.
      */
     public function with_target( object $instance ): static {
         $this->instance  ??= $instance;
@@ -128,7 +128,7 @@ trait Handler_Methods {
     /**
      * Set reflected handler data.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  ReflectionClass<T> $r Reflector instance.
      * @return static
@@ -142,7 +142,7 @@ trait Handler_Methods {
     /**
      * Set infuse parameter metadata.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  array<string,array<string>> $params Parameters.
      * @return static
@@ -158,7 +158,7 @@ trait Handler_Methods {
     /**
      * Set callback metadata.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  array<int,string>|null $callbacks Callbacks.
      * @return static
@@ -189,9 +189,19 @@ trait Handler_Methods {
      * @return Infuse|null
      */
     public function get_params( string $method ): ?Infuse {
-        return $this->params[ $method ] ??= \method_exists( $this->get_classname(), $method )
-            ? Reflection::get_decorator( $this->get_reflector()->getMethod( $method ), Infuse::class )
-            : null;
+        if ( isset( $this->params[ $method ] ) ) {
+            return $this->params[ $method ];
+        }
+        if ( ! \method_exists( $this->get_classname(), $method ) ) {
+            return null;
+        }
+        $attribute = Reflection::get_attribute( $this->get_reflector()->getMethod( $method ), Infuse::class );
+        if ( ! $attribute ) {
+            return null;
+        }
+        \XWP\DI\Hook\Discovery::assert_metadata( $attribute->getName() );
+        $this->params[ $method ] = $attribute->newInstance();
+        return $this->params[ $method ];
     }
 
     public function get_strategy(): string {
@@ -314,7 +324,7 @@ trait Handler_Methods {
     /**
      * Loads the handler.
      *
-     * @internal Runtime dispatch detail. Retained for legacy subclasses and typed views.
+     * @internal Runtime dispatch detail.
      *
      * @return bool
      */
@@ -391,7 +401,10 @@ trait Handler_Methods {
      * @return array<mixed>
      */
     protected function resolve_params( string $method ): array {
-        return $this->get_params( $method )?->resolve( $this ) ?? array();
+        return \array_map(
+            '\DI\get',
+            $this->get_params( $method )?->get_tokens( $this->get_token() ) ?? array(),
+        );
     }
 
     /**

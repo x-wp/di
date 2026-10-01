@@ -9,7 +9,6 @@
 namespace XWP\DI\Decorators;
 
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Invoke;
 
 /**
  * Action hook decorator.
@@ -22,5 +21,4 @@ use XWP\DI\Interfaces\Can_Invoke;
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Action extends Filter {
-    use \XWP\DI\Compatibility\Action_Methods;
 }

@@ -18,7 +18,7 @@ Three layers, three responsibilities, no fusion:
 
 Public surface stays familiar: decorators on classes and `xwp_load_app()` to schedule startup. `xwp_create_app()` and `xwp_app()` return an `App` wrapper; `container()` exposes its container and `run()` starts the lifecycle.
 
-The plain Filter/Action split is implemented as one `Hook\Callback` per callback token. Exact built-in specialized callbacks and handlers/modules also use separate `Hook` runtimes. Custom declarations and explicitly supplied decorators retain the compatibility path; removing legacy mutators remains pending. The [definition split plan](definition-split-plan.md) governs this transition and supersedes the original central Dispatcher sketch.
+The plain Filter/Action split is implemented as one `Hook\Callback` per callback token. Exact built-in specialized callbacks and handlers/modules also use separate `Hook` runtimes. Custom metadata declarations follow the same definition/runtime pipeline. Decorator runtime methods and wiring mutators are removed; supplied callbacks must be runtime objects. The [definition split plan](definition-split-plan.md) governs this transition and supersedes the original central Dispatcher sketch.
 
 ## What v2.0 is *not*
 
@@ -47,7 +47,7 @@ v2.0 has failed twice — once as the master "coke-induced epiphany," once as th
 2. **Dogfood before ship.** One real production plugin must be ported to 2.0 and run successfully before tagging GA. Until that port is clean, the API isn't done.
 3. **3.0 is a parking lot, not a roadmap.** Items deferred above are filed and forgotten. We don't design for them in 2.0.
 4. **Frenzy detection.** If a slice grows past its scope, it gets a follow-up bead. We do not extend the in-flight slice.
-5. **Bounded transitions only.** The callback split temporarily retains decorator runtime for specialized/custom subclasses and the typed `!self.hook` view. Exact-class Factory routing gives each plain callback one runtime owner. F1–F5 port the remaining runtimes; F6 removes obsolete decorator behavior after extension and view compatibility are settled. This exception is scoped by the [split plan](definition-split-plan.md#follow-ups-designed-later-not-in-this-plan), not permission for permanent parallel architectures.
+5. **Bounded transitions only.** F1–F6 complete the decorator/runtime separation. `!self.hook` now injects the runtime owner, and custom execution overrides require migration. The [F6 contract](decorator-compatibility.md) supersedes the temporary adapter/view boundary.
 
 ## Audience
 

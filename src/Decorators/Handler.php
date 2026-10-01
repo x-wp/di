@@ -9,27 +9,95 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use ReflectionClass;
-use Reflector;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Utils\Reflection;
 
 /**
  * Decorator for handling WordPress hooks.
  *
  * @template T of object
  *
- * @extends Hook<T,ReflectionClass<T>>
- * @implements Can_Handle<T>
+ * @extends Hook<T,\ReflectionClass<T>>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Handler extends Hook implements Can_Handle {
+class Handler extends Hook {
     /**
-     * Legacy custom-subclass and typed-view compatibility.
-     *
-     * @use \XWP\DI\Compatibility\Handler_Methods<T>
+     * Initialize the handler early.
      */
-    use \XWP\DI\Compatibility\Handler_Methods;
+    public const INIT_EARLY = Can_Handle::INIT_EARLY;
+
+    /**
+     * Initialize the handler immediately.
+     */
+    public const INIT_NOW = Can_Handle::INIT_NOW;
+
+    /**
+     * Initialize the handler on demand.
+     */
+    public const INIT_LAZY = Can_Handle::INIT_LAZY;
+
+    /**
+     * Initialize the handler just in time.
+     */
+    public const INIT_JIT = Can_Handle::INIT_JIT;
+
+    /**
+     * Initialize the handler automatically.
+     */
+    public const INIT_AUTO = Can_Handle::INIT_AUTO;
+
+    /**
+     * Initialize the handler dynamically.
+     */
+    public const INIT_USER = Can_Handle::INIT_USER;
+
+    /**
+     * Initialize the handler immediately.
+     *
+     * @deprecated Use INIT_NOW instead.
+     */
+    public const INIT_IMMEDIATELY = Can_Handle::INIT_NOW;
+
+    /**
+     * Initialize the handler on demand.
+     *
+     * @deprecated Use INIT_LAZY instead.
+     */
+    public const INIT_ON_DEMAND = Can_Handle::INIT_LAZY;
+
+    /**
+     * Initialize the handler just in time.
+     *
+     * @deprecated Use INIT_JIT instead.
+     */
+    public const INIT_JUST_IN_TIME = Can_Handle::INIT_JIT;
+
+    /**
+     * Initialize the handler dynamically.
+     *
+     * @deprecated Use INIT_USER instead.
+     */
+    public const INIT_DYNAMICALY = Can_Handle::INIT_USER;
+
+    /**
+     * Initialize the handler automatically.
+     *
+     * @deprecated Use INIT_AUTO instead.
+     */
+    public const INIT_DEFFERED = Can_Handle::INIT_AUTO;
+
+    /**
+     * Declared initialization strategy.
+     *
+     * @var string
+     */
+    protected string $strategy;
+
+    /**
+     * Whether to discover callbacks automatically.
+     *
+     * @var bool|null
+     */
+    protected ?bool $hookable;
 
     /**
      * Constructor.
@@ -42,6 +110,8 @@ class Handler extends Hook implements Can_Handle {
      * @param string                                             $strategy    Initialization strategy.
      * @param bool                                               $hookable    Is the handler hookable.
      * @param mixed                                              ...$args     Additional arguments.
+     *
+     * @phpstan-ignore constructor.unusedParameter (Preserve deprecated constructor arguments.)
      */
     public function __construct(
         ?string $tag = null,
@@ -53,37 +123,10 @@ class Handler extends Hook implements Can_Handle {
         ?bool $hookable = null,
         mixed ...$args,
     ) {
-        $this->strategy    = $strategy;
-        $this->hookable    = $hookable;
-        $this->compat_args = \array_keys( \array_filter( $args ) );
+        $this->strategy = $strategy;
+        $this->hookable = $hookable;
 
         parent::__construct( $tag, $tag ? $priority : null, $context, $conditional, $modifiers );
-    }
-
-    /**
-     * Get compiler data for this handler.
-     *
-     * @internal Hook parser/compiler detail.
-     *
-     * @return array{
-     *   args: array<string,mixed>,
-     *   type: class-string<static>,
-     *   params: array{classname: class-string<T>},
-     * }
-     */
-    public function get_data(): array {
-        $data = parent::get_data();
-
-        $data['params']['callbacks'] = $this->get_callbacks();
-        $data['params']['params']    = \array_combine(
-            \array_keys( $this->params ),
-            \array_map(
-                fn( string $m ) => $this->get_params( $m )?->get( $this ) ?? array(),
-                \array_keys( $this->params ),
-            ),
-        );
-
-        return $data;
     }
 
     /**

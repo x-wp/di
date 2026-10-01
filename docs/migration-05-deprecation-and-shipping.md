@@ -42,7 +42,7 @@ These are the steps a plugin author follows to migrate from `1.x` to `2.x`. Refe
 3. **Bootstrap config**: same `xwp_load_app($config)` call. Most config keys carry over. Confirm `app_module` points to a `#[Module]`-decorated class.
 4. **Module class**: still decorated with `#[Module(imports: [...], handlers: [...])]`. Optionally migrate to `ModuleDefinitionHelper` composition; not required.
 5. **Handlers**: still `#[Handler(...)]`-decorated classes. No code changes for normal cases.
-6. **Hooks**: `#[Filter]` / `#[Action]` / `#[REST_Route]` / etc. carry over. Constructor arguments are unchanged for users. (Metadata-only decorators remain the goal; internal mutators still exist during the beta transition.)
+6. **Hooks**: `#[Filter]` / `#[Action]` / `#[REST_Route]` / etc. carry over. Constructor arguments are unchanged for users. (Decorators now contain metadata only; custom runtime overrides require migration.)
 7. **Container access**: `xwp_app('app_id')` carries over.
 8. **Removed APIs**: see "Breaking changes" below.
 
@@ -50,14 +50,9 @@ The expected migration cost for a typical plugin is one afternoon: bump composer
 
 ## Current beta callback split
 
-Plain `#[Filter]` and `#[Action]` callback tokens now resolve to `XWP\DI\Hook\Callback`. The injected `!self.hook` value remains a typed `Filter` or `Action` view that forwards live state and calls to that runtime. Exact Dynamic, AJAX, REST, and CLI callbacks use specialized Callback runtimes and matching typed views; custom decorator subclasses retain their existing runtime. See [specialized callback details](specialized-callback-runtime.md). Built-in handler/module tokens also resolve to separate runtimes implementing the existing `Can_Handle` interfaces; see [handler migration details](handler-module-runtime.md).
+Callback tokens resolve to `XWP\DI\Hook\Callback` or its Dynamic, AJAX, REST, and CLI subclasses. `!self.hook` injects that same runtime object. Replace `Filter`/`Action` parameter type hints with `Hook\Callback` or the specialized runtime. Direct invocation and retained state references operate on the runtime. For WordPress removal, use `$hook->target`; standard callbacks still register the handler method and proxied callbacks register the runtime callable.
 
-Two object-identity assumptions change for built-in callback views:
-
-- `$hook === $container->get( $hook->get_token() )` is false: the view and runtime are separate objects.
-- `remove_filter( $hook->tag, array( $hook, 'invoke' ), $hook->get_priority() )` no longer names the registered proxy. Use `$hook->target`, or `array( $container->get( $hook->get_token() ), 'invoke' )` for a proxied callback. The same rule applies to `remove_action()`.
-
-Direct `$hook->invoke( ...$args )` calls still forward to the runtime. Standard callbacks still register the handler-instance method and retain that removal identity. Single-declaration hook tokens and existing cache metadata remain compatible. Repeated declarations sharing a token receive deterministic suffixes and distinct proxy listeners. Handler initialization remains strategy dependent. Explicitly supplied decorators retain their object identity and can still be removed using their own `invoke` callable.
+Handler/module tokens and `!self.handler` resolve to runtimes implementing the existing `Can_Handle` interfaces. Custom metadata subclasses use the same pipeline. Legacy custom execution overrides require migration; see [F6 migration details](decorator-compatibility.md).
 
 ## Breaking changes from 1.x to 2.0
 
@@ -68,10 +63,10 @@ These are the things that *will* break unless the plugin code is updated. The li
 - `xwp_app()` and `xwp_create_app()` return `App`. Use `container()` when a dependency requires a PHP-DI container; call `App::run()` to start it. `Container::run()` has been removed, and unsupported methods now throw instead of silently doing nothing.
 - Built-in `Hook-{class}` entries and `!self.handler` injections are runtime objects implementing `Can_Handle`, `Can_Import`, or specialized handler interfaces. Replace concrete decorator parameter types with those contracts. CLI runtime handlers retain progress, prompt, and namespace helpers.
 
-- Removing decorator `with_*()` mutators is still pending F6/B3.1. They remain in beta through `Compatibility` adapters for custom subclasses, discovery wiring, and typed views. Consumer migration must be settled before removal; this document does not claim it has happened.
+- Decorator `with_*()`, `load()`, `invoke()`, and `can_load()` methods are removed. Custom metadata constructors/exports remain supported; custom execution overrides must move to runtime or handler behavior.
 - `xwp_app(null)` accidental usage now throws. Pass the app ID explicitly.
 - The legacy config-key shim in `App_Factory::parse_legacy_config()` remains. It maps old options and emits a deprecation notice when debugging is enabled; use the documented keys for new code.
-- Plain proxied Filter/Action registrations now use `Callback::invoke()`. The typed `!self.hook` view still supports direct invocation; WordPress removal must use the runtime callable as described above. Exact built-in specialized callbacks also use Callback subclasses; custom subclasses retain the compatibility path.
+- `!self.hook` now injects the runtime itself; typed decorator views are removed. Update callback parameter types and use the registered callable for WordPress removal as described above.
 
 ### Tightened
 - PHP requirement: `>=8.1`.

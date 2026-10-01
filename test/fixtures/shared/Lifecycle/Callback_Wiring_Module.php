@@ -1,6 +1,6 @@
 <?php
 /**
- * Plain callbacks and legacy subclasses in the same handler.
+ * Plain callbacks and custom declaration subclasses in the same handler.
  *
  * @package XWP\DI\Tests
  */
@@ -38,16 +38,16 @@ final class Callback_Wiring_Handler {
     }
 
     #[Custom_Wiring_Filter( 'xwp_wiring_custom', invoke: Filter::INV_PROXIED )]
-    public function custom( string $value ): string {
+    public function custom( string $value, string $suffix ): string {
         $this->events[] = 'custom';
-        return $value . ':custom';
+        return $value . ':custom:' . $suffix;
     }
 }
 
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 final class Custom_Wiring_Filter extends Filter {
-    public function invoke( mixed ...$args ): mixed {
-        return parent::invoke( ...$args ) . ':subclass';
+    public function get_declaration(): array {
+        return array_replace( parent::get_declaration(), array( 'args' => 1, 'params' => array( '!value:metadata' ) ) );
     }
 }
 

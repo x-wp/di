@@ -32,26 +32,26 @@ final class HandlerDefinition {
      *
      * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Handler metadata.
      * @return self
-     * @throws \InvalidArgumentException For unsupported custom decorators.
+     * @throws \InvalidArgumentException For unsupported declaration types.
      */
     public static function from_data( array $data ): self {
-        $defaults = match ( $data['type'] ) {
-            Handler::class => array(),
-            Module::class => array( 'tag' => $data['args']['hook'] ),
-            Ajax_Handler::class => array(
+        $defaults = match ( true ) {
+            \is_a( $data['type'], Module::class, true ) => array( 'tag' => $data['args']['hook'] ),
+            \is_a( $data['type'], Ajax_Handler::class, true ) => array(
                 'context'  => Handler::CTX_AJAX,
                 'strategy' => Handler::INIT_LAZY,
                 'tag'      => 'admin_init',
             ),
-            REST_Handler::class => array(
+            \is_a( $data['type'], REST_Handler::class, true ) => array(
                 'context' => Handler::CTX_REST,
                 'tag'     => 'rest_api_init',
             ),
-            CLI_Handler::class => array(
+            \is_a( $data['type'], CLI_Handler::class, true ) => array(
                 'context' => Handler::CTX_CLI,
                 'tag'     => 'cli_init',
             ),
-            default => throw new \InvalidArgumentException( 'Only built-in handler metadata is supported.' ),
+            \is_a( $data['type'], Handler::class, true ) => array(),
+            default => throw new \InvalidArgumentException( 'Unsupported handler declaration type.' ),
         };
         $args             = $data['args'] + $defaults + array(
             'conditional' => null,

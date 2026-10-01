@@ -1,6 +1,6 @@
 <?php
 /**
- * Specialized callback runtime behavior and compatibility views.
+ * Specialized callback runtime behavior and injected runtime identities.
  *
  * @package XWP\DI\Tests
  */
@@ -51,7 +51,7 @@ final class Specialized_Callback_Test extends TestCase {
         parent::tear_down();
     }
 
-    public function test_dynamic_expansion_preserves_mappings_injection_views_and_action_returns(): void {
+    public function test_dynamic_expansion_preserves_mappings_runtime_injection_and_action_returns(): void {
         foreach ( array( Dynamic_Filter::class, Dynamic_Action::class ) as $type ) {
             $calls = 0;
             $vars = static function () use ( &$calls ): array {
@@ -68,7 +68,7 @@ final class Specialized_Callback_Test extends TestCase {
             self::assertSame( Dynamic_Filter::class === $type ? 'a:mapped' : null, apply_filters( 'special_one', 'a', 'ignored' ) );
             self::assertSame( Dynamic_Filter::class === $type ? 'b:two' : null, apply_filters( 'special_two', 'b' ) );
             $view = $this->target->view;
-            self::assertSame( $type, $view::class );
+            self::assertSame( $callback, $view );
             self::assertSame( 2, $view->fired );
             self::assertFalse( $view->firing );
             self::assertSame( $callback->get_token(), $view->get_token() );
@@ -88,7 +88,7 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertTrue( remove_filter( 'special_one', $callback->target ) );
     }
 
-    public function test_ajax_request_parameters_prefixes_and_view_are_owned_by_runtime(): void {
+    public function test_ajax_request_parameters_prefixes_and_identity_are_owned_by_runtime(): void {
         $this->context->setValue( null, Filter::CTX_AJAX );
         $_GET['special_value'] = 'request';
         try {
@@ -101,7 +101,7 @@ final class Specialized_Callback_Test extends TestCase {
                 self::assertSame( 'request', $this->target->value );
                 self::assertTrue( remove_action( $tag, $callback->target ) );
             }
-            self::assertInstanceOf( Ajax_Action::class, $this->target->view );
+            self::assertSame( $callback, $this->target->view );
             self::assertSame( $callback->get_token(), $this->target->view->get_token() );
             self::assertSame( 2, $this->target->view->fired );
             self::assertSame( $callback->get_modifiers(), $this->target->view->get_modifiers() );
@@ -145,7 +145,7 @@ final class Specialized_Callback_Test extends TestCase {
         }
     }
 
-    public function test_rest_registration_schema_guard_response_and_typed_view(): void {
+    public function test_rest_registration_schema_guard_response_and_runtime_identity(): void {
         $this->context->setValue( null, Filter::CTX_REST );
         $callback = $this->make( new REST_Route( 'item', 'GET', vars: 'schema', guard: 'allowed', params: array( '!self.hook' ) ), 'rest', new REST_Handler( 'special/v1', 'items', priority: 18 ) );
         self::assertSame( REST_Callback::class, $callback::class );
@@ -164,7 +164,7 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertSame( array( 'ok' => true ), $response->get_data() );
         self::assertGreaterThan( 0, $this->target->permission_checks );
         $view = $this->target->view;
-        self::assertInstanceOf( REST_Route::class, $view );
+        self::assertSame( $callback, $view );
         self::assertSame( $callback->get_token(), $view->get_token() );
         self::assertSame( $callback->get_route(), $view->get_route() );
         self::assertSame( $callback->get_guard(), $view->get_guard() );
@@ -300,7 +300,7 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertSame( array( $callback, 'invoke' ), $callback->target );
         self::assertSame( array( $this->target, 'rest_standard' ), $callback->get_callback() );
         self::assertSame( array( 'standard' => true ), ( $callback->get_callback() )( new \WP_REST_Request() ) );
-        $data = ( new REST_Route( 'older', 'GET' ) )->with_handler( $callback->get_handler() )->with_method( 'rest_standard' )->get_data();
+        $data = array( 'type' => REST_Route::class, 'args' => ( new REST_Route( 'older', 'GET' ) )->get_declaration(), 'params' => array( 'classname' => $this->target::class, 'method' => 'rest_standard' ) );
         unset( $data['params']['tag'], $data['params']['priority'], $data['args']['invoke'] );
         $older = ( new Factory( $this->container ) )->make( $data );
         self::assertSame( $callback->get_token(), $older->get_token() );
@@ -324,7 +324,7 @@ final class Specialized_Callback_Test extends TestCase {
         }
     }
 
-    public function test_cli_arguments_flags_hooks_and_typed_view(): void {
+    public function test_cli_arguments_flags_hooks_and_runtime_identity(): void {
         require_once dirname( __DIR__, 2 ) . '/vendor/wp-cli/wp-cli/php/utils.php';
         $this->context->setValue( null, Filter::CTX_CLI );
         $events = array();
@@ -349,7 +349,7 @@ final class Specialized_Callback_Test extends TestCase {
         self::assertSame( array( 'before', 'after' ), $events );
         self::assertSame( array( array( 'a', 'b' ), array( 'count' => 3, 'verbose' => false ) ), $this->target->cli_args );
         $view = $this->target->view;
-        self::assertInstanceOf( CLI_Command::class, $view );
+        self::assertSame( $callback, $view );
         self::assertSame( $callback->get_token(), $view->get_token() );
         self::assertSame( $callback->get_priority(), $view->get_priority() );
         self::assertSame( 'special fetch', $view->get_command() );
@@ -361,22 +361,23 @@ final class Specialized_Callback_Test extends TestCase {
 
     private function make( Filter $decorator, string $method, ?Handler $handler = null ): mixed {
         $handler ??= new Handler( strategy: Handler::INIT_NOW );
-        $handler->with_classname( $this->target::class )->with_container( $this->container )->with_target( $this->target );
+        $factory = new Factory( $this->container );
+        $handler = $factory->make( array( 'type' => $handler::class, 'args' => $handler->get_declaration(), 'params' => array( 'classname' => $this->target::class ) ) );
+        $handler->with_target( $this->target );
         $this->container->set( 'Hook-' . $this->target::class, $handler );
-        $decorator->with_handler( $handler )->with_reflector( new \ReflectionMethod( $this->target, $method ) );
-        $runtime = ( new Factory( $this->container ) )->make( $decorator->get_data() );
-        self::assertSame( $decorator->get_token(), $runtime->get_token() );
+        $runtime = $factory->make( array( 'type' => $decorator::class, 'args' => $decorator->get_declaration(), 'params' => array( 'classname' => $this->target::class, 'method' => $method ) ) );
+        self::assertSame( $decorator::class, $runtime->get_definition()->get_decorator() );
         return $runtime;
     }
 }
 
 class Specialized_Callback_Target {
-    public Filter $view;
+    public Callback $view;
     public string $value;
     public int $permission_checks = 0;
     public array $body_args = array();
 
-    public function dynamic( string $value, Dynamic_Filter $view, string $suffix ): string {
+    public function dynamic( string $value, Dynamic_Callback $view, string $suffix ): string {
         $this->view = $view;
         return $value . ':' . $suffix;
     }
@@ -394,7 +395,7 @@ class Specialized_Callback_Target {
         return false;
     }
 
-    public function rest( \WP_REST_Request $request, REST_Route $view ): array {
+    public function rest( \WP_REST_Request $request, REST_Callback $view ): array {
         $this->view = $view;
         return array( 'ok' => true );
     }
@@ -409,7 +410,7 @@ class Specialized_Callback_Target {
 
     public array $cli_args;
 
-    public function cli( array $names, array $flags, CLI_Command $view ): void {
+    public function cli( array $names, array $flags, CLI_Callback $view ): void {
         $this->cli_args = array( $names, $flags );
         $this->view = $view;
     }
@@ -418,7 +419,7 @@ class Specialized_Callback_Target {
         $this->body_args = array( $body, $value );
     }
 
-    public function ajax( string $value, Ajax_Action $view ): void {
+    public function ajax( string $value, Ajax_Callback $view ): void {
         $this->value = $value;
         $this->view = $view;
     }

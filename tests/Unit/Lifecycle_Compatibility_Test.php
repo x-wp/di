@@ -1,6 +1,6 @@
 <?php
 /**
- * Legacy lifecycle extension compatibility.
+ * Context detection remains deferred until a specific context is requested.
  *
  * @package XWP\DI\Tests
  */
@@ -26,14 +26,4 @@ final class Lifecycle_Compatibility_Test extends TestCase {
         self::assertSame( Filter::CTX_REST, \XWP_Context::get() );
     }
 
-    public function test_check_method_retains_the_single_parameter_override_signature(): void {
-        $method = new \ReflectionMethod( Filter::class, 'check_method' );
-        self::assertSame( 1, $method->getNumberOfParameters(), 'Existing overrides accept exactly one argument.' );
-        $filter = new class( 'example' ) extends Filter {
-            protected function check_method( null|\Closure|string|array $method ): bool {
-                return true;
-            }
-        };
-        self::assertInstanceOf( Filter::class, $filter );
-    }
 }

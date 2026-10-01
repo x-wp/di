@@ -12,10 +12,8 @@ use DI\Definition\Exception\InvalidDefinition;
 use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Container;
-use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Ajax_Action;
 use XWP\DI\Decorators\CLI_Command;
-use XWP\DI\Decorators\Dynamic_Action;
 use XWP\DI\Decorators\Dynamic_Filter;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler as Handler_Decorator;
@@ -38,7 +36,7 @@ class Factory {
     use Hook_Token_Methods;
 
     /**
-     * Definition discovery and custom-extension adapters.
+     * Declaration metadata discovery.
      *
      * @var Discovery
      */
@@ -67,50 +65,37 @@ class Factory {
      *
      * Creates parsed and resolved hooks.
      *
-     * @template TTgt of Can_Hook
+     * @template TTgt of object
      *
      * @param  array{type: class-string<TTgt>, args: array<string,mixed>, params: array<string,mixed>} $hook Hook data.
-     * @return TTgt<object,\Reflector>|Callback<object,Can_Handle<object>>|Handler<object>
+     * @return Callback<object,Can_Handle<object>>|Handler<object>
+     * @throws InvalidDefinition If the declaration is unsupported or a callback has no container.
      */
     public function make( array $hook ): Can_Hook|Callback {
-        if ( $this->ctr() && $this->handler_runtime_class( $hook['type'] ) ) {
-            $legacy = $this->discovery->handler( $hook['params']['classname'] );
-            if ( $legacy instanceof Can_Handle ) {
-                return $this->restore_legacy( $legacy, $hook['params'] );
-            }
-            $runtime = $this->handler_runtime_class( $hook['type'] );
+        Discovery::assert_hook_metadata( $hook );
+        $runtime = $this->handler_runtime_class( $hook['type'] );
+        if ( $runtime ) {
             return new $runtime( HandlerDefinition::from_data( $hook ), $this->ctr() );
         }
 
-        if ( $this->ctr() && $this->runtime_class( $hook['type'] ) ) {
-            if ( REST_Route::class === $hook['type'] && ( ! isset( $hook['params']['tag'] ) || ! isset( $hook['params']['priority'] ) ) ) {
-                // Older cache entries omit the handler-specific registration tag.
-                $handler         = $this->ctr()->get( 'Hook-' . $hook['params']['classname'] );
-                $hook['params'] += array(
-                    'priority' => $handler->get_priority() + 1,
-                    'tag'      => $handler->get_rest_hook(),
-                );
-            }
-
-            $runtime = $this->runtime_class( $hook['type'] );
-
-            return new $runtime( CallbackDefinition::from_data( $hook ), $this->ctr() );
+        $runtime = $this->runtime_class( $hook['type'] );
+        if ( ! $runtime ) {
+            throw new InvalidDefinition( "Unsupported hook declaration: {$hook['type']}" );
+        }
+        if ( ! $this->ctr() ) {
+            throw new InvalidDefinition( 'Container not set for callback runtime.' );
+        }
+        $rest_route = \is_a( $hook['type'], REST_Route::class, true );
+        if ( $rest_route && ( ! isset( $hook['params']['tag'] ) || ! isset( $hook['params']['priority'] ) ) ) {
+            // Older cache entries omit the handler-specific registration tag.
+            $handler         = $this->ctr()->get( 'Hook-' . $hook['params']['classname'] );
+            $hook['params'] += array(
+                'priority' => $handler->get_priority() + 1,
+                'tag'      => $handler->get_rest_hook(),
+            );
         }
 
-        $constructor = ( new ReflectionClass( $hook['type'] ) )->getConstructor();
-        $args        = $hook['args'];
-        if ( $constructor && ! $constructor->isVariadic() ) {
-            $names = \array_map( static fn( $param ) => $param->getName(), $constructor->getParameters() );
-            $args  = \array_intersect_key( $args, \array_flip( $names ) );
-        }
-
-        $legacy = new $hook['type']( ...$args );
-        if ( $legacy instanceof Filter && isset( $hook['args']['invoke'] ) ) {
-            // Discovery can change invocation flags after a narrow constructor runs.
-            $legacy->with_invoke( $hook['args']['invoke'] );
-        }
-
-        return $this->restore_legacy( $legacy, $hook['params'] );
+        return new $runtime( CallbackDefinition::from_data( $hook ), $this->ctr() );
     }
     // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
@@ -136,7 +121,7 @@ class Factory {
      * @return Can_Import<TObj>|HandlerDefinition
      */
     public function resolve_module( string $module ): Can_Import|HandlerDefinition {
-        return $this->resolve_handler( $module, Can_Import::class );
+        return $this->resolve_handler( $module, \XWP\DI\Decorators\Module::class );
     }
 
     /**
@@ -165,14 +150,14 @@ class Factory {
     /**
      * Resolve the handler for a hook.
      *
-     * @template THnd of Can_Import|Can_Handle
+     * @template THnd of Handler_Decorator
      * @template TObj of object
      *
      * @param  class-string<TObj> $hook Hook classname or instance.
      * @param  class-string<THnd> $type Handler classname.
-     * @return null|THnd|HandlerDefinition
+     * @return null|Can_Handle<TObj>|HandlerDefinition
      */
-    public function resolve_handler( string $hook, string $type = Can_Handle::class ): Can_Handle|HandlerDefinition|null {
+    public function resolve_handler( string $hook, string $type = Handler_Decorator::class ): Can_Handle|HandlerDefinition|null {
         $definition = $this->discovery->handler( $hook, $type );
         return $definition instanceof HandlerDefinition && $this->ctr()
             ? $this->make( $definition->get_data() )
@@ -220,10 +205,8 @@ class Factory {
     /**
      * Get handler callbacks.
      *
-     * @template TObj of object
-     *
-     * @param  Can_Handle<TObj>|HandlerDefinition $handler Handler metadata or runtime.
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|CallbackDefinition>
+     * @param  Can_Handle<object>|HandlerDefinition $handler Handler metadata or runtime.
+     * @return array<int,CallbackDefinition>
      */
     public function resolve_callbacks( Can_Handle|HandlerDefinition $handler ): array {
         $callbacks = array();
@@ -317,31 +300,17 @@ class Factory {
      * @return Can_Handle<TObj>
      */
     protected function new_handler( object $instance ): Can_Handle {
-        if ( $this->ctr() ) {
-            /** @var Handler<TObj> $runtime */
-            $runtime = new Handler(
-                new HandlerDefinition(
-                    $instance::class,
-                    priority: null,
-                    strategy: Handler_Decorator::INIT_USER,
-                    hookable: true,
-                ),
-                $this->ctr(),
-            );
-            return $runtime->with_target( $instance );
-        }
-
-        $handler = new Handler_Decorator( strategy: Handler_Decorator::INIT_USER, hookable: true );
-
-        /**
-         * Handler instance.
-         *
-         * @var Can_Handle<TObj> $handler
-         */
-        return $handler
-            ->with_reflector( Reflection::get_reflector( $instance ) )
-            ->with_target( $instance )
-            ->with_cache( false );
+        /** @var Handler<TObj> $runtime */
+        $runtime = new Handler(
+            new HandlerDefinition(
+                $instance::class,
+                priority: null,
+                strategy: Handler_Decorator::INIT_USER,
+                hookable: true,
+            ),
+            $this->ctr(),
+        );
+        return $runtime->with_target( $instance );
     }
 
     /**
@@ -363,12 +332,10 @@ class Factory {
     /**
      * Get the callbacks for a method.
      *
-     * @template TObj of object
+     * @param  Can_Handle<object>|HandlerDefinition $handler Handler metadata or runtime.
+     * @param  ReflectionMethod                     $reflector Method reflection.
      *
-     * @param  Can_Handle<TObj>|HandlerDefinition $handler Handler metadata or runtime.
-     * @param  ReflectionMethod                   $reflector Method reflection.
-     *
-     * @return array<int,Can_Invoke<TObj,Can_Handle<TObj>>|CallbackDefinition>
+     * @return array<int,CallbackDefinition>
      */
     protected function resolve_method_callbacks( Can_Handle|HandlerDefinition $handler, ReflectionMethod $reflector ): array {
         $callbacks = array();
@@ -403,7 +370,7 @@ class Factory {
     // Keep metadata/runtime routing and identity guards together.
     // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
-     * Save a hook while retaining definition or custom-attribute metadata for discovery.
+     * Save a hook while retaining definition metadata for discovery.
      *
      * Existing token entries retain their runtime identity and invocation state.
 
@@ -432,36 +399,12 @@ class Factory {
             return $hook;
         }
 
-        // Supplied and custom-discovered decorators own their live listener state.
+        // Supplied runtimes own their live listener state.
         $this->ctr()->set( $token, $hook );
 
         return $hook;
     }
     // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
-
-    /**
-     * Restore cache metadata without replacing custom injection declarations.
-     *
-     * @template T of Can_Hook
-     * @param T                   $hook Legacy hook.
-     * @param array<string,mixed> $params Serialized binding metadata.
-     * @return T
-     */
-    private function restore_legacy( Can_Hook $hook, array $params ): Can_Hook {
-        $hook->with_classname( $params['classname'] );
-        if ( ! $hook instanceof Can_Handle ) {
-            return $hook->with_data( $params )->with_container( $this->ctr() );
-        }
-        foreach ( $params['params'] ?? array() as $method => $tokens ) {
-            $infuse = $hook->get_params( $method );
-            if ( ! $infuse || \XWP\DI\Decorators\Infuse::class === $infuse::class ) {
-                continue;
-            }
-
-            unset( $params['params'][ $method ] );
-        }
-        return $hook->with_data( $params )->with_container( $this->ctr() );
-    }
 
     /**
      * Get a hook by classname
@@ -478,35 +421,35 @@ class Factory {
     }
 
     /**
-     * Route exact built-in types, retaining custom decorator runtime behavior.
+     * Route declarations by their built-in metadata hierarchy.
      *
      * @param  class-string $type Decorator class.
      * @return class-string<Callback<object,Can_Handle<object>>>|null
      */
     private function runtime_class( string $type ): ?string {
-        return match ( $type ) {
-            Filter::class, Action::class => Callback::class,
-            Dynamic_Filter::class, Dynamic_Action::class => Dynamic_Callback::class,
-            REST_Route::class => REST_Callback::class,
-            CLI_Command::class => CLI_Callback::class,
-            Ajax_Action::class => Ajax_Callback::class,
+        return match ( true ) {
+            \is_a( $type, REST_Route::class, true ) => REST_Callback::class,
+            \is_a( $type, CLI_Command::class, true ) => CLI_Callback::class,
+            \is_a( $type, Ajax_Action::class, true ) => Ajax_Callback::class,
+            \is_a( $type, Dynamic_Filter::class, true ) => Dynamic_Callback::class,
+            \is_a( $type, Filter::class, true ) => Callback::class,
             default => null,
         };
     }
 
     /**
-     * Keep custom handler subclasses on their existing runtime path.
+     * Route handler declarations to their runtime specialization.
      *
      * @param class-string $type Decorator class.
      * @return class-string<Handler<object>>|null
      */
     private function handler_runtime_class( string $type ): ?string {
-        return match ( $type ) {
-            Handler_Decorator::class => Handler::class,
-            \XWP\DI\Decorators\Module::class => Module::class,
-            \XWP\DI\Decorators\Ajax_Handler::class => Ajax_Handler::class,
-            \XWP\DI\Decorators\REST_Handler::class => REST_Handler::class,
-            \XWP\DI\Decorators\CLI_Handler::class => CLI_Handler::class,
+        return match ( true ) {
+            \is_a( $type, \XWP\DI\Decorators\Module::class, true ) => Module::class,
+            \is_a( $type, \XWP\DI\Decorators\Ajax_Handler::class, true ) => Ajax_Handler::class,
+            \is_a( $type, \XWP\DI\Decorators\REST_Handler::class, true ) => REST_Handler::class,
+            \is_a( $type, \XWP\DI\Decorators\CLI_Handler::class, true ) => CLI_Handler::class,
+            \is_a( $type, Handler_Decorator::class, true ) => Handler::class,
             default => null,
         };
     }

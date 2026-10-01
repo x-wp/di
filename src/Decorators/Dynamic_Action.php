@@ -8,14 +8,15 @@
 
 namespace XWP\DI\Decorators;
 
+use XWP\DI\Interfaces\Can_Handle;
+
 /**
  * Dynamic action decorator
  *
  * @template T of object
- * @template H of Ajax_Handler<T>
+ * @template H of Can_Handle<T>
  * @extends Dynamic_Filter<T,H>
  */
 #[\Attribute( \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE )]
 class Dynamic_Action extends Dynamic_Filter {
-    use \XWP\DI\Compatibility\Action_Methods;
 }

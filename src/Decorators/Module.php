@@ -8,26 +8,16 @@
 
 namespace XWP\DI\Decorators;
 
-use XWP\DI\Interfaces\Can_Import;
-
 /**
  * Module decorator.
  *
  * @template T of object
  * @extends Handler<T>
- * @implements Can_Import<T>
  *
  * @since 1.0.0
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Module extends Handler implements Can_Import {
-    /**
-     * Did the module import submodules?
-     *
-     * @var array<class-string,bool>
-     */
-    protected static array $imported = array();
-
+class Module extends Handler {
     /**
      * Constructor.
      *
@@ -75,32 +65,30 @@ class Module extends Handler implements Can_Import {
     }
 
     /**
-     * Set the module initialization strategy.
+     * Get declared imports.
      *
-     * @param  string $strategy Initialization strategy.
-     * @return static
+     * @return array<int,class-string>
      */
-    public function with_strategy( string $strategy ): static {
-        $this->strategy = $strategy;
-        return $this;
-    }
-
     public function get_imports(): array {
         return $this->imports;
     }
 
+    /**
+     * Get declared handlers.
+     *
+     * @return array<int,class-string>
+     */
     public function get_handlers(): array {
         return $this->handlers;
     }
 
+    /**
+     * Get declared services.
+     *
+     * @return array<int,class-string>
+     */
     public function get_services(): array {
         return $this->services;
-    }
-
-    public function get_configuration(): array {
-        return \method_exists( $this->classname, 'configure' )
-            ? $this->classname::configure()
-            : array();
     }
 
     /**
@@ -120,8 +108,8 @@ class Module extends Handler implements Can_Import {
             'imports'  => $this->imports,
             'services' => $this->services,
         );
-        if ( self::INIT_AUTO !== $this->get_strategy() ) {
-            $args['strategy'] = $this->get_strategy();
+        if ( self::INIT_AUTO !== $this->strategy ) {
+            $args['strategy'] = $this->strategy;
         }
         return $args;
     }

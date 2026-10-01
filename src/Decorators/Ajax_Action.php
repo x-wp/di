@@ -9,28 +9,71 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
+use XWP\DI\Interfaces\Can_Handle;
 
 /**
  * Ajax action decorator.
  *
  * @template T of object
- * @template H of Ajax_Handler<T>
+ * @template H of Can_Handle<T>
  * @extends Action<T,H>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
 class Ajax_Action extends Action {
-    /**
-     * Legacy custom-subclass and typed-view compatibility.
-     *
-     * @use \XWP\DI\Compatibility\Ajax_Action_Methods<T,H>
-     */
-    use \XWP\DI\Compatibility\Ajax_Action_Methods;
-
     public const AJAX_GET = 'GET';
 
     public const AJAX_POST = 'POST';
 
     public const AJAX_REQ = 'REQ';
+
+    /**
+     * Declared action.
+     *
+     * @var string
+     */
+    protected string $action;
+
+    /**
+     * Declared prefix.
+     *
+     * @var string|null
+     */
+    protected ?string $prefix;
+
+    /**
+     * Declared nonce.
+     *
+     * @var array{0?:string,1?:string|false}
+     */
+    protected array $nonce;
+
+    /**
+     * Declared cap.
+     *
+     * @var null|string|array<string,string|array<int,string>>
+     */
+    protected null|string|array $cap;
+
+    /**
+     * Declared vars.
+     *
+     * @var array<string,mixed>
+     */
+    protected array $vars;
+
+    /**
+     * Declared public.
+     *
+     * @var bool
+     */
+    protected bool $public;
+
+    /**
+     * Declared verb.
+     *
+     * @var 'GET'|'POST'|'REQ'
+     */
+    protected string $verb;
 
     /**
      * Constructor.
@@ -63,9 +106,8 @@ class Ajax_Action extends Action {
         $this->nonce  = $this->parse_nonce( $nonce );
         $this->cap    = $cap;
         $this->vars   = $vars;
-        $this->hooks  = $public ? array( 'wp_ajax_nopriv', 'wp_ajax' ) : array( 'wp_ajax' );
+        $this->public = $public;
         $this->verb   = $method;
-        $this->getter = $this->getter_cb( $method );
 
         parent::__construct(
             tag: '%s_%s_%s',
@@ -95,8 +137,31 @@ class Ajax_Action extends Action {
             'params'      => $this->params,
             'prefix'      => $this->prefix,
             'priority'    => $this->prio,
-            'public'      => \in_array( 'wp_ajax_nopriv', $this->hooks, true ),
+            'public'      => $this->public,
             'vars'        => $this->vars,
         );
+    }
+
+    /**
+     * Normalize the nonce declaration without fetching request data.
+     *
+     * @param bool|string|array<string,string>|array{0:string,1:string|false} $nonce Nonce declaration.
+     * @return array{0?:string,1?:string|false}
+     */
+    private function parse_nonce( bool|string|array $nonce ): array {
+        if ( ! $nonce ) {
+            return array();
+        }
+
+        if ( ! \is_array( $nonce ) ) {
+            return array(
+                "{$this->prefix}_{$this->action}",
+                \is_string( $nonce ) ? $nonce : false,
+            );
+        }
+
+        return ! \array_is_list( $nonce )
+            ? array( \current( $nonce ), \key( $nonce ) )
+            : $nonce;
     }
 }

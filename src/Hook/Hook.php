@@ -6,7 +6,7 @@
  * @subpackage Dependency Injection
  */
 
-namespace XWP\DI\Compatibility;
+namespace XWP\DI\Hook;
 
 use Automattic\Jetpack\Constants;
 use Closure;
@@ -18,13 +18,13 @@ use XWP\DI\Traits\Hook_Invoke_Methods;
 use XWP_Context;
 
 /**
- * Shared legacy hook metadata and wiring implementation.
+ * Shared runtime hook state and wiring.
  *
  * @template THndlr of object
  * @template TRflct of ReflectionClass<THndlr>|ReflectionMethod
  * @implements Can_Hook<THndlr,TRflct>
  *
- * @internal Compatibility bridge for discovery, custom decorators, and runtime handlers.
+ * @internal Runtime handler base; attribute declarations do not inherit it.
  */
 abstract class Hook implements Can_Hook {
     /**
@@ -143,7 +143,7 @@ abstract class Hook implements Can_Hook {
     /**
      * Mark whether this hook came from cache.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  bool $cached Cached flag.
      * @return static
@@ -157,7 +157,7 @@ abstract class Hook implements Can_Hook {
     /**
      * Set the owning class name.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  class-string $classname Class name.
      * @return static
@@ -171,7 +171,7 @@ abstract class Hook implements Can_Hook {
     /**
      * Set the runtime container.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  null|string|Container $container Container instance or ID.
      * @return static
@@ -190,7 +190,7 @@ abstract class Hook implements Can_Hook {
      * @param  TRflct $r Reflector instance.
      * @return static
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      */
     public function with_reflector( \Reflector $r ): static {
         $this->reflector ??= $r;
@@ -201,7 +201,7 @@ abstract class Hook implements Can_Hook {
     /**
      * Set compiler data.
      *
-     * @internal Parser/runtime wiring detail. Attributes are immutable in v2.0.
+     * @internal Parser/runtime wiring detail.
      *
      * @param  array<string,mixed> $data Hook data.
      * @return static

@@ -1,4 +1,4 @@
-<?php //phpcs:disable Generic.Commenting.DocComment.MissingShort
+<?php //phpcs:disable Generic.Commenting.DocComment.MissingShort, WordPress.Security.EscapeOutput.ExceptionNotEscaped
 /**
  * Build definitions from unbound attribute declarations.
  *
@@ -8,13 +8,13 @@
 
 namespace XWP\DI\Hook;
 
+use DI\Definition\Exception\InvalidDefinition;
 use ReflectionClass;
 use ReflectionMethod;
 use XWP\DI\Decorators as D;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Definition\HandlerDefinition;
 use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Invoke;
 use XWP\DI\Utils\Reflection;
 
 /**
@@ -23,18 +23,187 @@ use XWP\DI\Utils\Reflection;
  * @internal Hook discovery detail.
  */
 final class Discovery {
+    // Inspect custom ancestry and methods together to identify the migration error precisely.
+    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
-     * Shared adapters for explicitly supplied definitions with custom callbacks.
+     * Reject obsolete runtime extensions before discovery or cached reconstruction.
      *
-     * @var \WeakMap<HandlerDefinition,Can_Handle<object>>
+     * Constructors and declaration exporters remain valid metadata extension points.
+     * Inspect each custom ancestor so inherited overrides cannot disappear silently.
+     *
+     * @param class-string $type Attribute class.
+     * @return void
+     * @throws InvalidDefinition If an attribute still overrides runtime behavior.
      */
-    private \WeakMap $legacy_handlers;
+    public static function assert_metadata( string $type ): void {
+        $builtins  = array(
+            D\Hook::class,
+            D\Handler::class,
+            D\Module::class,
+            D\Ajax_Handler::class,
+            D\REST_Handler::class,
+            D\CLI_Handler::class,
+            D\Filter::class,
+            D\Action::class,
+            D\Dynamic_Filter::class,
+            D\Dynamic_Action::class,
+            D\Ajax_Action::class,
+            D\REST_Route::class,
+            D\CLI_Command::class,
+            D\Infuse::class,
+        );
+        $legacy    = array(
+            '__get',
+            '__invoke',
+            'get',
+            'resolve',
+            'get_data',
+            'get_tag',
+            'get_modifiers',
+            'get_priority',
+            'get_container',
+            'get_classname',
+            'get_context',
+            'get_init_hook',
+            'get_token',
+            'get_reflector',
+            'is_cached',
+            'is_loaded',
+            'can_load',
+            'check_context',
+            'check_method',
+            'can_call',
+            'resolve_priority',
+            'filter_priority',
+            'call_priority',
+            'get_token_base',
+            'get_token_suffix',
+            'get_app_uuid',
+            'get_cb_arg',
+            'generate_token',
+            'on_initialize',
+            'get_target',
+            'get_params',
+            'get_strategy',
+            'get_callbacks',
+            'get_lazy_tag',
+            'get_compat_args',
+            'is_lazy',
+            'is_hookable',
+            'lazy_load',
+            'load',
+            'instantiate',
+            'initialize',
+            'configure_async',
+            'method_exists',
+            'resolve_params',
+            'check_initializer',
+            'invoke',
+            'get_type',
+            'current',
+            'init_handler',
+            'cb_valid',
+            'load_hook',
+            'fire_hook',
+            'get_cb_args',
+            'handle_exception',
+            'get_handler',
+            'get_method',
+            'get_num_args',
+            'parse_vars',
+            'process_vars',
+            'get_prefix',
+            'resolve_tag',
+            'getter_cb',
+            'fire_guard_cb',
+            'nonce_check',
+            'cap_check',
+            'parse_nonce',
+            'get_route',
+            'get_guard',
+            'get_callback',
+            'get_vars',
+            'get_methods',
+            'get_before_invoke',
+            'get_after_invoke',
+            'get_command',
+            'get_subcommand',
+            'get_longdesc',
+            'get_shortdesc',
+            'run_cmd',
+            'get_invoke',
+            'get_hook_args',
+            'parse_cmd_args',
+            'get_arg_opts',
+            'format_pos_args',
+            'format_flag_args',
+            'get_namespace',
+            'get_basename',
+            'get_rest_hook',
+            'add_command',
+            'get_imports',
+            'get_handlers',
+            'get_services',
+            'get_configuration',
+            'choice',
+            'prompt',
+            'track',
+            'tick',
+            'finish',
+        );
+        $reflector = new ReflectionClass( $type );
+        while ( $reflector && ! \in_array( $reflector->getName(), $builtins, true ) ) {
+            foreach ( $reflector->getMethods() as $method ) {
+                if ( $method->getDeclaringClass()->getName() !== $reflector->getName() ) {
+                    continue;
+                }
+                $name = \strtolower( $method->getName() );
+                if ( \str_starts_with( $name, 'with_' ) || \in_array( $name, $legacy, true ) ) {
+                    throw new InvalidDefinition(
+                        "Attribute {$type} overrides legacy runtime method {$name}(). Migrate to constructor/get_declaration() metadata (Infuse: get_tokens()) or a Hook runtime extension.",
+                    );
+                }
+            }
+            $reflector = $reflector->getParentClass();
+        }
+    }
+
+    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
-     * Constructor.
+     * Validate serialized hook metadata before reconstructing definitions or runtimes.
+     *
+     * @param array{type:class-string,args:array<string,mixed>,params:array<string,mixed>} $data Hook metadata.
+     * @return void
      */
-    public function __construct() {
-        $this->legacy_handlers = new \WeakMap();
+    public static function assert_hook_metadata( array $data ): void {
+        self::assert_metadata( $data['type'] );
+        if ( ! \is_a( $data['type'], D\Handler::class, true ) ) {
+            return;
+        }
+
+        self::assert_handler_metadata( $data['params']['classname'] );
+    }
+
+    /**
+     * Validate declarations omitted from serialized handler metadata.
+     *
+     * Cached tokens remain authoritative; validation never evaluates exporters.
+     *
+     * @param class-string $classname Handler class.
+     * @return void
+     */
+    public static function assert_handler_metadata( string $classname ): void {
+        $reflector = Reflection::get_reflector( $classname );
+        $handler   = Reflection::get_attribute( $reflector, D\Handler::class );
+        if ( $handler ) {
+            self::assert_metadata( $handler->getName() );
+        }
+        foreach ( $reflector->getMethods() as $method ) {
+            foreach ( Reflection::get_attributes( $method, D\Infuse::class ) as $attribute ) {
+                self::assert_metadata( $attribute->getName() );
+            }
+        }
     }
 
     /**
@@ -42,19 +211,16 @@ final class Discovery {
      *
      * @param class-string $classname Handler class.
      * @param class-string $type Attribute contract.
-     * @return HandlerDefinition|Can_Handle<object>|null
+     * @return HandlerDefinition|null
      */
-    public function handler( string $classname, string $type = Can_Handle::class ): HandlerDefinition|Can_Handle|null {
-        $reflector = Reflection::get_reflector( $classname );
-        $attribute = Reflection::get_decorator( $reflector, $type );
-        if ( ! $attribute ) {
+    public function handler( string $classname, string $type = D\Handler::class ): ?HandlerDefinition {
+        $reflector   = Reflection::get_reflector( $classname );
+        $declaration = Reflection::get_attribute( $reflector, $type );
+        if ( ! $declaration ) {
             return null;
         }
-        $builtins = array( D\Handler::class, D\Module::class, D\Ajax_Handler::class, D\REST_Handler::class, D\CLI_Handler::class );
-        $builtin  = \in_array( $attribute::class, $builtins, true );
-        if ( ! $builtin || $this->has_custom_declarations( $reflector ) ) {
-            return $attribute->with_reflector( $reflector );
-        }
+        self::assert_metadata( $declaration->getName() );
+        $attribute = $declaration->newInstance();
 
         $params              = array( 'classname' => $reflector->getName() );
         $params['callbacks'] = null;
@@ -74,19 +240,13 @@ final class Discovery {
      *
      * @param HandlerDefinition|Can_Handle<object> $handler Handler metadata or runtime.
      * @param ReflectionMethod                     $method Reflected callback method.
-     * @return array<CallbackDefinition|Can_Invoke<object,Can_Handle<object>>>
+     * @return array<CallbackDefinition>
      */
     public function callbacks( HandlerDefinition|Can_Handle $handler, ReflectionMethod $method ): array {
         $callbacks = array();
-        $builtins  = array( D\Filter::class, D\Action::class, D\Dynamic_Filter::class, D\Dynamic_Action::class, D\Ajax_Action::class, D\REST_Route::class, D\CLI_Command::class );
-        foreach ( Reflection::get_decorators( $method, Can_Invoke::class ) as $attribute ) {
-            if ( ! \in_array( $attribute::class, $builtins, true ) ) {
-                $legacy      = $this->legacy_handler( $handler );
-                $callbacks[] = $attribute->with_handler( $legacy )->with_reflector( $method );
-                continue;
-            }
-
-            $callbacks[] = $this->callback_definition( $attribute, $handler, $method );
+        foreach ( Reflection::get_attributes( $method, D\Filter::class ) as $declaration ) {
+            self::assert_metadata( $declaration->getName() );
+            $callbacks[] = $this->callback_definition( $declaration->newInstance(), $handler, $method );
         }
         return $this->unique_callbacks( $callbacks );
     }
@@ -96,8 +256,8 @@ final class Discovery {
     /**
      * Disambiguate repeated declarations while preserving existing single IDs.
      *
-     * @param array<CallbackDefinition|Can_Invoke<object,Can_Handle<object>>> $callbacks Method declarations.
-     * @return array<CallbackDefinition|Can_Invoke<object,Can_Handle<object>>>
+     * @param array<CallbackDefinition> $callbacks Method declarations.
+     * @return array<CallbackDefinition>
      */
     private function unique_callbacks( array $callbacks ): array {
         $seen = array();
@@ -108,62 +268,17 @@ final class Discovery {
             if ( 0 === $occurrence ) {
                 continue;
             }
-            $token .= '#' . ( $occurrence + 1 );
-            if ( $callback instanceof CallbackDefinition ) {
-                $data                    = $callback->get_data();
-                $data['params']['token'] = $token;
-                if ( isset( $data['args']['invoke'] ) ) {
-                    $data['args']['invoke'] = ( $callback->get_invoke() | D\Filter::INV_PROXIED ) & ~D\Filter::INV_STANDARD;
-                }
-                $callbacks[ $index ] = CallbackDefinition::from_data( $data );
-            } else {
-                /** @var D\Hook<object,ReflectionMethod> $callback */
-                $callback->with_token( $token );
-                if ( $callback instanceof D\Filter ) {
-                    $callback->with_invoke(
-                        ( ( $callback->get_declaration()['invoke'] ?? D\Filter::INV_PROXIED ) | D\Filter::INV_PROXIED ) & ~D\Filter::INV_STANDARD,
-                    );
-                }
+            $token                  .= '#' . ( $occurrence + 1 );
+            $data                    = $callback->get_data();
+            $data['params']['token'] = $token;
+            if ( isset( $data['args']['invoke'] ) ) {
+                $data['args']['invoke'] = ( $callback->get_invoke() | D\Filter::INV_PROXIED ) & ~D\Filter::INV_STANDARD;
             }
+            $callbacks[ $index ] = CallbackDefinition::from_data( $data );
         }
         return $callbacks;
     }
     // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
-
-    /**
-     * Keep mutable extension discovery on its original handler object.
-     *
-     * @param ReflectionClass<object> $reflector Handler reflection.
-     * @return bool
-     */
-    private function has_custom_declarations( ReflectionClass $reflector ): bool {
-        foreach ( $reflector->getMethods() as $method ) {
-            if ( $this->has_custom_method_declaration( $method ) ) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Check extension types without constructing their attributes early.
-     *
-     * @param ReflectionMethod $method Handler method.
-     * @return bool
-     */
-    private function has_custom_method_declaration( ReflectionMethod $method ): bool {
-        $builtins   = array( D\Filter::class, D\Action::class, D\Dynamic_Filter::class, D\Dynamic_Action::class, D\Ajax_Action::class, D\REST_Route::class, D\CLI_Command::class, D\Infuse::class );
-        $attributes = \array_merge(
-            $method->getAttributes( Can_Invoke::class, \ReflectionAttribute::IS_INSTANCEOF ),
-            $method->getAttributes( D\Infuse::class, \ReflectionAttribute::IS_INSTANCEOF ),
-        );
-        foreach ( $attributes as $attribute ) {
-            if ( ! \in_array( $attribute->getName(), $builtins, true ) ) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * Capture initializer injection tokens without binding a built-in handler.
@@ -176,10 +291,12 @@ final class Discovery {
         if ( ! $reflector->hasMethod( 'on_initialize' ) ) {
             return $definition;
         }
-        $infuse = Reflection::get_decorator( $reflector->getMethod( 'on_initialize' ), D\Infuse::class );
-        if ( ! $infuse ) {
+        $declaration = Reflection::get_attribute( $reflector->getMethod( 'on_initialize' ), D\Infuse::class );
+        if ( ! $declaration ) {
             return $definition;
         }
+        self::assert_metadata( $declaration->getName() );
+        $infuse                                    = $declaration->newInstance();
         $data                                      = $definition->get_data();
         $data['params']['params']['on_initialize'] = $infuse->get_tokens( $definition->get_id() );
         return HandlerDefinition::from_data( $data );
@@ -190,19 +307,18 @@ final class Discovery {
     /**
      * Combine constructor metadata with method and handler metadata.
      *
-     * @param D\Hook<object,ReflectionMethod>      $attribute Built-in declaration.
+     * @param D\Filter<object,Can_Handle<object>>  $attribute Built-in declaration.
      * @param HandlerDefinition|Can_Handle<object> $handler Handler definition or runtime.
      * @param ReflectionMethod                     $method Callback method.
      * @return CallbackDefinition
      */
-    private function callback_definition( D\Hook $attribute, HandlerDefinition|Can_Handle $handler, ReflectionMethod $method ): CallbackDefinition {
-        $args     = $attribute->get_declaration();
-        $params   = array(
+    private function callback_definition( D\Filter $attribute, HandlerDefinition|Can_Handle $handler, ReflectionMethod $method ): CallbackDefinition {
+        $args   = $attribute->get_declaration();
+        $params = array(
             'classname' => $handler instanceof HandlerDefinition ? $handler->get_class() : $handler->get_classname(),
             'method'    => $method->getName(),
         );
-        $inferred = array( D\Filter::class, D\Action::class, D\Dynamic_Filter::class, D\Dynamic_Action::class );
-        if ( \in_array( $attribute::class, $inferred, true ) ) {
+        if ( ! $attribute instanceof D\Ajax_Action && ! $attribute instanceof D\REST_Route && ! $attribute instanceof D\CLI_Command ) {
             $dynamic        = $attribute instanceof D\Dynamic_Filter;
             $args['args'] ??= $method->getNumberOfParameters() - (int) $dynamic;
         }
@@ -228,28 +344,5 @@ final class Discovery {
                 'type'   => $attribute::class,
             ),
         );
-    }
-    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
-
-    /**
-     * Adapt a built-in definition only when a custom attribute needs the old contract.
-     *
-     * @param HandlerDefinition|Can_Handle<object> $definition Discovered handler.
-     * @return Can_Handle<object>
-     */
-    private function legacy_handler( HandlerDefinition|Can_Handle $definition ): Can_Handle {
-        if ( $definition instanceof Can_Handle ) {
-            return $definition;
-        }
-        if ( isset( $this->legacy_handlers[ $definition ] ) ) {
-            return $this->legacy_handlers[ $definition ];
-        }
-        $data      = $definition->get_data();
-        $classname = $definition->get_decorator();
-
-        $this->legacy_handlers[ $definition ] = ( new $classname( ...$data['args'] ) )->with_data(
-            $data['params'],
-        );
-        return $this->legacy_handlers[ $definition ];
-    }
+    }// phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 }

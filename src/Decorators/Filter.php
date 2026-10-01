@@ -9,10 +9,6 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use ReflectionMethod;
-use Reflector;
-use XWP\DI\Container;
-use XWP\DI\Hook\Callback;
 use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Invoke;
 
@@ -21,17 +17,34 @@ use XWP\DI\Interfaces\Can_Invoke;
  *
  * @template T of object
  * @template H of Can_Handle<T>
- * @extends Hook<T,ReflectionMethod>
- * @implements Can_Invoke<T,H>
+ * @extends Hook<T,\ReflectionMethod>
  */
 #[\Attribute( \Attribute::IS_REPEATABLE | \Attribute::TARGET_METHOD )]
-class Filter extends Hook implements Can_Invoke {
+class Filter extends Hook {
     /**
-     * Legacy custom-subclass and typed-view compatibility.
-     *
-     * @use \XWP\DI\Compatibility\Filter_Methods<T,H>
+     * Standard invocation.
      */
-    use \XWP\DI\Compatibility\Filter_Methods;
+    public const INV_STANDARD = Can_Invoke::INV_STANDARD;
+
+    /**
+     * Invocation through the container.
+     */
+    public const INV_PROXIED = Can_Invoke::INV_PROXIED;
+
+    /**
+     * Invoke only once.
+     */
+    public const INV_ONCE = Can_Invoke::INV_ONCE;
+
+    /**
+     * Prevent recursive invocation.
+     */
+    public const INV_LOOPED = Can_Invoke::INV_LOOPED;
+
+    /**
+     * Protect against fatal errors during invocation.
+     */
+    public const INV_SAFELY = Can_Invoke::INV_SAFELY;
 
     /**
      * Constructor.
@@ -56,19 +69,6 @@ class Filter extends Hook implements Can_Invoke {
         protected array $params = array(),
     ) {
         parent::__construct( $tag, $priority, $context, $conditional, $modifiers );
-    }
-
-    /**
-     * Get compiler data for this callback.
-     *
-     * @internal Hook parser/compiler detail.
-     *
-     * @return array<string,mixed>
-     */
-    public function get_data(): array {
-        $data                     = parent::get_data();
-        $data['params']['method'] = $this->method;
-        return $data;
     }
 
     /**

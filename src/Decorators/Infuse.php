@@ -8,8 +8,6 @@
 
 namespace XWP\DI\Decorators;
 
-use XWP\DI\Interfaces\Can_Handle;
-
 /**
  * Infuse decorator.
  */
@@ -32,21 +30,6 @@ class Infuse {
     }
 
     /**
-     * Get parameter tokens for a handler.
-     *
-     * @internal Runtime parameter-resolution detail.
-     *
-     * @template T of object
-     * @param  Can_Handle<T> $h The handler.
-     * @return array<string>
-     */
-    public function get( Can_Handle $h ) {
-        return \in_array( '!self.handler', $this->params, true )
-            ? $this->get_tokens( $h->get_token() )
-            : $this->params;
-    }
-
-    /**
      * Export injection metadata without a bound handler.
      *
      * @internal Discovery metadata detail.
@@ -58,18 +41,5 @@ class Infuse {
             static fn( string $param ): string => '!self.handler' === $param ? $handler_token : $param,
             $this->params,
         );
-    }
-
-    /**
-     * Resolve parameters for a handler.
-     *
-     * @internal Runtime parameter-resolution detail.
-     *
-     * @template T of object
-     * @param  Can_Handle<T> $h The handler.
-     * @return array<mixed>
-     */
-    public function resolve( Can_Handle $h ) {
-        return \array_map( '\DI\get', $this->get( $h ) );
     }
 }

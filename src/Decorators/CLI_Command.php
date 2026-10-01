@@ -3,30 +3,29 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use WP_CLI;
-use XWP\DI\Interfaces\Can_Execute;
-use XWP\DI\Interfaces\Can_Handle;
 use XWP\DI\Interfaces\Can_Handle_CLI;
-
-use function WP_CLI\Utils\get_flag_value;
 
 /**
  * Decorator for defining CLI commands.
  *
  * @template T of object
  * @extends Action<T,Can_Handle_CLI<T>>
- * @implements Can_Execute<T,Can_Handle_CLI<T>>
  */
 #[\Attribute( \Attribute::TARGET_METHOD )]
-class CLI_Command extends Action implements Can_Execute {
+class CLI_Command extends Action {
     /**
-     * Legacy custom-subclass and typed-view compatibility.
+     * Declared subcommand.
      *
-     * @use \XWP\DI\Compatibility\CLI_Command_Methods<T,Can_Handle_CLI<T>>
+     * @var string
      */
-    use \XWP\DI\Compatibility\CLI_Command_Methods;
+    protected string $subcommand;
 
-    protected const ARG_TYPE = array( 'positional', 'assoc', 'flag' );
+    /**
+     * Declared cmd args.
+     *
+     * @var array<mixed>
+     */
+    protected array $cmd_args;
 
     /**
      * Undocumented function

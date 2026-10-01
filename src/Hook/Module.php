@@ -33,9 +33,9 @@ class Module extends Handler implements Can_Import {
      * Constructor.
      *
      * @param HandlerDefinition $definition Handler metadata.
-     * @param Container         $container Runtime container.
+     * @param Container|null    $container Runtime container.
      */
-    public function __construct( HandlerDefinition $definition, Container $container ) {
+    public function __construct( HandlerDefinition $definition, ?Container $container = null ) {
         parent::__construct( $definition, $container );
         $options           = $definition->get_options();
         $this->composition = new ModuleDefinition(

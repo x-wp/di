@@ -15,8 +15,8 @@ final class HandlerDefinition_Test extends TestCase {
     public function test_maps_metadata_without_resolving_runtime_values(): void {
         $priority = static function (): int { throw new \LogicException( 'Must remain raw.' ); };
         $condition = static function (): bool { throw new \LogicException( 'Must remain raw.' ); };
-        $data = ( new Handler( 'init', priority: $priority, conditional: $condition, strategy: Handler::INIT_JIT ) )
-            ->with_classname( Handler_Fixture::class )->with_callbacks( array( 'callback.token' ) )->get_data();
+        $data = $this->metadata( new Handler( 'init', priority: $priority, conditional: $condition, strategy: Handler::INIT_JIT ) );
+        $data['params']['callbacks'] = array( 'callback.token' );
         $definition = HandlerDefinition::from_data( $data );
         self::assertSame( 'Hook-' . Handler_Fixture::class, $definition->get_id() );
         self::assertSame( $priority, $definition->get_priority() );
@@ -27,7 +27,7 @@ final class HandlerDefinition_Test extends TestCase {
     }
 
     public function test_keeps_unscheduled_priority_unresolved(): void {
-        $data = ( new Handler() )->with_classname( Handler_Fixture::class )->get_data();
+        $data = $this->metadata( new Handler() );
         self::assertNull( HandlerDefinition::from_data( $data )->get_priority() );
     }
 
@@ -42,11 +42,11 @@ final class HandlerDefinition_Test extends TestCase {
         $contexts = array( Handler::CTX_AJAX, Handler::CTX_REST, Handler::CTX_CLI, Handler::CTX_GLOBAL );
         $priorities = array( 21, 22, $priority, 23 );
         foreach ( $decorators as $index => $decorator ) {
-            $data = $decorator->with_classname( Handler_Fixture::class )->get_data();
+            $data = $this->metadata( $decorator );
             $definition = HandlerDefinition::from_data( $data );
             self::assertSame( $priorities[ $index ], $definition->get_priority() );
             self::assertSame( $contexts[ $index ], $definition->get_context() );
-            self::assertSame( $decorator->get_strategy(), $definition->get_strategy() );
+            self::assertSame( array( Handler::INIT_LAZY, Handler::INIT_AUTO, Handler::INIT_AUTO, Handler::INIT_AUTO )[ $index ], $definition->get_strategy() );
             self::assertSame( $data['args'], $definition->get_options() );
         }
         $composition = \XWP\DI\Definition\ModuleDefinition::from_data( $data );
@@ -90,6 +90,14 @@ final class HandlerDefinition_Test extends TestCase {
 
         self::assertFalse( $left->equals( $right ) );
     }
+    private function metadata( Handler $declaration ): array {
+        return array(
+            'type' => $declaration::class,
+            'args' => $declaration->get_declaration(),
+            'params' => array( 'classname' => Handler_Fixture::class ),
+        );
+    }
+
 }
 
 final class Handler_Fixture {

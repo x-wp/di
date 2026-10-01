@@ -8,20 +8,27 @@
 namespace Tests\XWP\DI\Integration;
 
 use XWP\DI\Container;
-use XWP\DI\Decorators\Filter;
+use XWP\DI\Definition\CallbackDefinition;
+use XWP\DI\Hook\Callback;
 
 final class Priority_Resolution_Test extends TestCase {
     /** @dataProvider priorities */
     public function test_resolves_supported_priorities( mixed $priority, int $expected ): void {
-        $hook = ( new Filter( 'xwp_priority_target', priority: $priority ) )
-            ->with_container( new Container( array(
-                'app.debug' => false,
-                'app.cache' => array( 'app' => false, 'defs' => false, 'hooks' => false, 'dir' => false ),
-                'app.env' => 'testing',
-                'app.id' => 'priority-resolution',
-            ) ) );
+        $hook = $this->make_callback( $priority );
 
         self::assertSame( $expected, $hook->get_priority() );
+    }
+
+    private function make_callback( mixed $priority ): Callback {
+        $container = new Container( array(
+            'app.debug' => false,
+            'app.cache' => array( 'app' => false, 'defs' => false, 'hooks' => false, 'dir' => false ),
+            'app.env' => 'testing', 'app.id' => 'priority-resolution',
+        ) );
+        return new Callback( new CallbackDefinition(
+            id: 'priority.callback', handler: Priority_Callback::class, method: 'static_priority',
+            type: 'filter', tag: 'xwp_priority_target', priority: $priority,
+        ), $container );
     }
 
     public static function priorities(): array {
@@ -48,7 +55,7 @@ final class Priority_Resolution_Test extends TestCase {
         };
         add_filter( 'xwp_priority_setting', $callback, 10, 2 );
         try {
-            $hook = new Filter( 'xwp_priority_target', priority: 'xwp_priority_setting:15' );
+            $hook = $this->make_callback( 'xwp_priority_setting:15' );
             self::assertSame( 24, $hook->get_priority() );
         } finally {
             remove_filter( 'xwp_priority_setting', $callback, 10 );
@@ -56,8 +63,8 @@ final class Priority_Resolution_Test extends TestCase {
     }
 
     public function test_filter_priority_without_callbacks_uses_its_default(): void {
-        self::assertSame( 15, ( new Filter( 'xwp_priority_target', priority: 'xwp_unused_priority:15' ) )->get_priority() );
-        self::assertSame( 10, ( new Filter( 'xwp_priority_target', priority: 'xwp_unused_priority' ) )->get_priority() );
+        self::assertSame( 15, $this->make_callback( 'xwp_unused_priority:15' )->get_priority() );
+        self::assertSame( 10, $this->make_callback( 'xwp_unused_priority' )->get_priority() );
     }
 }
 

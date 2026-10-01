@@ -11,7 +11,6 @@ namespace XWP\DI\Hook;
 use Closure;
 use ReflectionClass;
 use Reflector;
-use XWP\DI\Compatibility\Hook;
 use XWP\DI\Container;
 use XWP\DI\Decorators\Infuse;
 use XWP\DI\Definition\HandlerDefinition;
@@ -32,17 +31,17 @@ class Handler extends Hook implements Can_Handle {
     /**
      * Shared initialization lifecycle and internal wiring adapters.
      *
-     * @use \XWP\DI\Compatibility\Handler_Methods<T>
+     * @use \XWP\DI\Traits\Handler_Methods<T>
      */
-    use \XWP\DI\Compatibility\Handler_Methods;
+    use \XWP\DI\Traits\Handler_Methods;
 
     /**
      * Constructor.
      *
      * @param HandlerDefinition $definition Handler metadata.
-     * @param Container         $container Runtime container.
+     * @param Container|null    $container Runtime container.
      */
-    public function __construct( protected HandlerDefinition $definition, Container $container ) {
+    public function __construct( protected HandlerDefinition $definition, ?Container $container = null ) {
         parent::__construct(
             $definition->get_tag(),
             $definition->get_priority(),
@@ -51,7 +50,7 @@ class Handler extends Hook implements Can_Handle {
             $definition->get_modifiers(),
         );
         $this->classname = $definition->get_class();
-        $this->container = $container;
+        $this->with_container( $container );
         $this->strategy  = $definition->get_strategy();
         $this->hookable  = $definition->is_hookable();
         $this->callbacks = $definition->get_callbacks();
@@ -102,7 +101,9 @@ class Handler extends Hook implements Can_Handle {
                 'params'    => \array_combine(
                     \array_keys( $this->params ),
                     \array_map(
-                        fn( string $method ) => $this->get_params( $method )?->get( $this ) ?? array(),
+                        fn( string $method ) => $this->get_params( $method )?->get_tokens(
+                            $this->get_token(),
+                        ) ?? array(),
                         \array_keys( $this->params ),
                     ),
                 ),

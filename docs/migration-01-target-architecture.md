@@ -7,34 +7,30 @@
 The [definition split plan](definition-split-plan.md) supersedes the original central `Hook\Dispatcher` proposal. There is one `Hook\Callback` runtime (or specialized subclass) per built-in callback token, and separate `Hook\Handler` runtimes for built-in handler and module tokens. `Invoker` remains the module and handler lifecycle coordinator.
 
 ```text
-PHP attributes on modules, handlers, and methods
-    │
-    ▼
-Hook\Parser + reflection ──→ Hook\Compiler / hook-definition.php
-    │                              │
-    └──────── existing metadata ───┘
+Attribute constructor metadata
+          │
+          ▼
+Discovery → Definitions → cached metadata
+          │                   │
+          └───── Factory ──────┘
                     │
                     ▼
-               Hook\Factory
+             Hook runtimes
                     │
-       ┌────────────┴─────────────────────┐
-       ▼                                  ▼
-Exact built-in attributes          Custom decorator subclasses
-Definitions → Hook runtimes        Compatibility runtime
-       │                                  │
-       └────────── Invoker attaches ──────┘
+                    ▼
+             Invoker attaches
                     │
                     ▼
              WordPress hooks
 ```
 
-This is the current transition, not the completed metadata-only architecture. F1–F5 callback and handler/module ports are implemented. F6 inherited API removal remains open; compatibility implementation is isolated in `src/Compatibility/`. Parser/Compiler definition-graph changes are separate work.
+F1–F6 complete the metadata/runtime boundary. Built-in and custom metadata attributes use definitions and separate runtimes. Removed custom execution overrides fail with migration guidance. Parser/Compiler definition-graph and cache-schema changes remain separate work.
 
 ## Layer 1: Definitions (`src/Definition/`)
 
 `ModuleDefinition`, `HandlerDefinition`, `CallbackDefinition`, and `ServiceDefinition` exist as value objects. They hold metadata without runtime containers, handler instances, or invocation counters.
 
-`CallbackDefinition::from_data()` converts existing built-in callback `get_data()` arrays. It preserves the callback token, raw priority, tag modifiers, condition, invocation flags, and explicit parameters. It does not execute conditions or resolve runtime values. Factory uses this conversion in both cached and uncached paths.
+`CallbackDefinition::from_data()` converts callback metadata arrays. It preserves the callback token, raw priority, tag modifiers, condition, invocation flags, and explicit parameters. It does not execute conditions or resolve runtime values. Factory uses this conversion in both cached and uncached paths.
 
 The helper contract lives in `XWP\DI\Definition\Helper`, not directly in `XWP\DI\Definition`:
 
@@ -60,7 +56,7 @@ A fully typed Parser output and redesigned primitive cache schema remain B2.1/B2
 
 ### Factory
 
-Factory converts exact built-in callbacks into `Callback` or specialized runtime subclasses when a container is available. It also builds handler and module runtimes from definitions. Custom attribute subclasses retain their existing decorator runtime. A containerless Factory can still reconstruct decorator metadata.
+Factory converts callback metadata into `Callback` or specialized runtime subclasses when a container is available. It also builds handler and module runtimes from definitions, including without a container for imperative handler helpers. Custom metadata subclasses use the corresponding runtime family. A callback runtime requires a container; Factory never reconstructs a decorator service.
 
 `resolve_callbacks()` returns built-in callback definitions and custom decorators for discovery and serialization. Once the application has started, `get_callbacks()` returns the stored runtime objects. `load_callbacks()` accepts existing runtimes without applying decorator mutators, and repeated saves preserve existing token entries and their state.
 
@@ -74,7 +70,7 @@ WordPress callable identity is explicit:
 - Proxied callbacks register `array( $callback, 'invoke' )`, where `$callback` is the object stored under the callback token.
 - Action invocation through the runtime returns null. Once, loop-prevention, and safe-exception flags retain their existing semantics.
 
-The `!self.hook` parameter supplies a memoized typed Action/Filter view. Its state and runtime calls forward to the owning Callback. The view is a different object from the container entry; removal uses `$hook->target` or the container runtime's callable. Direct `$hook->invoke()` still works. See [migration compatibility notes](migration-05-deprecation-and-shipping.md#current-beta-callback-split).
+The `!self.hook` parameter supplies the owning Callback runtime itself. State references, direct invocation, and the container token refer to one object. WordPress removal uses `$hook->target`. Replace injected decorator type hints with runtime types; see [migration notes](decorator-compatibility.md).
 
 Runtime reflection has not been eliminated. For example, `Callback::get_num_args()` falls back to method reflection when the definition omits the accepted argument count. Uncached discovery and container autowiring also retain reflection paths. No zero-reflection performance claim follows from this split.
 
@@ -86,11 +82,11 @@ Invoker retains strategy-specific orchestration. LAZY callbacks request handler 
 
 Module services and static configuration are collected independently of runtime eligibility. Module context gates runtime activation and cascades through its handlers, callbacks, and imports. `can_initialize()` is evaluated at the initialization point, before asynchronous configuration and descendants are activated. Imported modules retain their own scheduling. The caller remains responsible for choosing hooks that will occur after registration. The [lifecycle contract](definition-split-plan.md#agreed-lifecycle) specifies the full strategy matrix.
 
-## Decorators: retained now, reduced later
+## Metadata-only decorators
 
-The intended end state is metadata-only attribute declarations. Current decorators still have runtime methods and internal `with_*()` mutators because custom subclasses, discovery wiring, and typed forwarding views depend on them. Their shared implementation lives in internal `Compatibility` adapters.
+Decorators retain constructor metadata, constants, and declaration exports. They have no container/handler bindings, runtime interfaces, mutators, or invocation state. Custom constructors and `get_declaration()` can describe metadata; custom execution behavior moves to runtime or target handler code. `Infuse` exports injection tokens without resolving them.
 
-F1–F4 have ported Dynamic, AJAX, REST, and CLI callbacks. F5 has extracted handler/module runtime. F6 removes obsolete decorator behavior only after the custom-subclass migration policy and typed-view dependencies are settled. Removing those methods now would break the supported transition.
+F1–F4 ported specialized callbacks, F5 extracted handlers/modules, and F6 removed the temporary decorator runtime and typed-view adapters.
 
 ## What the split provides
 

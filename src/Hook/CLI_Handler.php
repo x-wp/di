@@ -19,7 +19,7 @@ use XWP\DI\Interfaces\Can_Handle_CLI;
  * @internal
  */
 class CLI_Handler extends Handler implements Can_Handle_CLI {
-    use \XWP\DI\Compatibility\CLI_Handler_Helpers;
+    use \XWP\DI\Traits\CLI_Handler_Helpers;
 
     public function get_description(): string {
         return $this->definition->get_options()['description'] ?? '';

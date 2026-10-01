@@ -8,11 +8,9 @@ This plan targets the `beta` architecture present in this checkout, including `H
 
 The lifecycle conclusions below extend the original callback-only plan. The module context, initialization-condition, and late-registration policies were settled on 2026-09-28. They preserve the existing runtime contract; callback runtime extraction remains separate work.
 
-`Hook\Callback` and its typed forwarding view are implemented (S2, `di-q15`). Factory and Invoker now route exact `Filter` and `Action` types through that runtime (S3, `di-70n`); F1–F4 now also route exact built-in specialized callbacks to runtime subclasses. F5 provides handler/module runtimes behind the existing tokens. Custom subclasses keep their decorator runtime. `Callback_Runtime_Test` covers the runtime directly, while `Callback_Wiring_Test` and `Self_Hook_Test` cover routing and view identity with cold/warm caches and compiled containers.
+S1–S4 and F1–F6 are implemented. Callback and handler/module tokens resolve to separate runtimes. Attributes contain constructor metadata only; built-in and custom metadata declarations pass through definitions. Custom execution overrides require migration.
 
-F6 preparation isolates shared legacy implementation in `Compatibility/`. Inherited runtime methods and mutators remain; strict API removal is still open. See [decorator compatibility](decorator-compatibility.md). The original S1–S3 scope and implementation sketches below are retained as historical context; [current state](migration-02-current-state.md) describes the completed F1–F5 ports.
-
-Built-in discovery now creates definitions without binding decorator mutators; [definition discovery](definition-discovery.md) describes the custom-extension fallback and unchanged cache format.
+On 2026-10-01 the user selected direct runtime injection for `!self.hook`, superseding the earlier typed-forwarding-view decision. See [the F6 contract and migration](decorator-compatibility.md) for the current behavior. The designs and original slice goals below are historical where they describe views or legacy decorator runtimes. F6 retains the cache metadata layout; compiler-schema and helper-composition work remain separate.
 
 ## Relation to the migration docs
 
@@ -139,15 +137,13 @@ Done when:
 Callbacks reach the container through cached metadata or live discovery.
 
 **Cached / preloaded:** `Parser::add_hook()` stores metadata under
-`{token}[params]` and a factory under `{token}`. `Factory::make()` builds exact
-built-in callback and handler runtimes from definitions. Custom declarations
-retain decorator construction and override behavior; narrow custom constructors
-receive only supported named arguments.
+`{token}[params]` and a factory under `{token}`. `Factory::make()` builds callback and handler runtimes from definitions,
+including metadata-only custom declarations. Removed custom execution overrides
+produce migration errors rather than being reconstructed as services.
 
-**Live discovery:** `Discovery` produces definitions for exact built-ins and
-preserves decorators when custom declarations require their behavior.
+**Live discovery:** `Discovery` produces definitions for built-in and custom metadata attributes.
 `Factory::save_hook()` converts definitions into runtimes while retaining live
-objects supplied by callers. The saved object is the returned object, and
+runtime objects supplied by callers. The saved object is the returned object, and
 existing tokens retain their runtime state. Multiple declarations sharing a
 base token receive deterministic suffixes and separate listeners.
 

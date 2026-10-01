@@ -1,6 +1,6 @@
 <?php
 /**
- * Route only plain decorators across discovery, caches, and callback round trips.
+ * Route metadata decorators across discovery, caches, and callback round trips.
  *
  * @package XWP\DI\Tests
  */
@@ -19,7 +19,6 @@ use XWP\DI\Invoker;
 use XWP\DIT\Lifecycle\Callback_Provided_Handler;
 use XWP\DIT\Lifecycle\Callback_Wiring_Handler;
 use XWP\DIT\Lifecycle\Callback_Wiring_Module;
-use XWP\DIT\Lifecycle\Custom_Wiring_Filter;
 
 final class Callback_Wiring_Test extends TestCase {
     private string $cache_dir;
@@ -40,16 +39,16 @@ final class Callback_Wiring_Test extends TestCase {
     }
 
     /** @dataProvider modes */
-    public function test_plain_tokens_route_to_runtime_and_subclasses_keep_their_behavior( bool $compile, bool $hooks, bool $preload ): void {
+    public function test_all_tokens_route_to_runtime_and_custom_metadata_survives( bool $compile, bool $hooks, bool $preload ): void {
         foreach ( $this->apps( $compile, $hooks, $preload ) as $app ) {
             $container = $app->container();
             self::assertInstanceOf( \XWP\DI\Hook\Module::class, $container->get( 'Hook-' . Callback_Wiring_Module::class ) );
             $factory = $container->get( Factory::class );
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
-            self::assertSame( \XWP\DI\Decorators\Handler::class, $handler::class );
+            self::assertSame( \XWP\DI\Hook\Handler::class, $handler::class );
             $callbacks = $factory->get_callbacks( $handler );
             self::assertCount( 4, $callbacks );
-            $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Callback::class, 'custom' => Custom_Wiring_Filter::class );
+            $types = array( 'standard' => Callback::class, 'action' => Callback::class, 'dynamic' => Dynamic_Callback::class, 'custom' => Callback::class );
             foreach ( $callbacks as $callback ) {
                 self::assertSame( $types[ $callback->get_method() ], $callback::class );
                 self::assertSame( $callback, $factory->get_hook( $callback->get_token() ) );
@@ -63,7 +62,7 @@ final class Callback_Wiring_Test extends TestCase {
             self::assertSame( 17, has_filter( 'xwp_wiring_standard', array( $target, 'standard' ) ) );
             self::assertSame( 'a:standard', apply_filters( 'xwp_wiring_standard', 'a', 'ignored' ) );
             self::assertSame( 'a:dynamic', apply_filters( 'xwp_wiring_dynamic', 'a' ) );
-            self::assertSame( 'a:custom:subclass', apply_filters( 'xwp_wiring_custom', 'a' ) );
+            self::assertSame( 'a:custom:metadata', apply_filters( 'xwp_wiring_custom', 'a' ) );
             do_action( 'xwp_wiring_action' );
             self::assertSame( array( 'standard', 'dynamic', 'custom', 'action' ), $target->events );
             self::assertSame( 1, $callbacks[1]->fired );
@@ -95,9 +94,11 @@ final class Callback_Wiring_Test extends TestCase {
             self::assertInstanceOf( \XWP\DI\Hook\Module::class, $container->get( 'Hook-' . Callback_Wiring_Module::class ) );
             $factory = $container->get( Factory::class );
             $handler = $factory->get_handler( Callback_Wiring_Handler::class );
-            $decorator = ( new Filter( 'xwp_wiring_added', invoke: Filter::INV_PROXIED, args: 1 ) )
-                ->with_classname( Callback_Wiring_Handler::class )->with_method( 'standard' );
-            $runtime = new Callback( CallbackDefinition::from_data( $decorator->get_data() ), $container );
+            $definition = CallbackDefinition::from_data( array(
+                'type' => Filter::class, 'args' => array( 'tag' => 'xwp_wiring_added', 'invoke' => Filter::INV_PROXIED, 'args' => 1 ),
+                'params' => array( 'classname' => Callback_Wiring_Handler::class, 'method' => 'standard' ),
+            ) );
+            $runtime = new Callback( $definition, $container );
             $factory->load_callbacks( $handler, array( $runtime ) );
             self::assertSame( $runtime, $factory->get_hook( $runtime->get_token() ) );
             self::assertSame( array( $runtime ), $factory->get_callbacks( $handler ) );
@@ -137,13 +138,17 @@ final class Callback_Wiring_Test extends TestCase {
         }
     }
 
-    public function test_containerless_factory_can_still_reconstruct_decorator_metadata(): void {
-        $decorator = ( new Filter( 'xwp_wiring_metadata' ) )
-            ->with_classname( Callback_Wiring_Handler::class )->with_method( 'standard' );
-        $copy = ( new Factory() )->make( $decorator->get_data() );
-        self::assertSame( Filter::class, $copy::class );
-        self::assertSame( $decorator->get_data(), $copy->get_data() );
-        self::assertSame( $decorator->get_token(), $copy->get_token() );
+    public function test_containerless_factory_discovers_callback_definitions(): void {
+        $factory = new Factory();
+        $handler = $factory->resolve_handler( Callback_Wiring_Handler::class );
+        $callbacks = $factory->resolve_callbacks( $handler );
+        self::assertCount( 4, $callbacks );
+        foreach ( $callbacks as $definition ) {
+            self::assertInstanceOf( CallbackDefinition::class, $definition );
+            $copy = CallbackDefinition::from_data( $definition->get_data() );
+            self::assertSame( $definition->get_data(), $copy->get_data() );
+            self::assertSame( $definition->get_token(), $copy->get_token() );
+        }
     }
 
     private function apps( bool $compile, bool $hooks, bool $preload ): \Generator {

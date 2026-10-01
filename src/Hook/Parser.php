@@ -9,15 +9,11 @@
 namespace XWP\DI\Hook;
 
 use DI\Definition\Helper\DefinitionHelper;
-use Reflector;
 use XWP\DI\Container;
 use XWP\DI\Decorators\Module;
 use XWP\DI\Definition\CallbackDefinition;
 use XWP\DI\Definition\HandlerDefinition;
 use XWP\DI\Definition\ModuleDefinition;
-use XWP\DI\Interfaces\Can_Handle;
-use XWP\DI\Interfaces\Can_Hook;
-use XWP\DI\Invoker;
 
 /**
  * Parses the hook decorated classes.
@@ -32,7 +28,7 @@ class Parser {
      *
      * @var array{
      *   services: array<string,class-string>,
-     *   hooks: array<string,Can_Hook<object,Reflector>|array<string,mixed>>,
+     *   hooks: array<string,string>,
      *   values: array<string,mixed>,
      *   aliases: array<string,string>,
      *   definitions: array<string,mixed>,
@@ -66,13 +62,6 @@ class Parser {
      * @var bool
      */
     private bool $cached = false;
-
-    /**
-     * Preload the definitions.
-     *
-     * @var bool
-     */
-    private bool $preload = false;
 
     /**
      * Is the module extendable?
@@ -135,6 +124,13 @@ class Parser {
      * @return static
      */
     public function load( array $definition ): static {
+        foreach ( $definition['values'] ?? array() as $value ) {
+            if ( ! \is_array( $value ) || ! isset( $value['type'], $value['args'], $value['params'] ) ) {
+                continue;
+            }
+
+            Discovery::assert_hook_metadata( $value );
+        }
         $this->data   = \wp_parse_args( $definition, $this->data );
         $this->ids    = array();
         $this->cached = true;
@@ -151,10 +147,9 @@ class Parser {
      * @throws \DI\DependencyException If a module is not found.
      */
     public function make( bool $preload = false ): static {
-        $this->data    = \array_fill_keys( \array_keys( $this->data ), array() );
-        $this->ids     = array();
-        $this->cached  = false;
-        $this->preload = $preload;
+        $this->data   = \array_fill_keys( \array_keys( $this->data ), array() );
+        $this->ids    = array();
+        $this->cached = false;
 
         return $this
             ->parse_root( $preload )
@@ -167,7 +162,7 @@ class Parser {
      *
      * @return array{
      *   services: array<string,class-string>,
-     *   hooks: array<string,Can_Hook<object,Reflector>|array<string,mixed>>,
+     *   hooks: array<string,string>,
      *   values: array<string,mixed>,
      *   aliases: array<string,string>,
      *   definitions: array<string,mixed>,
@@ -272,8 +267,6 @@ class Parser {
         return $this;
     }
 
-    // Keep custom-module and definition traversal in the same order.
-    // phpcs:disable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
     /**
      * Parse the module.
      *
@@ -287,14 +280,12 @@ class Parser {
     private function parse_module( string $module, bool $preload ): static {
         $hook = $this->factory->resolve_module( $module );
 
-        $composition = $hook instanceof HandlerDefinition ? ModuleDefinition::from_data(
-            $hook->get_data(),
-        ) : $hook;
+        $composition = ModuleDefinition::from_data( $hook->get_data() );
 
         $this
             ->append(
                 'definitions',
-                $hook instanceof HandlerDefinition ? $hook->get_class() : $hook->get_classname(),
+                $hook->get_class(),
             )
             ->parse_handler( $hook, $preload );
 
@@ -314,8 +305,6 @@ class Parser {
 
         return $this;
     }
-
-    // phpcs:enable SlevomatCodingStandard.Complexity.Cognitive.ComplexityTooHigh
 
     /**
      * Add the configured root, including when loading an older hook cache.
@@ -359,13 +348,12 @@ class Parser {
     /**
      * Parse the handler.
      *
-     * @template T of object
-     * @param Can_Handle<T>|HandlerDefinition $handler Handler instance.
-     * @param bool                            $preload Preload the definitions.
+     * @param HandlerDefinition $handler Handler instance.
+     * @param bool              $preload Preload the definitions.
      *
      * @throws \DI\DependencyException If a circular dependency is detected.
      */
-    private function parse_handler( Can_Handle|HandlerDefinition $handler, bool $preload ): void {
+    private function parse_handler( HandlerDefinition $handler, bool $preload ): void {
         $this->check_id( $handler );
         $this->add_hook( $this->parse_callbacks( $handler, $preload ) );
     }
@@ -373,12 +361,11 @@ class Parser {
     /**
      * Parse the handler callbacks.
      *
-     * @template T of object
-     * @param Can_Handle<T>|HandlerDefinition $handler Handler instance.
-     * @param bool                            $preload Preload the definitions.
-     * @return Can_Handle<T>|HandlerDefinition
+     * @param HandlerDefinition $handler Handler instance.
+     * @param bool              $preload Preload the definitions.
+     * @return HandlerDefinition
      */
-    private function parse_callbacks( Can_Handle|HandlerDefinition $handler, bool $preload ): Can_Handle|HandlerDefinition {
+    private function parse_callbacks( HandlerDefinition $handler, bool $preload ): HandlerDefinition {
         if ( ! $preload || null !== $handler->get_callbacks() ) {
             return $handler;
         }
@@ -389,30 +376,18 @@ class Parser {
             $cbs[] = $this->check_id( $cb )->add_hook( $cb )->get_token();
         }
 
-        if ( $handler instanceof HandlerDefinition ) {
-            $data                        = $handler->get_data();
-            $data['params']['callbacks'] = $cbs;
-            return HandlerDefinition::from_data( $data );
-        }
-
-        $handler->with_callbacks( $cbs );
-
-        return $handler;
+        $data                        = $handler->get_data();
+        $data['params']['callbacks'] = $cbs;
+        return HandlerDefinition::from_data( $data );
     }
 
     /**
      * Get the raw hook definition.
      *
-     * @template TRfl of Reflector
-     * @template TObj of object
-     *
-     * @param  Can_Hook<TObj,TRfl>|HandlerDefinition|CallbackDefinition $hook Hook instance.
-     * @return Can_Hook<TObj,TRfl>|HandlerDefinition|CallbackDefinition
+     * @param  HandlerDefinition|CallbackDefinition $hook Hook instance.
+     * @return HandlerDefinition|CallbackDefinition
      */
-    private function add_hook( Can_Hook|HandlerDefinition|CallbackDefinition $hook ): Can_Hook|HandlerDefinition|CallbackDefinition {
-        if ( $hook instanceof Can_Hook ) {
-            $hook->with_cache( $this->cached || $this->preload );
-        }
+    private function add_hook( HandlerDefinition|CallbackDefinition $hook ): HandlerDefinition|CallbackDefinition {
         $token = $hook->get_token();
         $param = $token . '[params]';
 
@@ -512,13 +487,10 @@ class Parser {
      *
      * Check if the hook ID exists.
      *
-     * @template TRfl of Reflector
-     * @template TObj of object
-     *
-     * @param  Can_Hook<TObj,TRfl>|HandlerDefinition|CallbackDefinition $hook Hook instance.
-     * @return Can_Hook<TObj,TRfl>|HandlerDefinition|CallbackDefinition
+     * @param  HandlerDefinition|CallbackDefinition $hook Hook instance.
+     * @return HandlerDefinition|CallbackDefinition
      */
-    private function set_id( Can_Hook|HandlerDefinition|CallbackDefinition $hook ): Can_Hook|HandlerDefinition|CallbackDefinition {
+    private function set_id( HandlerDefinition|CallbackDefinition $hook ): HandlerDefinition|CallbackDefinition {
         $this->ids[ $hook->get_token() ] = true;
 
         return $hook;
@@ -527,14 +499,12 @@ class Parser {
     /**
      * Check if the hook ID exists.
      *
-     * @template TRfl of Reflector
-     * @template TObj of object
-     * @param  Can_Hook<TObj,TRfl>|HandlerDefinition|CallbackDefinition $hook Hook instance.
+     * @param  HandlerDefinition|CallbackDefinition $hook Hook instance.
      * @return static
      *
      * @throws \DI\DependencyException If a circular dependency is detected.
      */
-    private function check_id( Can_Hook|HandlerDefinition|CallbackDefinition $hook ): static {
+    private function check_id( HandlerDefinition|CallbackDefinition $hook ): static {
         if ( isset( $this->ids[ $hook->get_token() ] ) ) {
             throw new \DI\DependencyException( 'Circular dependency detected.' );
         }

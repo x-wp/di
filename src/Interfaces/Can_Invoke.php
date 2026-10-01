@@ -9,7 +9,7 @@
 namespace XWP\DI\Interfaces;
 
 /**
- * Defines decorators that can invoke WordPress hooks.
+ * Defines the legacy mutable callback runtime contract.
  *
  * @template TInst of object
  * @template THndl of Can_Handle<TInst>

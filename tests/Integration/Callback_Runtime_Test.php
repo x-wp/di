@@ -12,12 +12,14 @@ use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Filter;
 use XWP\DI\Decorators\Handler;
 use XWP\DI\Definition\CallbackDefinition;
+use XWP\DI\Definition\HandlerDefinition;
+use XWP\DI\Hook\Handler as Handler_Runtime;
 use XWP\DI\Hook\Callback;
 
 final class Callback_Runtime_Test extends TestCase {
     private Container $container;
     private Callback_Runtime_Target $target;
-    private Handler $handler;
+    private Handler_Runtime $handler;
     private int $original_context;
     private \ReflectionProperty $context;
 
@@ -57,10 +59,10 @@ final class Callback_Runtime_Test extends TestCase {
     }
 
     /** @dataProvider hook_types */
-    public function test_typed_view_forwards_live_state_invocation_and_removal( string $type, string $method ): void {
+    public function test_injected_runtime_owns_live_state_invocation_and_removal( string $type, string $method ): void {
         $callback = $this->make_callback( $method, array( 'params' => array( '!self.hook' ), 'priority' => 19 ), $type );
         $this->container->set( $callback->get_token(), $callback );
-        $this->target->observe = static function ( Filter $view ) use ( $callback ): void {
+        $this->target->observe = static function ( Callback $view ) use ( $callback ): void {
             self::assertTrue( $view->firing );
             self::assertSame( $callback->fired, $view->fired );
             self::assertSame( array( $callback, 'invoke' ), $view->target );
@@ -73,8 +75,8 @@ final class Callback_Runtime_Test extends TestCase {
         $expected = Action::class === $type ? null : 'a:changed';
         self::assertSame( $expected, $callback->invoke( 'a' ) );
         $view = $this->target->views[0];
-        self::assertSame( $type, $view::class );
-        self::assertNotSame( $callback, $view );
+        self::assertSame( Callback::class, $view::class );
+        self::assertSame( $callback, $view );
         self::assertSame( $callback, $this->container->get( $view->get_token() ) );
         self::assertSame( $this->handler, $view->get_handler() );
         self::assertSame( $this->container, $view->get_container() );
@@ -90,8 +92,8 @@ final class Callback_Runtime_Test extends TestCase {
         self::assertFalse( $view->firing );
         self::assertTrue( $view->is_loaded() );
         self::assertTrue( $view->load() );
-        self::assertFalse( remove_filter( $view->tag, array( $view, 'invoke' ), 19 ) );
-        self::assertTrue( remove_filter( $view->tag, $view->target, 19 ) );
+        self::assertTrue( remove_filter( $view->tag, array( $view, 'invoke' ), 19 ) );
+        self::assertFalse( has_filter( $view->tag, $view->target ) );
         self::assertTrue( $view->load() );
         self::assertFalse( has_filter( $view->tag, $view->target ) );
         self::assertSame( $expected, $view->invoke( 'a' ) );
@@ -104,25 +106,25 @@ final class Callback_Runtime_Test extends TestCase {
         return array( 'filter' => array( Filter::class, 'filter_view' ), 'action' => array( Action::class, 'action_view' ) );
     }
 
-    public function test_typed_view_retains_declaration_properties(): void {
+    public function test_injected_runtime_exposes_its_definition(): void {
         $callback = $this->make_callback( 'filter_view', array(
             'params' => array( '!self.hook' ), 'priority' => 23, 'conditional' => '__return_true',
         ) );
         self::assertSame( 'a:changed', $callback->invoke( 'a' ) );
         $view = $this->target->views[0];
-        self::assertSame( array( '!self.hook' ), $view->params );
-        self::assertSame( 23, $view->prio );
-        self::assertSame( '__return_true', $view->conditional );
+        self::assertSame( array( '!self.hook' ), $view->get_definition()->get_params() );
+        self::assertSame( 23, $view->get_definition()->get_priority() );
+        self::assertSame( '__return_true', $view->get_definition()->get_conditional() );
         self::assertSame( 1, $view->fired );
         self::assertFalse( $view->firing );
     }
 
-    public function test_legacy_proxy_attaches_before_its_condition_becomes_true(): void {
+    public function test_proxy_attaches_before_its_condition_becomes_true(): void {
         $allowed = false;
-        $callback = ( new Filter(
-            'xwp_legacy_condition', args: 2, invoke: Filter::INV_PROXIED,
-            conditional: static function () use ( &$allowed ): bool { return $allowed; },
-        ) )->with_handler( $this->handler )->with_method( 'pair' );
+        $callback = $this->make_callback( 'pair', array(
+            'tag' => 'xwp_legacy_condition', 'args' => 2, 'invoke' => Filter::INV_PROXIED,
+            'conditional' => static function () use ( &$allowed ): bool { return $allowed; },
+        ) );
         self::assertTrue( $callback->load() );
         self::assertSame( 'a', apply_filters( 'xwp_legacy_condition', 'a', 'b' ) );
         $allowed = true;
@@ -135,21 +137,20 @@ final class Callback_Runtime_Test extends TestCase {
         $infuse = new \XWP\DI\Decorators\Infuse( '!self.handler', 'review.service', '!self.handler' );
         $received = $this->container->call(
             static fn( $first, $second, $third ) => array( $first, $second, $third ),
-            $infuse->resolve( $this->handler ),
+            array_map( '\DI\get', $infuse->get_tokens( $this->handler->get_token() ) ),
         );
         self::assertSame( array( $this->handler, 'service-value', $this->handler ), $received );
     }
 
-    public function test_plain_view_normalizes_null_priority_metadata(): void {
-        $data = ( new Filter( 'xwp_runtime', params: array( '!self.hook' ), invoke: Filter::INV_PROXIED ) )
-            ->with_classname( Callback_Runtime_Target::class )->with_method( 'filter_view' )->get_data();
+    public function test_runtime_normalizes_null_priority_metadata(): void {
+        $data = $this->make_callback( 'filter_view', array( 'params' => array( '!self.hook' ) ) )->get_definition()->get_data();
         $data['args']['priority'] = null;
         $callback = new Callback( CallbackDefinition::from_data( $data ), $this->container );
         self::assertSame( 'a:changed', $callback->invoke( 'a' ) );
         self::assertSame( 10, $this->target->views[0]->get_priority() );
     }
 
-    public function test_repeated_definitions_keep_independent_views_and_counters(): void {
+    public function test_repeated_definitions_keep_independent_runtimes_and_counters(): void {
         $first = $this->make_callback( 'filter_view', array( 'params' => array( '!self.hook' ) ) );
         $second = $this->make_callback( 'filter_view', array( 'tag' => 'xwp_runtime_second', 'params' => array( '!self.hook' ) ) );
         $first->invoke( 'first' );
@@ -201,7 +202,7 @@ final class Callback_Runtime_Test extends TestCase {
         $attempts = 0;
         $allowed = false;
         $tag = $this->handler->get_lazy_tag();
-        add_action( $tag, function ( Handler $handler ) use ( &$attempts, &$allowed ): void {
+        add_action( $tag, function ( Handler_Runtime $handler ) use ( &$attempts, &$allowed ): void {
             ++$attempts;
             if ( $allowed ) {
                 $handler->with_target( $this->target );
@@ -262,7 +263,7 @@ final class Callback_Runtime_Test extends TestCase {
             'invoke' => Filter::INV_PROXIED | Filter::INV_LOOPED,
             'params' => array( '!self.hook' ),
         ) );
-        $this->target->observe = static function ( Filter $view ): void {
+        $this->target->observe = static function ( Callback $view ): void {
             self::assertTrue( $view->firing );
             self::assertSame( 'nested', $view->invoke( 'nested' ) );
             self::assertTrue( $view->firing );
@@ -321,7 +322,7 @@ final class Callback_Runtime_Test extends TestCase {
         self::assertSame( 'input', $callback->invoke( 'input' ) );
         $args = $this->target->arguments;
         self::assertSame( $this->handler, $args[0] );
-        self::assertSame( Filter::class, $args[1]::class );
+        self::assertSame( $callback, $args[1] );
         self::assertSame( array( 'literal', 'global', PHP_INT_MAX, $service, 'unknown-token' ), array_slice( $args, 2 ) );
         $GLOBALS['xwp_runtime_value'] = 'changed';
         $callback->invoke( 'input' );
@@ -351,8 +352,7 @@ final class Callback_Runtime_Test extends TestCase {
 
     /** @dataProvider priorities */
     public function test_priority_forms_remain_runtime_values( mixed $priority, int $expected ): void {
-        $data = ( new Filter( 'xwp_runtime' ) )->with_classname( Callback_Runtime_Target::class )
-            ->with_method( 'run' )->get_data();
+        $data = $this->make_callback( 'run' )->get_definition()->get_data();
         $data['args']['priority'] = $priority;
         $callback = new Callback( CallbackDefinition::from_data( $data ), $this->container );
         self::assertSame( $expected, $callback->get_priority() );
@@ -404,9 +404,7 @@ final class Callback_Runtime_Test extends TestCase {
     }
 
     private function set_handler( string $strategy, bool $loaded ): void {
-        $this->handler = ( new Handler( strategy: $strategy ) )
-            ->with_classname( Callback_Runtime_Target::class )
-            ->with_container( $this->container );
+        $this->handler = new Handler_Runtime( new HandlerDefinition( Callback_Runtime_Target::class, strategy: $strategy ), $this->container );
         if ( $loaded ) {
             $this->handler->with_target( $this->target );
         }
@@ -414,12 +412,12 @@ final class Callback_Runtime_Test extends TestCase {
     }
 
     private function make_callback( string $method, array $args = array(), string $type = Filter::class ): Callback {
-        $decorator = ( new $type( ...array_replace(
-            array( 'tag' => 'xwp_runtime', 'invoke' => Filter::INV_PROXIED, 'args' => 1 ),
-            $args,
-        ) ) )->with_classname( Callback_Runtime_Target::class )->with_method( $method );
-
-        return new Callback( CallbackDefinition::from_data( $decorator->get_data() ), $this->container );
+        $data = array(
+            'type' => $type,
+            'args' => ( new $type( ...array_replace( array( 'tag' => 'xwp_runtime', 'invoke' => Filter::INV_PROXIED, 'args' => 1 ), $args ) ) )->get_declaration(),
+            'params' => array( 'classname' => Callback_Runtime_Target::class, 'method' => $method ),
+        );
+        return new Callback( CallbackDefinition::from_data( $data ), $this->container );
     }
 }
 
@@ -440,7 +438,7 @@ final class Callback_Runtime_Target {
         return $value . ':changed';
     }
 
-    public function filter_view( string $value, Filter $view ): string {
+    public function filter_view( string $value, Callback $view ): string {
         $this->views[] = $view;
         if ( $this->observe ) {
             ( $this->observe )( $view );
@@ -448,7 +446,7 @@ final class Callback_Runtime_Target {
         return $value . ':changed';
     }
 
-    public function action_view( string $value, Action $view ): string {
+    public function action_view( string $value, Callback $view ): string {
         return $this->filter_view( $value, $view );
     }
 

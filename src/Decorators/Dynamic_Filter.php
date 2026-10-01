@@ -9,24 +9,23 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use ReflectionMethod;
-use Reflector;
+use XWP\DI\Interfaces\Can_Handle;
 
 /**
  * Dynamic filter decorator
  *
  * @template T of object
- * @template H of Ajax_Handler<T>
+ * @template H of Can_Handle<T>
  * @extends Filter<T,H>
  */
 #[\Attribute( \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE )]
 class Dynamic_Filter extends Filter {
     /**
-     * Legacy custom-subclass and typed-view compatibility.
+     * Declared raw vars.
      *
-     * @use \XWP\DI\Compatibility\Dynamic_Filter_Methods<T,H>
+     * @var string|array<string>|Closure():array<string>
      */
-    use \XWP\DI\Compatibility\Dynamic_Filter_Methods;
+    protected Closure|string|array $raw_vars;
 
     /**
      * Constructor.

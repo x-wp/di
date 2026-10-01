@@ -10,6 +10,7 @@ namespace Example\WC\Handlers;
 use WC_Product;
 use XWP\DI\Decorators\Action;
 use XWP\DI\Decorators\Handler;
+use XWP\DI\Hook\Callback;
 
 /**
  * Product page handler.
@@ -41,16 +42,16 @@ class Product_Page_Handler {
      * One function can be used for multiple hooks.
      * This also demonstrates special injection tokens.
      * These are:
-     *  - !self.hook        - Hook decorator
+     *  - !self.hook        - Callback runtime
      *  - !self.handler     - Can_Handle runtime
      *  - !value:$VALUE     - Any value
      *  - !global:$VARIABLE - Any global variable
      *  - !const:$CONSTANT  - Any constant
      *
-     * We're injecting the hook decorator itself in order to demonstrate the use of the `!self.hook` token.
+     * We're injecting the callback runtime itself in order to demonstrate the use of the `!self.hook` token.
      *
      * @param  WC_Product $product Product object.
-     * @param  Action     $hook    Action object.
+     * @param  Callback   $hook    Registered callback runtime.
      */
     #[Action(
         tag: 'woocommerce_single_product_summary',
@@ -66,7 +67,7 @@ class Product_Page_Handler {
         args: 0,
         params: array( '!global:product', '!self.hook' ),
     )]
-    public function show_notice( WC_Product $product, Action $hook ): void {
+    public function show_notice( WC_Product $product, Callback $hook ): void {
         $text = 'woocommerce_before_add_to_cart' === $hook->tag
             ? 'Before Add to Cart'
             : 'Single Product Summary';

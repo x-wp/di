@@ -8,21 +8,14 @@
 
 namespace XWP\DI\Decorators;
 
-use XWP\DI\Interfaces\Can_Handle_REST;
-
 /**
  * Decorator for grouping ajax actions.
  *
- * @property-read string $rest_hook REST hook.
- * @property-read string $namespace REST namespace.
- * @property-read string $basename REST basename.
- *
  * @template T of \XWP_REST_Controller
  * @extends Handler<T>
- * @implements Can_Handle_REST<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class REST_Handler extends Handler implements Can_Handle_REST {
+class REST_Handler extends Handler {
     /**
      * Constructor
      *
@@ -30,6 +23,8 @@ class REST_Handler extends Handler implements Can_Handle_REST {
      * @param string $basename  REST basename.
      * @param int    $priority  Handler priority.
      * @param mixed  ...$args   Additional arguments.
+     *
+     * @phpstan-ignore constructor.unusedParameter (Preserve deprecated constructor arguments.)
      */
     public function __construct(
         protected string $namespace,
@@ -37,12 +32,7 @@ class REST_Handler extends Handler implements Can_Handle_REST {
         int $priority = 10,
         mixed ...$args,
     ) {
-        parent::__construct(
-            tag: 'rest_api_init',
-            priority: $priority,
-            context: self::CTX_REST,
-            container: $args['container'] ?? null,
-        );
+        parent::__construct( tag: 'rest_api_init', priority: $priority, context: self::CTX_REST );
     }
 
     /**
@@ -69,33 +59,5 @@ class REST_Handler extends Handler implements Can_Handle_REST {
 
     public function get_rest_hook(): string {
         return $this->namespace . '/' . $this->basename;
-    }
-
-    /**
-     * Can the handler be loaded?
-     *
-     * Checks if the REST namespace matches the requested route.
-     *
-     * @internal Runtime dispatch detail.
-     *
-     * @return bool
-     */
-    public function can_load(): bool {
-        return parent::can_load() && \xwp_can_load_rest_ns( $this->namespace );
-    }
-
-    /**
-     * Initialize the handler.
-     *
-     * Sets the namespace and basename.
-     *
-     * @internal Runtime dispatch detail.
-     *
-     * @return T
-     */
-    protected function instantiate(): object {
-        return parent::instantiate()
-            ->with_namespace( $this->namespace )
-            ->with_basename( $this->basename );
     }
 }

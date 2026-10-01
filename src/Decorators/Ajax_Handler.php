@@ -9,17 +9,15 @@
 namespace XWP\DI\Decorators;
 
 use Closure;
-use XWP\DI\Interfaces\Can_Handle_Ajax;
 
 /**
  * Decorator for grouping ajax actions.
  *
  * @template T of object
  * @extends Handler<T>
- * @implements Can_Handle_Ajax<T>
  */
 #[\Attribute( \Attribute::TARGET_CLASS )]
-class Ajax_Handler extends Handler implements Can_Handle_Ajax {
+class Ajax_Handler extends Handler {
     /**
      * Constructor
      *
