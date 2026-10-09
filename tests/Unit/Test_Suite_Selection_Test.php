@@ -15,6 +15,8 @@ final class Test_Suite_Selection_Test extends TestCase {
             array( array( 'phpunit', '--testsuite=unit', '--filter=integration' ), 'unit' ),
             array( array( 'phpunit', '--testsuite', 'integration' ), 'integration' ),
             array( array( 'phpunit', '--testsuite=integration' ), 'integration' ),
+            array( array( 'phpunit', '--testsuite=e2e' ), 'e2e' ),
+            array( array( 'phpunit', dirname( __DIR__ ) . '/E2E/Coexistence_Test.php' ), 'e2e' ),
             array( array( 'phpunit', dirname( __DIR__ ) . '/Integration/Specialized_Callback_Test.php' ), 'integration' ),
             array( array( 'phpunit', '--filter', 'Integration', dirname( __DIR__ ) . '/Unit/App_Test.php' ), 'unit' ),
         );
@@ -24,5 +26,10 @@ final class Test_Suite_Selection_Test extends TestCase {
         $this->expectException( \InvalidArgumentException::class );
         $this->expectExceptionMessage( 'composer test' );
         xwp_di_test_suite( array( 'phpunit', '--testsuite=unit,integration' ) );
+    }
+
+    public function test_e2e_cannot_share_the_integration_bootstrap(): void {
+        $this->expectException( \InvalidArgumentException::class );
+        xwp_di_test_suite( array( 'phpunit', '--testsuite=e2e,integration' ) );
     }
 }

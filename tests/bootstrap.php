@@ -13,13 +13,18 @@ require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 require_once __DIR__ . '/bootstrap-suite.php';
 
 try {
-    $is_integration = 'integration' === xwp_di_test_suite( $_SERVER['argv'] ?? array() );
+    $suite = xwp_di_test_suite( $_SERVER['argv'] ?? array() );
 } catch ( \InvalidArgumentException $error ) {
     fwrite( STDERR, $error->getMessage() . "\n" );
     exit( 1 );
 }
 
-if ( ! $is_integration ) {
+// The e2e controller uses PHPUnit only; clean subprocesses load the plugin vendors.
+if ( 'e2e' === $suite ) {
+    return;
+}
+
+if ( 'integration' !== $suite ) {
     \Brain\Monkey\setUp();
     return;
 }

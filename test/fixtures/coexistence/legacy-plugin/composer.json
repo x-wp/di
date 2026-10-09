@@ -1,0 +1,27 @@
+{
+  "name": "x-wp/di-e2e-legacy-plugin",
+  "description": "Isolated legacy dependency fixture for WordPress coexistence tests",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-only",
+  "require": {
+    "php": ">=8.1 <8.5",
+    "automattic/jetpack-autoloader": "5.0.1",
+    "x-wp/di": "1.10.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "XWP\\DI\\E2E\\Legacy\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "automattic/jetpack-autoloader": true
+    },
+    "classmap-authoritative": true,
+    "optimize-autoloader": true,
+    "platform": {
+      "php": "8.1.0"
+    },
+    "sort-packages": true
+  }
+}

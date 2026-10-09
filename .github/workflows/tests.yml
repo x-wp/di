@@ -70,6 +70,20 @@ jobs:
       - if: matrix.php == '8.3' && matrix.database == 'sqlite'
         run: composer test:coverage
 
+      - if: matrix.database == 'sqlite'
+        run: composer test:e2e:install
+
+      - if: matrix.database == 'sqlite'
+        run: composer test:e2e -- --log-junit build/logs/e2e.xml
+
+      - if: always() && matrix.database == 'sqlite'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coexistence-php-${{ matrix.php }}
+          path: |
+            build/e2e
+            build/logs/e2e.xml
+
       - if: matrix.php == '8.3' && matrix.database == 'sqlite'
         uses: actions/upload-artifact@v4
         with:

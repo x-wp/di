@@ -94,6 +94,9 @@
     "test:install": "@php tests/bin/install-tests.php",
     "test:unit": "phpunit --testsuite=unit",
     "test:integration": "phpunit --testsuite=integration",
+    "test:e2e:install": "@php tests/bin/install-coexistence.php",
+    "test:e2e": "phpunit --testsuite=e2e",
+    "test:e2e:strict": "phpunit --testsuite=e2e --fail-on-incomplete",
     "test": [
       "@test:unit",
       "@test:integration"

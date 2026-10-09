@@ -15,20 +15,22 @@ function xwp_di_test_suite( array $args ): string {
     $arguments = ( new \PHPUnit\TextUI\CliArguments\Builder() )->fromParameters( $args, array() );
     if ( $arguments->hasTestSuite() ) {
         $suites = array_map( 'trim', explode( ',', $arguments->testSuite() ) );
-        if ( in_array( 'integration', $suites, true ) ) {
+        if ( array_intersect( array( 'integration', 'e2e' ), $suites ) ) {
             if ( count( $suites ) > 1 ) {
                 throw new \InvalidArgumentException( 'Run suites in separate processes with composer test or composer test:coverage.' );
             }
-            return 'integration';
+            return $suites[0];
         }
         return 'unit';
     }
 
     if ( $arguments->hasArgument() ) {
         $path = realpath( $arguments->argument() );
-        $integration = realpath( __DIR__ . '/Integration' );
-        if ( $path && ( $path === $integration || str_starts_with( $path, $integration . DIRECTORY_SEPARATOR ) ) ) {
-            return 'integration';
+        foreach ( array( 'integration' => 'Integration', 'e2e' => 'E2E' ) as $suite => $directory ) {
+            $root = realpath( __DIR__ . '/' . $directory );
+            if ( $path && $root && ( $path === $root || str_starts_with( $path, $root . DIRECTORY_SEPARATOR ) ) ) {
+                return $suite;
+            }
         }
     }
 

@@ -163,6 +163,16 @@ composer test:coverage       # separate reports in build/coverage/{unit,integrat
 
 Bare `vendor/bin/phpunit` runs the unit suite. Use `--testsuite integration` or an explicit file under `tests/Integration/` to bootstrap WordPress. Run both suites with `composer test` so each gets its own process. Coverage requires Xdebug or PCOV.
 
+The separate [v1/v2 coexistence e2e suite](docs/coexistence-e2e.md) boots real plugins with independently locked Jetpack autoloaders, tests both load orders and cold/warm discovery, and records legacy incompatibilities:
+
+```bash
+composer test:e2e:install     # install the two plugin dependency trees after test:install
+composer test:e2e             # diagnostic run; known incompatibilities are incomplete
+composer test:e2e:strict      # nonzero exit while any incompatibility remains
+```
+
+Reports are written to `build/e2e/`. These tests are separate from `composer test` and run in the SQLite CI matrix. A successful diagnostic command does **not** mean every v1 contract is compatible; see its incomplete results and reconciliation issues.
+
 SQLite uses a disposable file under `tests/tmp/database/`, shared by the WordPress install subprocess and PHPUnit. The test bootstrap rebuilds WordPress's tables on each run. Rerun `composer test:install` to remove the SQLite database and its journal files entirely. Run only one integration suite at a time per database directory.
 
 ### Optional MySQL testing
